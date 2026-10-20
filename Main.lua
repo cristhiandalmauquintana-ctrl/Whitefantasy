@@ -1,6 +1,6 @@
 --// main.lua: carga esp.lua desde GitHub y muestra un panel para activarlo/desactivarlo
 --// CAMBIA estos dos valores por los de tu repositorio:
-local GITHUB_USER = "cristhiandalmauquintana"
+local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local ESP_URL = ("https://raw.githubusercontent.com/%s/%s/main/esp.lua"):format(GITHUB_USER, GITHUB_REPO)
 
