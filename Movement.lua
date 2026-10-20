@@ -14,8 +14,9 @@ end
 local Config = {
     -- Speed
     SpeedEnabled = false,
-    Speed = 30,            -- studs/s EXTRA sobre el WalkSpeed normal
-    MaxSpeed = 120,        -- tope absoluto de velocidad horizontal
+    Speed = 60,            -- studs/s EXTRA sobre el WalkSpeed normal
+    MaxSpeed = 250,        -- tope absoluto de velocidad horizontal
+    Boost = 0.5,           -- empuje extra por CFrame (0 = apagado)
 
     -- Super jump
     JumpEnabled = false,
@@ -23,10 +24,10 @@ local Config = {
 
     -- Dash
     DashEnabled = false,
-    DashMultiplier = 2,    -- multiplica la fuerza del dash (máx. 4)
+    DashMultiplier = 2,    -- multiplica la fuerza del dash (máx. 8)
     DashKey = Enum.KeyCode.V,
-    DashBaseSpeed = 60,    -- velocidad base del impulso
-    DashTime = 0.18,       -- duración del impulso (seg)
+    DashBaseSpeed = 120,   -- velocidad base del impulso
+    DashTime = 0.25,       -- duración del impulso (seg)
     DashCooldown = 0.6,
 }
 env.BF_MOVE_CONFIG = Config
@@ -175,7 +176,7 @@ local function step(dt)
     local newHorizontal = nil
 
     if now < dashUntil then
-        local mult = math.clamp(Config.DashMultiplier, 1, 4)
+        local mult = math.clamp(Config.DashMultiplier, 1, 8)
         if penalized then mult = math.min(mult, 1.5) end
         newHorizontal = dashDir * (Config.DashBaseSpeed * mult)
     elseif currentExtra > 0.5 and dir.Magnitude > 0.1 then
@@ -185,8 +186,15 @@ local function step(dt)
 
     if newHorizontal then
         root.AssemblyLinearVelocity = Vector3.new(newHorizontal.X, vel.Y, newHorizontal.Z)
+
+        -- empuje extra directo (el juego lo frena menos); se reduce si te regresaron
+        local boost = penalized and 0 or Config.Boost
+        if boost > 0 then
+            root.CFrame = root.CFrame + Vector3.new(newHorizontal.X, 0, newHorizontal.Z) * dt * boost
+        end
+
         lastDir = newHorizontal.Unit
-        lastStepDist = newHorizontal.Magnitude * dt
+        lastStepDist = newHorizontal.Magnitude * dt * (1 + Config.Boost)
     else
         lastDir = dir
         lastStepDist = hum.WalkSpeed * dt
