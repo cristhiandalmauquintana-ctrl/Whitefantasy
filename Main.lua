@@ -390,6 +390,82 @@ local function soon(text)
     Instance.new("UICorner", tag).CornerRadius = UDim.new(0, 6)
 end
 
+local PALETTE = {
+    Color3.fromRGB(255, 60, 60),   -- rojo
+    Color3.fromRGB(255, 150, 50),  -- naranja
+    Color3.fromRGB(255, 225, 60),  -- amarillo
+    Color3.fromRGB(80, 220, 100),  -- verde
+    Color3.fromRGB(70, 200, 255),  -- cian
+    Color3.fromRGB(90, 120, 255),  -- azul
+    Color3.fromRGB(190, 90, 255),  -- morado
+    Color3.fromRGB(255, 255, 255), -- blanco
+}
+
+local function colorRow(text, key)
+    local row = Instance.new("Frame")
+    row.LayoutOrder = nextOrder()
+    row.Size = UDim2.new(1, 0, 0, 66)
+    row.BackgroundColor3 = C.Row
+    row.BorderSizePixel = 0
+    row.Parent = body
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.fromOffset(12, 6)
+    label.Size = UDim2.new(1, -24, 0, 18)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextColor3 = C.Text
+    label.Text = text
+    label.Parent = row
+
+    local holder = Instance.new("Frame")
+    holder.BackgroundTransparency = 1
+    holder.Position = UDim2.fromOffset(12, 32)
+    holder.Size = UDim2.new(1, -24, 0, 26)
+    holder.Parent = row
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.Padding = UDim.new(0, 6)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = holder
+
+    local swatches = {}
+    local function refresh()
+        for _, item in ipairs(swatches) do
+            item.stroke.Enabled = (Config[key] == item.color)
+        end
+    end
+
+    for i, color in ipairs(PALETTE) do
+        local b = Instance.new("TextButton")
+        b.LayoutOrder = i
+        b.Size = UDim2.fromOffset(26, 26)
+        b.BackgroundColor3 = color
+        b.BorderSizePixel = 0
+        b.Text = ""
+        b.AutoButtonColor = true
+        b.Parent = holder
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 2
+        stroke.Color = Color3.fromRGB(255, 255, 255)
+        stroke.Enabled = false
+        stroke.Parent = b
+
+        table.insert(swatches, { stroke = stroke, color = color })
+        b.Activated:Connect(function()
+            Config[key] = color
+            refresh()
+        end)
+    end
+    refresh()
+end
+
 --// Contenido
 section("ESP")
 toggle("ESP",
@@ -400,10 +476,23 @@ toggle("Mostrar compañeros",
     function(v) Config.ShowTeammates = v end)
 
 section("Visual")
-soon("Cajas 2D")
-soon("Tracers")
-soon("Barra de vida")
-soon("Colores personalizados")
+toggle("Cajas 2D",
+    function() return Config.Boxes end,
+    function(v) Config.Boxes = v end)
+toggle("Tracers",
+    function() return Config.Tracers end,
+    function(v) Config.Tracers = v end)
+toggle("Barra de vida",
+    function() return Config.HealthBar end,
+    function(v) Config.HealthBar = v end)
+toggle("Texto según vida",
+    function() return Config.ColorByHealth end,
+    function(v) Config.ColorByHealth = v end)
+
+section("Colores")
+colorRow("Cajas", "BoxColor")
+colorRow("Tracers", "TracerColor")
+colorRow("Texto (sin vida)", "TextColor")
 
 section("Movimiento")
 soon("Speed")
