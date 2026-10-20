@@ -3,8 +3,9 @@
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
-local ESP_FILES = { "Esp.lua", "esp.lua" }    -- prueba ambos nombres (GitHub distingue mayúsculas)
-local LOGO_FILES = { "logo.png", "Logo.png" } -- logo del repositorio
+local ESP_FILES = { "Esp.lua", "esp.lua" }              -- prueba ambos nombres (GitHub distingue mayúsculas)
+local MOVE_FILES = { "Movement.lua", "movement.lua" }   -- speed / super jump / dash
+local LOGO_FILES = { "logo.png", "Logo.png" }           -- logo del repositorio
 local HUB_NAME = "Froggy Hub"
 
 local BASE_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
@@ -57,6 +58,7 @@ local function cleanup()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
     if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
+    if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
     gui:Destroy()
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -156,9 +158,9 @@ local function fetchLogo()
     return nil
 end
 
---// Descargar el ESP
-local function downloadEsp()
-    for _, name in ipairs(ESP_FILES) do
+--// Descargar un módulo (prueba cada nombre de la lista)
+local function downloadModule(names)
+    for _, name in ipairs(names) do
         local ok, res = pcall(function()
             return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true)
         end)
@@ -188,21 +190,21 @@ if logoAsset then
     sway:Play()
 end
 
-setProgress(0.35, "Descargando módulos...")
-local source = downloadEsp()
+setProgress(0.3, "Descargando ESP...")
+local source = downloadModule(ESP_FILES)
 if not source then
     fail("No se pudo descargar Esp.lua del repositorio.")
     return
 end
 
-setProgress(0.6, "Preparando...")
+setProgress(0.45, "Preparando ESP...")
 local chunk, compileErr = loadstring(source)
 if type(chunk) ~= "function" then
     fail("Error de sintaxis en Esp.lua: " .. tostring(compileErr))
     return
 end
 
-setProgress(0.8, "Iniciando ESP...")
+setProgress(0.55, "Iniciando ESP...")
 local okRun, runErr = pcall(chunk)
 if not okRun then
     fail("Error al iniciar el ESP: " .. tostring(runErr))
@@ -213,6 +215,26 @@ local Config = env.BF_ESP_CONFIG
 if type(Config) ~= "table" then
     fail("No se encontró la configuración del ESP.")
     return
+end
+
+--// Movimiento: si falla, el panel igual abre (solo sin esa sección)
+setProgress(0.7, "Descargando movimiento...")
+local MoveConfig = nil
+local moveSource = downloadModule(MOVE_FILES)
+if moveSource then
+    local moveChunk, moveErr = loadstring(moveSource)
+    if type(moveChunk) == "function" then
+        local okMove, moveRunErr = pcall(moveChunk)
+        if okMove then
+            MoveConfig = env.BF_MOVE_CONFIG
+        else
+            warn("Froggy Hub: error al iniciar Movement.lua: " .. tostring(moveRunErr))
+        end
+    else
+        warn("Froggy Hub: error de sintaxis en Movement.lua: " .. tostring(moveErr))
+    end
+else
+    warn("Froggy Hub: no se pudo descargar Movement.lua")
 end
 
 setProgress(1, "Listo")
@@ -357,6 +379,71 @@ local function toggle(text, getValue, setValue)
     table.insert(refreshers, refresh)
 end
 
+--// Selector numérico con botones - / + (cómodo en móvil)
+local function stepper(text, getValue, setValue, minV, maxV, stepV)
+    local row = Instance.new("Frame")
+    row.LayoutOrder = nextOrder()
+    row.Size = UDim2.new(1, 0, 0, 36)
+    row.BackgroundColor3 = C.Row
+    row.BorderSizePixel = 0
+    row.Parent = body
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.fromOffset(12, 0)
+    label.Size = UDim2.new(1, -150, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextColor3 = C.Text
+    label.Text = text
+    label.Parent = row
+
+    local value = Instance.new("TextLabel")
+    value.BackgroundTransparency = 1
+    value.Position = UDim2.new(1, -92, 0, 0)
+    value.Size = UDim2.fromOffset(40, 36)
+    value.Font = Enum.Font.GothamBold
+    value.TextSize = 13
+    value.TextColor3 = C.Accent
+    value.Parent = row
+
+    local function refresh()
+        value.Text = tostring(getValue())
+    end
+
+    local function makeBtn(txt, xOffset, delta)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.fromOffset(28, 26)
+        b.Position = UDim2.new(1, xOffset, 0.5, -13)
+        b.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
+        b.BorderSizePixel = 0
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 16
+        b.TextColor3 = C.Text
+        b.Text = txt
+        b.AutoButtonColor = true
+        b.Parent = row
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        b.Activated:Connect(function()
+            local v = math.clamp(getValue() + delta, minV, maxV)
+            -- evita errores de decimales (0.1 + 0.2, etc.)
+            setValue(math.floor(v * 100 + 0.5) / 100)
+            refresh()
+        end)
+    end
+
+    makeBtn("-", -122, -stepV)
+    makeBtn("+", -44, stepV)
+    -- el valor queda entre los dos botones
+    value.Position = UDim2.new(1, -92, 0, 0)
+    value.Size = UDim2.fromOffset(48, 36)
+    value.TextXAlignment = Enum.TextXAlignment.Center
+    refresh()
+    table.insert(refreshers, refresh)
+end
+
 local function soon(text)
     local row = Instance.new("Frame")
     row.LayoutOrder = nextOrder()
@@ -495,7 +582,35 @@ colorRow("Tracers", "TracerColor")
 colorRow("Texto (sin vida)", "TextColor")
 
 section("Movimiento")
-soon("Speed")
+if MoveConfig then
+    toggle("Speed",
+        function() return MoveConfig.SpeedEnabled end,
+        function(v) MoveConfig.SpeedEnabled = v end)
+    stepper("  Velocidad extra",
+        function() return MoveConfig.Speed end,
+        function(v) MoveConfig.Speed = v end,
+        5, 100, 5)
+
+    toggle("Super Jump",
+        function() return MoveConfig.JumpEnabled end,
+        function(v) MoveConfig.JumpEnabled = v end)
+    stepper("  Fuerza de salto",
+        function() return MoveConfig.JumpPower end,
+        function(v) MoveConfig.JumpPower = v end,
+        50, 300, 10)
+
+    toggle("Dash Multiplier",
+        function() return MoveConfig.DashEnabled end,
+        function(v) MoveConfig.DashEnabled = v end)
+    stepper("  Multiplicador",
+        function() return MoveConfig.DashMultiplier end,
+        function(v) MoveConfig.DashMultiplier = v end,
+        1, 4, 0.5)
+else
+    soon("Speed")
+    soon("Super Jump")
+    soon("Dash Multiplier")
+end
 soon("Fly")
 soon("Noclip")
 soon("Teleport")
@@ -509,12 +624,12 @@ soon("Guardar ajustes")
 local hint = Instance.new("TextLabel")
 hint.LayoutOrder = nextOrder()
 hint.BackgroundTransparency = 1
-hint.Size = UDim2.new(1, 0, 0, 30)
+hint.Size = UDim2.new(1, 0, 0, 44)
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 11
 hint.TextWrapped = true
 hint.TextColor3 = C.Dim
-hint.Text = "RightShift = ESP  |  Arrastra la barra superior para mover"
+hint.Text = "RightShift = ESP  |  V o botón DASH = dash  |  Arrastra la barra superior para mover"
 hint.Parent = body
 
 --// Minimizar
