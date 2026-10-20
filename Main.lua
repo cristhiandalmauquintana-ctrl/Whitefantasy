@@ -1,5 +1,12 @@
 --// Main.lua - Froggy Hub (loader + panel)
 
+do
+    local e = (getgenv and getgenv()) or _G
+    e.__BF_RUNS = (e.__BF_RUNS or 0) + 1
+    warn("Froggy Hub: ejecución #" .. e.__BF_RUNS)
+    warn(debug.traceback("Froggy Hub: quién me llamó:", 2))
+end
+
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -18,6 +25,7 @@ local LocalPlayer = Players.LocalPlayer
 
 --// Evitar paneles duplicados
 if env.__BF_PANEL_CLEANUP then
+    warn("Froggy Hub: había un panel anterior, se limpia")
     pcall(env.__BF_PANEL_CLEANUP)
 end
 
@@ -238,6 +246,7 @@ else
 end
 
 setProgress(1, "Listo")
+warn("Froggy Hub: módulos listos, construyendo panel")
 task.wait(0.5)
 
 --==================== PANEL PRINCIPAL ====================
@@ -751,9 +760,10 @@ for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
 local hide = TweenService:Create(loadScale,
     TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
 hide:Play()
-hide.Completed:Wait()
+task.wait(0.3)
 loading:Destroy()
 
 frame.Visible = true
+warn("Froggy Hub: panel visible")
 TweenService:Create(panelScale,
     TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
