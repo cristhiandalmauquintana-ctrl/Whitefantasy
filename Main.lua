@@ -379,11 +379,11 @@ local function toggle(text, getValue, setValue)
     table.insert(refreshers, refresh)
 end
 
---// Selector numérico con botones - / + (cómodo en móvil)
-local function stepper(text, getValue, setValue, minV, maxV, stepV)
+--// Barra deslizable (arrastra con el dedo o el ratón)
+local function slider(text, getValue, setValue, minV, maxV, stepV)
     local row = Instance.new("Frame")
     row.LayoutOrder = nextOrder()
-    row.Size = UDim2.new(1, 0, 0, 36)
+    row.Size = UDim2.new(1, 0, 0, 54)
     row.BackgroundColor3 = C.Row
     row.BorderSizePixel = 0
     row.Parent = body
@@ -391,8 +391,8 @@ local function stepper(text, getValue, setValue, minV, maxV, stepV)
 
     local label = Instance.new("TextLabel")
     label.BackgroundTransparency = 1
-    label.Position = UDim2.fromOffset(12, 0)
-    label.Size = UDim2.new(1, -150, 1, 0)
+    label.Position = UDim2.fromOffset(12, 4)
+    label.Size = UDim2.new(1, -84, 0, 20)
     label.Font = Enum.Font.Gotham
     label.TextSize = 13
     label.TextXAlignment = Enum.TextXAlignment.Left
@@ -400,46 +400,94 @@ local function stepper(text, getValue, setValue, minV, maxV, stepV)
     label.Text = text
     label.Parent = row
 
-    local value = Instance.new("TextLabel")
-    value.BackgroundTransparency = 1
-    value.Position = UDim2.new(1, -92, 0, 0)
-    value.Size = UDim2.fromOffset(40, 36)
-    value.Font = Enum.Font.GothamBold
-    value.TextSize = 13
-    value.TextColor3 = C.Accent
-    value.Parent = row
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Position = UDim2.new(1, -68, 0, 4)
+    valueLabel.Size = UDim2.fromOffset(56, 20)
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextSize = 13
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.TextColor3 = C.Accent
+    valueLabel.Parent = row
+
+    -- zona táctil (más alta que la barra para que sea fácil de agarrar)
+    local hit = Instance.new("Frame")
+    hit.BackgroundTransparency = 1
+    hit.Position = UDim2.fromOffset(12, 26)
+    hit.Size = UDim2.new(1, -24, 0, 24)
+    hit.Active = true
+    hit.Parent = row
+
+    local track = Instance.new("Frame")
+    track.AnchorPoint = Vector2.new(0, 0.5)
+    track.Position = UDim2.new(0, 0, 0.5, 0)
+    track.Size = UDim2.new(1, 0, 0, 6)
+    track.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
+    track.BorderSizePixel = 0
+    track.Parent = hit
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.fromScale(0, 1)
+    fill.BackgroundColor3 = C.Accent
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Size = UDim2.fromOffset(18, 18)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.BorderSizePixel = 0
+    knob.Parent = track
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
     local function refresh()
-        value.Text = tostring(getValue())
+        local v = getValue()
+        local rel = math.clamp((v - minV) / (maxV - minV), 0, 1)
+        fill.Size = UDim2.fromScale(rel, 1)
+        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        valueLabel.Text = tostring(v)
     end
 
-    local function makeBtn(txt, xOffset, delta)
-        local b = Instance.new("TextButton")
-        b.Size = UDim2.fromOffset(28, 26)
-        b.Position = UDim2.new(1, xOffset, 0.5, -13)
-        b.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
-        b.BorderSizePixel = 0
-        b.Font = Enum.Font.GothamBold
-        b.TextSize = 16
-        b.TextColor3 = C.Text
-        b.Text = txt
-        b.AutoButtonColor = true
-        b.Parent = row
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-        b.Activated:Connect(function()
-            local v = math.clamp(getValue() + delta, minV, maxV)
-            -- evita errores de decimales (0.1 + 0.2, etc.)
-            setValue(math.floor(v * 100 + 0.5) / 100)
-            refresh()
-        end)
+    local function setFromX(x)
+        local width = math.max(1, track.AbsoluteSize.X)
+        local rel = math.clamp((x - track.AbsolutePosition.X) / width, 0, 1)
+        local v = minV + rel * (maxV - minV)
+        v = math.floor(v / stepV + 0.5) * stepV
+        v = math.clamp(math.floor(v * 100 + 0.5) / 100, minV, maxV)
+        setValue(v)
+        refresh()
     end
 
-    makeBtn("-", -122, -stepV)
-    makeBtn("+", -44, stepV)
-    -- el valor queda entre los dos botones
-    value.Position = UDim2.new(1, -92, 0, 0)
-    value.Size = UDim2.fromOffset(48, 36)
-    value.TextXAlignment = Enum.TextXAlignment.Center
+    local activeInput = nil
+
+    table.insert(connections, hit.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            activeInput = input
+            setFromX(input.Position.X)
+
+            local conn
+            conn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if activeInput == input then activeInput = nil end
+                    conn:Disconnect()
+                end
+            end)
+        end
+    end))
+
+    table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+        if not activeInput then return end
+        if activeInput.UserInputType == Enum.UserInputType.Touch then
+            if input ~= activeInput then return end
+        elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then
+            return
+        end
+        setFromX(input.Position.X)
+    end))
+
     refresh()
     table.insert(refreshers, refresh)
 end
@@ -586,15 +634,15 @@ if MoveConfig then
     toggle("Speed",
         function() return MoveConfig.SpeedEnabled end,
         function(v) MoveConfig.SpeedEnabled = v end)
-    stepper("  Velocidad extra",
+    slider("  Velocidad extra",
         function() return MoveConfig.Speed end,
         function(v) MoveConfig.Speed = v end,
-        5, 100, 5)
+        5, 200, 5)
 
     toggle("Super Jump",
         function() return MoveConfig.JumpEnabled end,
         function(v) MoveConfig.JumpEnabled = v end)
-    stepper("  Fuerza de salto",
+    slider("  Fuerza de salto",
         function() return MoveConfig.JumpPower end,
         function(v) MoveConfig.JumpPower = v end,
         50, 300, 10)
@@ -602,10 +650,10 @@ if MoveConfig then
     toggle("Dash Multiplier",
         function() return MoveConfig.DashEnabled end,
         function(v) MoveConfig.DashEnabled = v end)
-    stepper("  Multiplicador",
+    slider("  Multiplicador",
         function() return MoveConfig.DashMultiplier end,
         function(v) MoveConfig.DashMultiplier = v end,
-        1, 4, 0.5)
+        1, 8, 0.5)
 else
     soon("Speed")
     soon("Super Jump")
