@@ -1,17 +1,11 @@
 --// Main.lua - Froggy Hub (loader + panel)
 
-do
-    local e = (getgenv and getgenv()) or _G
-    e.__BF_RUNS = (e.__BF_RUNS or 0) + 1
-    warn("Froggy Hub: ejecución #" .. e.__BF_RUNS)
-    warn(debug.traceback("Froggy Hub: quién me llamó:", 2))
-end
-
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
 local ESP_FILES = { "Esp.lua", "esp.lua" }              -- prueba ambos nombres (GitHub distingue mayúsculas)
 local MOVE_FILES = { "Movement.lua", "movement.lua" }   -- speed / super jump / dash
+local CAM_FILES = { "Camlock.lua", "camlock.lua" }      -- camlock / aim assist
 local LOGO_FILES = { "logo.png", "Logo.png" }           -- logo del repositorio
 local HUB_NAME = "Froggy Hub"
 
@@ -25,7 +19,6 @@ local LocalPlayer = Players.LocalPlayer
 
 --// Evitar paneles duplicados
 if env.__BF_PANEL_CLEANUP then
-    warn("Froggy Hub: había un panel anterior, se limpia")
     pcall(env.__BF_PANEL_CLEANUP)
 end
 
@@ -67,6 +60,7 @@ local function cleanup()
     for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
     if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
     if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
+    if env.__BF_CAM_CLEANUP then pcall(env.__BF_CAM_CLEANUP) end
     gui:Destroy()
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -245,8 +239,27 @@ else
     warn("Froggy Hub: no se pudo descargar Movement.lua")
 end
 
+--// Camlock: si falla, el panel igual abre
+setProgress(0.85, "Descargando camlock...")
+local CamConfig = nil
+local camSource = downloadModule(CAM_FILES)
+if camSource then
+    local camChunk, camErr = loadstring(camSource)
+    if type(camChunk) == "function" then
+        local okCam, camRunErr = pcall(camChunk)
+        if okCam then
+            CamConfig = env.BF_CAM_CONFIG
+        else
+            warn("Froggy Hub: error al iniciar Camlock.lua: " .. tostring(camRunErr))
+        end
+    else
+        warn("Froggy Hub: error de sintaxis en Camlock.lua: " .. tostring(camErr))
+    end
+else
+    warn("Froggy Hub: no se pudo descargar Camlock.lua")
+end
+
 setProgress(1, "Listo")
-warn("Froggy Hub: módulos listos, construyendo panel")
 task.wait(0.5)
 
 --==================== PANEL PRINCIPAL ====================
@@ -672,6 +685,35 @@ soon("Fly")
 soon("Noclip")
 soon("Teleport")
 
+section("Combate")
+if CamConfig then
+    toggle("Camlock",
+        function() return CamConfig.Enabled end,
+        function(v) CamConfig.Enabled = v end)
+    slider("  Radio FOV",
+        function() return CamConfig.FOV end,
+        function(v) CamConfig.FOV = v end,
+        50, 600, 10)
+    slider("  Suavizado",
+        function() return CamConfig.Smoothness end,
+        function(v) CamConfig.Smoothness = v end,
+        0.05, 1, 0.05)
+    toggle("Apuntar a la cabeza",
+        function() return CamConfig.AimPart == "Head" end,
+        function(v) CamConfig.AimPart = v and "Head" or "HumanoidRootPart" end)
+    toggle("Ignorar compañeros",
+        function() return CamConfig.IgnoreTeammates end,
+        function(v) CamConfig.IgnoreTeammates = v end)
+    toggle("Wall check",
+        function() return CamConfig.WallCheck end,
+        function(v) CamConfig.WallCheck = v end)
+    toggle("Mostrar círculo FOV",
+        function() return CamConfig.ShowFOV end,
+        function(v) CamConfig.ShowFOV = v end)
+else
+    soon("Camlock")
+end
+
 section("Misc")
 soon("Fruit Finder")
 soon("Server Hop")
@@ -681,12 +723,12 @@ soon("Guardar ajustes")
 local hint = Instance.new("TextLabel")
 hint.LayoutOrder = nextOrder()
 hint.BackgroundTransparency = 1
-hint.Size = UDim2.new(1, 0, 0, 44)
+hint.Size = UDim2.new(1, 0, 0, 56)
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 11
 hint.TextWrapped = true
 hint.TextColor3 = C.Dim
-hint.Text = "RightShift = ESP  |  V o botón DASH = dash  |  Arrastra la barra superior para mover"
+hint.Text = "RightShift = ESP  |  V o botón DASH = dash  |  C o botón LOCK = camlock  |  Arrastra la barra superior para mover"
 hint.Parent = body
 
 --// Minimizar
@@ -764,6 +806,5 @@ task.wait(0.3)
 loading:Destroy()
 
 frame.Visible = true
-warn("Froggy Hub: panel visible")
 TweenService:Create(panelScale,
     TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
