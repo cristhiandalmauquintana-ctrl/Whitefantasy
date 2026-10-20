@@ -1,6 +1,12 @@
+--// Main.lua: carga el ESP desde GitHub y muestra un panel con opciones
+
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
-local ESP_URL = ("https://raw.githubusercontent.com/%s/%s/main/Esp.lua?v=%d"):format(GITHUB_USER, GITHUB_REPO, os.time())
+local BRANCH = "main"
+local ESP_FILES = { "Esp.lua", "esp.lua" } -- prueba ambos nombres (GitHub distingue mayúsculas)
+
+local BASE_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
+
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -12,20 +18,32 @@ if env.__BF_PANEL_CLEANUP then
     pcall(env.__BF_PANEL_CLEANUP)
 end
 
---// Cargar el ESP
-local okGet, source = pcall(function() return game:HttpGet(ESP_URL, true) end)
-if not okGet or type(source) ~= "string" or #source == 0 then
-    warn("ESP: no se pudo descargar esp.lua. Revisa usuario/repositorio en main.lua.")
+--// Descargar y ejecutar el ESP
+local function downloadEsp()
+    for _, name in ipairs(ESP_FILES) do
+        local ok, res = pcall(function()
+            return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true)
+        end)
+        if ok and type(res) == "string" and #res > 0 and res:sub(1, 3) ~= "404" then
+            return res, name
+        end
+    end
+    return nil
+end
+
+local source = downloadEsp()
+if not source then
+    warn("ESP: no se pudo descargar el ESP. Revisa que exista Esp.lua en el repositorio.")
     return
 end
-local okCompile, chunk = pcall(loadstring, source)
-if not okCompile or type(chunk) ~= "function" then
-    warn("ESP: esp.lua tiene un error de sintaxis.")
+local chunk, compileErr = loadstring(source)
+if type(chunk) ~= "function" then
+    warn("ESP: error de sintaxis en el ESP: " .. tostring(compileErr))
     return
 end
 local okRun, runErr = pcall(chunk)
 if not okRun then
-    warn("ESP: error al iniciar esp.lua: " .. tostring(runErr))
+    warn("ESP: error al iniciar el ESP: " .. tostring(runErr))
     return
 end
 
@@ -46,8 +64,25 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local ON_COLOR = Color3.fromRGB(60, 200, 110)
-local OFF_COLOR = Color3.fromRGB(210, 70, 70)
+--// Colores
+local C = {
+    Bg = Color3.fromRGB(20, 20, 26),
+    Header = Color3.fromRGB(28, 28, 36),
+    Row = Color3.fromRGB(32, 32, 40),
+    Stroke = Color3.fromRGB(70, 70, 82),
+    Text = Color3.fromRGB(240, 240, 245),
+    Dim = Color3.fromRGB(130, 130, 145),
+    Accent = Color3.fromRGB(255, 212, 55),
+    On = Color3.fromRGB(60, 200, 110),
+    Off = Color3.fromRGB(210, 70, 70),
+}
+
+--// Tamaño adaptado a la pantalla
+local camera = workspace.CurrentCamera
+local viewport = camera and camera.ViewportSize or Vector2.new(800, 600)
+local WIDTH = math.min(320, viewport.X - 24)
+local HEIGHT = math.min(440, viewport.Y - 60)
+local HEADER_H = 44
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "BFESPPanel"
@@ -56,55 +91,111 @@ gui.DisplayOrder = 100
 gui.Parent = getParent()
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.fromOffset(200, 150)
-frame.Position = UDim2.new(0, 20, 0.4, 0)
-frame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+frame.Size = UDim2.fromOffset(WIDTH, HEIGHT)
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+frame.BackgroundColor3 = C.Bg
 frame.BorderSizePixel = 0
+frame.ClipsDescendants = true
 frame.Active = true
 frame.Parent = gui
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
-local stroke = Instance.new("UIStroke", frame)
-stroke.Color = Color3.fromRGB(70, 70, 80)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+local frameStroke = Instance.new("UIStroke", frame)
+frameStroke.Color = C.Stroke
+
+--// Cabecera (también sirve para arrastrar)
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, HEADER_H)
+header.BackgroundColor3 = C.Header
+header.BorderSizePixel = 0
+header.Active = true
+header.Parent = frame
 
 local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(12, 8)
-title.Size = UDim2.new(1, -50, 0, 22)
+title.Position = UDim2.fromOffset(14, 0)
+title.Size = UDim2.new(1, -90, 1, 0)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 15
+title.TextSize = 16
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "ESP - Blox Fruits"
-title.Parent = frame
+title.TextColor3 = C.Accent
+title.Text = "ESP | Blox Fruits"
+title.Parent = header
 
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.fromOffset(24, 24)
-closeBtn.Position = UDim2.new(1, -32, 0, 7)
-closeBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-closeBtn.BorderSizePixel = 0
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 14
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.Text = "X"
-closeBtn.Parent = frame
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+local function headerButton(text, xOffset)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.fromOffset(28, 28)
+    b.Position = UDim2.new(1, xOffset, 0.5, -14)
+    b.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
+    b.BorderSizePixel = 0
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 15
+    b.TextColor3 = C.Text
+    b.Text = text
+    b.AutoButtonColor = true
+    b.Parent = header
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+    return b
+end
 
-local function makeToggle(text, yPos, getValue, setValue)
+local closeBtn = headerButton("X", -38)
+local minBtn = headerButton("-", -72)
+
+--// Cuerpo con scroll
+local body = Instance.new("ScrollingFrame")
+body.Position = UDim2.fromOffset(8, HEADER_H + 8)
+body.Size = UDim2.new(1, -16, 1, -(HEADER_H + 16))
+body.BackgroundTransparency = 1
+body.BorderSizePixel = 0
+body.ScrollBarThickness = 4
+body.ScrollBarImageColor3 = C.Stroke
+body.CanvasSize = UDim2.new()
+body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+body.Parent = frame
+
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 6)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = body
+
+local order = 0
+local function nextOrder()
+    order = order + 1
+    return order
+end
+
+local function section(text)
+    local l = Instance.new("TextLabel")
+    l.LayoutOrder = nextOrder()
+    l.BackgroundTransparency = 1
+    l.Size = UDim2.new(1, 0, 0, 22)
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.TextColor3 = C.Accent
+    l.Text = "  " .. string.upper(text)
+    l.Parent = body
+end
+
+local refreshers = {}
+
+local function toggle(text, getValue, setValue)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -24, 0, 34)
-    btn.Position = UDim2.fromOffset(12, yPos)
+    btn.LayoutOrder = nextOrder()
+    btn.Size = UDim2.new(1, 0, 0, 40)
     btn.BorderSizePixel = 0
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 14
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Parent = frame
+    btn.TextColor3 = C.Text
+    btn.AutoButtonColor = true
+    btn.Parent = body
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
     local function refresh()
         local on = getValue()
         btn.Text = text .. ": " .. (on and "ON" or "OFF")
         TweenService:Create(btn, TweenInfo.new(0.15), {
-            BackgroundColor3 = on and ON_COLOR or OFF_COLOR
+            BackgroundColor3 = on and C.On or C.Off
         }):Play()
     end
 
@@ -113,33 +204,94 @@ local function makeToggle(text, yPos, getValue, setValue)
         refresh()
     end)
     refresh()
-    return refresh
+    table.insert(refreshers, refresh)
 end
 
-local refreshEsp = makeToggle("ESP", 40,
+local function soon(text)
+    local row = Instance.new("Frame")
+    row.LayoutOrder = nextOrder()
+    row.Size = UDim2.new(1, 0, 0, 36)
+    row.BackgroundColor3 = C.Row
+    row.BorderSizePixel = 0
+    row.Parent = body
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.fromOffset(12, 0)
+    label.Size = UDim2.new(1, -112, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextColor3 = C.Dim
+    label.Text = text
+    label.Parent = row
+
+    local tag = Instance.new("TextLabel")
+    tag.Size = UDim2.fromOffset(92, 22)
+    tag.Position = UDim2.new(1, -100, 0.5, -11)
+    tag.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
+    tag.BorderSizePixel = 0
+    tag.Font = Enum.Font.GothamBold
+    tag.TextSize = 11
+    tag.TextColor3 = C.Dim
+    tag.Text = "Coming soon"
+    tag.Parent = row
+    Instance.new("UICorner", tag).CornerRadius = UDim.new(0, 6)
+end
+
+--// Contenido del panel
+section("ESP")
+toggle("ESP",
     function() return Config.Enabled end,
     function(v) Config.Enabled = v end)
-
-makeToggle("Compañeros", 84,
+toggle("Mostrar compañeros",
     function() return Config.ShowTeammates end,
     function(v) Config.ShowTeammates = v end)
 
+section("Visual")
+soon("Cajas 2D")
+soon("Tracers")
+soon("Barra de vida")
+soon("Colores personalizados")
+
+section("Movimiento")
+soon("Speed")
+soon("Fly")
+soon("Noclip")
+soon("Teleport")
+
+section("Misc")
+soon("Fruit Finder")
+soon("Server Hop")
+soon("Anti-AFK")
+soon("Guardar ajustes")
+
 local hint = Instance.new("TextLabel")
+hint.LayoutOrder = nextOrder()
 hint.BackgroundTransparency = 1
-hint.Position = UDim2.new(0, 12, 1, -22)
-hint.Size = UDim2.new(1, -24, 0, 16)
+hint.Size = UDim2.new(1, 0, 0, 30)
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 11
-hint.TextColor3 = Color3.fromRGB(150, 150, 160)
-hint.TextXAlignment = Enum.TextXAlignment.Left
-hint.Text = "RightShift = ESP | Arrastra el título"
-hint.Parent = frame
+hint.TextWrapped = true
+hint.TextColor3 = C.Dim
+hint.Text = "RightShift = ESP  |  Arrastra la barra superior para mover"
+hint.Parent = body
 
---// Arrastrar el panel (ratón y táctil)
-local dragging, dragStart, startPos
+--// Minimizar
+local minimized = false
+minBtn.Activated:Connect(function()
+    minimized = not minimized
+    body.Visible = not minimized
+    minBtn.Text = minimized and "+" or "-"
+    frame.Size = minimized and UDim2.fromOffset(WIDTH, HEADER_H) or UDim2.fromOffset(WIDTH, HEIGHT)
+end)
+
+--// Arrastrar (ratón y táctil)
 local connections = {}
+local dragging, dragStart, startPos
 
-table.insert(connections, title.InputBegan:Connect(function(input)
+table.insert(connections, header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
@@ -166,10 +318,14 @@ table.insert(connections, UserInputService.InputEnded:Connect(function(input)
     end
 end))
 
---// Mantener el botón sincronizado si se activa con la tecla
+--// Mantener los botones sincronizados si el ESP se cambia con la tecla
 table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Config.ToggleKey then
-        task.defer(refreshEsp)
+        task.defer(function()
+            for _, refresh in ipairs(refreshers) do
+                refresh()
+            end
+        end)
     end
 end))
 
