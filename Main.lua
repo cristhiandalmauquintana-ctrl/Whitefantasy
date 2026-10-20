@@ -1,6 +1,6 @@
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
-local ESP_URL = ("https://raw.githubusercontent.com/%s/%s/main/esp.lua?v=%d"):format(GITHUB_USER, GITHUB_REPO, os.time())
+local ESP_URL = ("https://raw.githubusercontent.com/%s/%s/main/Esp.lua?v=%d"):format(GITHUB_USER, GITHUB_REPO, os.time())
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
