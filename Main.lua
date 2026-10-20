@@ -1,8 +1,6 @@
---// main.lua: carga esp.lua desde GitHub y muestra un panel para activarlo/desactivarlo
---// CAMBIA estos dos valores por los de tu repositorio:
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
-local ESP_URL = local ESP_URL = ("https://raw.githubusercontent.com/%s/%s/main/esp.lua?v=%d"):format(GITHUB_USER, GITHUB_REPO, os.time())
+local ESP_URL = ("https://raw.githubusercontent.com/%s/%s/main/esp.lua?v=%d"):format(GITHUB_USER, GITHUB_REPO, os.time())
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
