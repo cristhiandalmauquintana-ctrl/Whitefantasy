@@ -1,9 +1,11 @@
---// Main.lua: carga el ESP desde GitHub y muestra un panel con opciones
+--// Main.lua - Froggy Hub (loader + panel)
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
-local ESP_FILES = { "Esp.lua", "esp.lua" } -- prueba ambos nombres (GitHub distingue mayúsculas)
+local ESP_FILES = { "Esp.lua", "esp.lua" }    -- prueba ambos nombres (GitHub distingue mayúsculas)
+local LOGO_FILES = { "logo.png", "Logo.png" } -- logo del repositorio
+local HUB_NAME = "Froggy Hub"
 
 local BASE_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
 
@@ -18,42 +20,19 @@ if env.__BF_PANEL_CLEANUP then
     pcall(env.__BF_PANEL_CLEANUP)
 end
 
---// Descargar y ejecutar el ESP
-local function downloadEsp()
-    for _, name in ipairs(ESP_FILES) do
-        local ok, res = pcall(function()
-            return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true)
-        end)
-        if ok and type(res) == "string" and #res > 0 and res:sub(1, 3) ~= "404" then
-            return res, name
-        end
-    end
-    return nil
-end
+--// Colores
+local C = {
+    Bg = Color3.fromRGB(20, 20, 26),
+    Header = Color3.fromRGB(28, 28, 36),
+    Row = Color3.fromRGB(32, 32, 40),
+    Stroke = Color3.fromRGB(70, 70, 82),
+    Text = Color3.fromRGB(240, 240, 245),
+    Dim = Color3.fromRGB(130, 130, 145),
+    Accent = Color3.fromRGB(110, 220, 90),
+    On = Color3.fromRGB(60, 200, 110),
+    Off = Color3.fromRGB(210, 70, 70),
+}
 
-local source = downloadEsp()
-if not source then
-    warn("ESP: no se pudo descargar el ESP. Revisa que exista Esp.lua en el repositorio.")
-    return
-end
-local chunk, compileErr = loadstring(source)
-if type(chunk) ~= "function" then
-    warn("ESP: error de sintaxis en el ESP: " .. tostring(compileErr))
-    return
-end
-local okRun, runErr = pcall(chunk)
-if not okRun then
-    warn("ESP: error al iniciar el ESP: " .. tostring(runErr))
-    return
-end
-
-local Config = env.BF_ESP_CONFIG
-if type(Config) ~= "table" then
-    warn("ESP: no se encontró la configuración del ESP.")
-    return
-end
-
---// Contenedor de la UI
 local function getParent()
     if gethui then
         local ok, ui = pcall(gethui)
@@ -64,46 +43,205 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
---// Colores
-local C = {
-    Bg = Color3.fromRGB(20, 20, 26),
-    Header = Color3.fromRGB(28, 28, 36),
-    Row = Color3.fromRGB(32, 32, 40),
-    Stroke = Color3.fromRGB(70, 70, 82),
-    Text = Color3.fromRGB(240, 240, 245),
-    Dim = Color3.fromRGB(130, 130, 145),
-    Accent = Color3.fromRGB(255, 212, 55),
-    On = Color3.fromRGB(60, 200, 110),
-    Off = Color3.fromRGB(210, 70, 70),
-}
+local gui = Instance.new("ScreenGui")
+gui.Name = "FroggyHub"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 100
+gui.Parent = getParent()
 
---// Tamaño adaptado a la pantalla
+local connections = {}
+local tweens = {}
+
+local function cleanup()
+    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
+    for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
+    if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
+    gui:Destroy()
+    env.__BF_PANEL_CLEANUP = nil
+end
+env.__BF_PANEL_CLEANUP = cleanup
+
+--==================== PANTALLA DE CARGA ====================
+local loading = Instance.new("Frame")
+loading.Size = UDim2.fromOffset(260, 200)
+loading.AnchorPoint = Vector2.new(0.5, 0.5)
+loading.Position = UDim2.fromScale(0.5, 0.5)
+loading.BackgroundColor3 = C.Bg
+loading.BorderSizePixel = 0
+loading.Parent = gui
+Instance.new("UICorner", loading).CornerRadius = UDim.new(0, 14)
+local loadStroke = Instance.new("UIStroke", loading)
+loadStroke.Color = C.Stroke
+local loadScale = Instance.new("UIScale", loading)
+
+local loadLogo = Instance.new("ImageLabel")
+loadLogo.AnchorPoint = Vector2.new(0.5, 0.5)
+loadLogo.Position = UDim2.new(0.5, 0, 0, 62)
+loadLogo.Size = UDim2.fromOffset(84, 84)
+loadLogo.BackgroundTransparency = 1
+loadLogo.ScaleType = Enum.ScaleType.Fit
+loadLogo.ImageTransparency = 1
+loadLogo.Parent = loading
+
+local loadTitle = Instance.new("TextLabel")
+loadTitle.BackgroundTransparency = 1
+loadTitle.Position = UDim2.fromOffset(0, 114)
+loadTitle.Size = UDim2.new(1, 0, 0, 24)
+loadTitle.Font = Enum.Font.GothamBold
+loadTitle.TextSize = 18
+loadTitle.TextColor3 = C.Accent
+loadTitle.Text = string.upper(HUB_NAME)
+loadTitle.Parent = loading
+
+local loadStatus = Instance.new("TextLabel")
+loadStatus.BackgroundTransparency = 1
+loadStatus.Position = UDim2.fromOffset(10, 140)
+loadStatus.Size = UDim2.new(1, -20, 0, 18)
+loadStatus.Font = Enum.Font.Gotham
+loadStatus.TextSize = 12
+loadStatus.TextColor3 = C.Dim
+loadStatus.Text = "Iniciando..."
+loadStatus.Parent = loading
+
+local barTrack = Instance.new("Frame")
+barTrack.Position = UDim2.new(0, 20, 1, -26)
+barTrack.Size = UDim2.new(1, -40, 0, 6)
+barTrack.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
+barTrack.BorderSizePixel = 0
+barTrack.Parent = loading
+Instance.new("UICorner", barTrack).CornerRadius = UDim.new(1, 0)
+
+local barFill = Instance.new("Frame")
+barFill.Size = UDim2.fromScale(0, 1)
+barFill.BackgroundColor3 = C.Accent
+barFill.BorderSizePixel = 0
+barFill.Parent = barTrack
+Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
+
+local function setProgress(fraction, text)
+    TweenService:Create(barFill, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.fromScale(fraction, 1)
+    }):Play()
+    if text then loadStatus.Text = text end
+end
+
+local function fail(message)
+    loadStatus.Text = message
+    loadStatus.TextColor3 = C.Off
+    warn("Froggy Hub: " .. message)
+    task.delay(5, cleanup)
+end
+
+--// Descargar el logo del repositorio y convertirlo en asset
+local function fetchLogo()
+    local getAsset = getcustomasset or getsynasset
+    if type(writefile) ~= "function" or type(getAsset) ~= "function" then
+        return nil
+    end
+    for _, name in ipairs(LOGO_FILES) do
+        local ok, data = pcall(function()
+            return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true)
+        end)
+        if ok and type(data) == "string" and #data > 8 and data:sub(2, 4) == "PNG" then
+            local path = "FroggyHub_logo.png"
+            if pcall(writefile, path, data) then
+                local okAsset, asset = pcall(getAsset, path)
+                if okAsset and asset and asset ~= "" then
+                    return asset
+                end
+            end
+        end
+    end
+    return nil
+end
+
+--// Descargar el ESP
+local function downloadEsp()
+    for _, name in ipairs(ESP_FILES) do
+        local ok, res = pcall(function()
+            return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true)
+        end)
+        if ok and type(res) == "string" and #res > 0 and res:sub(1, 3) ~= "404" then
+            return res
+        end
+    end
+    return nil
+end
+
+setProgress(0.1, "Cargando logo...")
+local logoAsset = fetchLogo()
+if logoAsset then
+    loadLogo.Image = logoAsset
+    TweenService:Create(loadLogo, TweenInfo.new(0.3), { ImageTransparency = 0 }):Play()
+
+    --// Animación del logo: pulso + balanceo
+    local pulse = TweenService:Create(loadLogo,
+        TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        { Size = UDim2.fromOffset(98, 98) })
+    local sway = TweenService:Create(loadLogo,
+        TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        { Rotation = 8 })
+    table.insert(tweens, pulse)
+    table.insert(tweens, sway)
+    pulse:Play()
+    sway:Play()
+end
+
+setProgress(0.35, "Descargando módulos...")
+local source = downloadEsp()
+if not source then
+    fail("No se pudo descargar Esp.lua del repositorio.")
+    return
+end
+
+setProgress(0.6, "Preparando...")
+local chunk, compileErr = loadstring(source)
+if type(chunk) ~= "function" then
+    fail("Error de sintaxis en Esp.lua: " .. tostring(compileErr))
+    return
+end
+
+setProgress(0.8, "Iniciando ESP...")
+local okRun, runErr = pcall(chunk)
+if not okRun then
+    fail("Error al iniciar el ESP: " .. tostring(runErr))
+    return
+end
+
+local Config = env.BF_ESP_CONFIG
+if type(Config) ~= "table" then
+    fail("No se encontró la configuración del ESP.")
+    return
+end
+
+setProgress(1, "Listo")
+task.wait(0.5)
+
+--==================== PANEL PRINCIPAL ====================
 local camera = workspace.CurrentCamera
 local viewport = camera and camera.ViewportSize or Vector2.new(800, 600)
 local WIDTH = math.min(320, viewport.X - 24)
 local HEIGHT = math.min(440, viewport.Y - 60)
 local HEADER_H = 44
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "BFESPPanel"
-gui.ResetOnSpawn = false
-gui.DisplayOrder = 100
-gui.Parent = getParent()
-
 local frame = Instance.new("Frame")
 frame.Size = UDim2.fromOffset(WIDTH, HEIGHT)
 frame.AnchorPoint = Vector2.new(0.5, 0.5)
-frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+frame.Position = UDim2.fromScale(0.5, 0.5)
 frame.BackgroundColor3 = C.Bg
 frame.BorderSizePixel = 0
 frame.ClipsDescendants = true
 frame.Active = true
+frame.Visible = false
 frame.Parent = gui
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 local frameStroke = Instance.new("UIStroke", frame)
 frameStroke.Color = C.Stroke
+local panelScale = Instance.new("UIScale", frame)
+panelScale.Scale = 0.8
 
---// Cabecera (también sirve para arrastrar)
+--// Cabecera (sirve para arrastrar)
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, HEADER_H)
 header.BackgroundColor3 = C.Header
@@ -111,15 +249,27 @@ header.BorderSizePixel = 0
 header.Active = true
 header.Parent = frame
 
+local titleX = 14
+if logoAsset then
+    local logo = Instance.new("ImageLabel")
+    logo.Position = UDim2.fromOffset(10, 6)
+    logo.Size = UDim2.fromOffset(32, 32)
+    logo.BackgroundTransparency = 1
+    logo.ScaleType = Enum.ScaleType.Fit
+    logo.Image = logoAsset
+    logo.Parent = header
+    titleX = 50
+end
+
 local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(14, 0)
-title.Size = UDim2.new(1, -90, 1, 0)
+title.Position = UDim2.fromOffset(titleX, 0)
+title.Size = UDim2.new(1, -(titleX + 80), 1, 0)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 16
+title.TextSize = 17
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = C.Accent
-title.Text = "ESP | Blox Fruits"
+title.Text = HUB_NAME
 title.Parent = header
 
 local function headerButton(text, xOffset)
@@ -240,7 +390,7 @@ local function soon(text)
     Instance.new("UICorner", tag).CornerRadius = UDim.new(0, 6)
 end
 
---// Contenido del panel
+--// Contenido
 section("ESP")
 toggle("ESP",
     function() return Config.Enabled end,
@@ -287,38 +437,51 @@ minBtn.Activated:Connect(function()
     frame.Size = minimized and UDim2.fromOffset(WIDTH, HEADER_H) or UDim2.fromOffset(WIDTH, HEIGHT)
 end)
 
---// Arrastrar (ratón y táctil)
-local connections = {}
-local dragging, dragStart, startPos
+--// Arrastrar: solo sigue el dedo/ratón que empezó en la cabecera
+local dragging = false
+local dragInput, dragStart, startPos
 
 table.insert(connections, header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
+        dragInput = input
         dragStart = input.Position
         startPos = frame.Position
+
+        local conn
+        conn = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                dragInput = nil
+                conn:Disconnect()
+            end
+        end)
     end
 end))
 
 table.insert(connections, UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        frame.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
+    if not dragging or not dragInput then return end
+
+    if dragInput.UserInputType == Enum.UserInputType.Touch then
+        if input ~= dragInput then return end -- ignora otros dedos
+    elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then
+        return
     end
+
+    local delta = input.Position - dragStart
+    local screen = gui.AbsoluteSize
+    local size = frame.AbsoluteSize
+    local maxX = math.max(0, (screen.X - size.X) / 2)
+    local maxY = math.max(0, (screen.Y - size.Y) / 2)
+
+    frame.Position = UDim2.new(
+        0.5, math.clamp(startPos.X.Offset + delta.X, -maxX, maxX),
+        0.5, math.clamp(startPos.Y.Offset + delta.Y, -maxY, maxY)
+    )
 end))
 
-table.insert(connections, UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end))
-
---// Mantener los botones sincronizados si el ESP se cambia con la tecla
+--// Sincronizar botones si el ESP se cambia con la tecla
 table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Config.ToggleKey then
         task.defer(function()
@@ -329,13 +492,16 @@ table.insert(connections, UserInputService.InputBegan:Connect(function(input, pr
     end
 end))
 
---// Cerrar: apaga el ESP y elimina el panel
-local function cleanup()
-    for _, c in ipairs(connections) do c:Disconnect() end
-    if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
-    gui:Destroy()
-    env.__BF_PANEL_CLEANUP = nil
-end
-
 closeBtn.Activated:Connect(cleanup)
-env.__BF_PANEL_CLEANUP = cleanup
+
+--// Transición: la carga se cierra y el panel aparece
+for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
+local hide = TweenService:Create(loadScale,
+    TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
+hide:Play()
+hide.Completed:Wait()
+loading:Destroy()
+
+frame.Visible = true
+TweenService:Create(panelScale,
+    TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
