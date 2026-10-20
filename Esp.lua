@@ -4,7 +4,7 @@ local Config = {
     Enabled = true,
     ToggleKey = Enum.KeyCode.RightShift, -- activar/desactivar
     ShowTeammates = true,
-    MaxDistance = 5000,                  -- studs (0 = sin límite)
+    MaxDistance = 0,                     -- studs (0 = sin límite)
     TextSize = 13,
     ColorByHealth = true,                -- verde -> rojo según la vida
     DefaultColor = Color3.fromRGB(255, 255, 255),
@@ -68,6 +68,7 @@ local function createESP(player)
     local billboard = Instance.new("BillboardGui")
     billboard.Name = player.Name
     billboard.AlwaysOnTop = true
+    billboard.MaxDistance = math.huge
     billboard.Size = UDim2.fromOffset(220, 48)
     billboard.StudsOffset = Vector3.new(0, 3.5, 0)
     billboard.Enabled = false
