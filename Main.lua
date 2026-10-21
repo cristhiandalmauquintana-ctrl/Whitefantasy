@@ -6,6 +6,7 @@ local BRANCH = "main"
 local ESP_FILES = { "Esp.lua", "esp.lua" }              -- prueba ambos nombres (GitHub distingue mayúsculas)
 local MOVE_FILES = { "Movement.lua", "movement.lua" }   -- speed / super jump / dash
 local CAM_FILES = { "Camlock.lua", "camlock.lua" }      -- camlock / aim assist
+local POT_FILES = { "Potato.lua", "potato.lua" }        -- gráficos patata
 local LOGO_FILES = { "logo.png", "Logo.png" }           -- logo del repositorio
 local HUB_NAME = "Froggy Hub"
 
@@ -61,6 +62,7 @@ local function cleanup()
     if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
     if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
     if env.__BF_CAM_CLEANUP then pcall(env.__BF_CAM_CLEANUP) end
+    if env.__BF_POTATO_CLEANUP then pcall(env.__BF_POTATO_CLEANUP) end
     gui:Destroy()
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -257,6 +259,26 @@ if camSource then
     end
 else
     warn("Froggy Hub: no se pudo descargar Camlock.lua")
+end
+
+--// Gráficos patata: si falla, el panel igual abre
+setProgress(0.95, "Descargando optimización...")
+local PotConfig = nil
+local potSource = downloadModule(POT_FILES)
+if potSource then
+    local potChunk, potErr = loadstring(potSource)
+    if type(potChunk) == "function" then
+        local okPot, potRunErr = pcall(potChunk)
+        if okPot then
+            PotConfig = env.BF_POTATO
+        else
+            warn("Froggy Hub: error al iniciar Potato.lua: " .. tostring(potRunErr))
+        end
+    else
+        warn("Froggy Hub: error de sintaxis en Potato.lua: " .. tostring(potErr))
+    end
+else
+    warn("Froggy Hub: no se pudo descargar Potato.lua")
 end
 
 setProgress(1, "Listo")
@@ -719,6 +741,24 @@ if CamConfig then
         function(v) CamConfig.ShowFOV = v end)
 else
     soon("Camlock")
+end
+
+section("Rendimiento")
+if PotConfig then
+    toggle("Gráficos patata",
+        function() return PotConfig.Enabled end,
+        function(v) PotConfig.Set(v) end)
+    toggle("  Quitar partículas y efectos",
+        function() return PotConfig.NoParticles end,
+        function(v) PotConfig.NoParticles = v end)
+    toggle("  Quitar texturas",
+        function() return PotConfig.NoTextures end,
+        function(v) PotConfig.NoTextures = v end)
+    toggle("  Materiales planos",
+        function() return PotConfig.FlatMaterials end,
+        function(v) PotConfig.FlatMaterials = v end)
+else
+    soon("Gráficos patata")
 end
 
 section("Misc")
