@@ -12,7 +12,7 @@ end
 
 local Config = {
     Enabled = false,        -- muestra el botón flotante
-    Cooldown = 10,          -- segundos entre teleports
+    Cooldown = 3,          -- segundos entre teleports
     Offset = 4,             -- studs por detrás del enemigo al aparecer
     MaxDistance = 0,        -- 0 = sin límite (solo jugadores con personaje cargado)
     TeamCheck = true,       -- ignorar a tu mismo equipo
