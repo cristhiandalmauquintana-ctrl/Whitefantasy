@@ -1,4 +1,5 @@
---// Froggy Hub - Silent Aim v16 (Ultra Optimizado - Anti Memory Leak)
+--// Froggy Hub - Silent Aim v17 (Modo Fantasma - Anti-Crash)
+--// Sin Hook de Remotes. Solo Cámara y Ratón para evadir el Anti-Cheat.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -94,7 +95,7 @@ local function isAllowed(p)
     return true
 end
 
--- Variables cacheadas para el Hook (Evita cálculos en el hook)
+-- Variables cacheadas para el Hook
 local cachedAimCFrame = nil
 local cachedAimPart = nil
 local cachedAimVector = nil
@@ -168,7 +169,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
 
     Config.TargetPart = bestPart
 
-    -- CALCULAMOS EL AIM AQUÍ (Fuera del hook, solo 20 veces por segundo)
+    -- CALCULAMOS EL AIM AQUÍ (Fuera del hook)
     if bestPart and bestPart.Parent then
         cachedAimPart = bestPart
         local ok, vel = pcall(function() return bestPart.AssemblyLinearVelocity end)
@@ -181,12 +182,11 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
             if lead.Magnitude > 80 then lead = lead.Unit * 80 end
             local pos = bestPart.Position + lead
             
-            -- Protección anti-NaN
             if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then pos = bestPart.Position end
             
             cachedAimVector = pos
-            local origin = myHead and myHead.Position or myRoot.Position
-            cachedAimCFrame = CFrame.lookAt(origin, pos) -- CFrame pre-calculado
+            local origin = cameraRef.CFrame.Position
+            cachedAimCFrame = CFrame.lookAt(origin, pos) 
         end
     else
         cachedAimPart = nil
@@ -196,43 +196,28 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
 end))
 
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v16: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v17: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
 local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
 local oldIndex = mt.__index
 setreadonly(mt, false)
 
--- HOOK 1: RemoteEvents (Usa variables cacheadas, cero cálculos aquí)
-mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    if Config.Enabled and cachedAimVector and cachedAimPart and cachedAimPart.Parent and method == "FireServer" then
-        local args = {...}
-        for i, arg in ipairs(args) do
-            if typeof(arg) == "CFrame" then
-                args[i] = cachedAimCFrame
-            elseif typeof(arg) == "Vector3" and arg.Magnitude > 1 then
-                local origin = myHead and myHead.Position or myRoot.Position
-                local dir = (cachedAimVector - origin)
-                if dir.Magnitude > 0.1 then args[i] = dir.Unit end
-            end
-        end
-        return oldNamecall(self, unpack(args))
-    end
-    return oldNamecall(self, ...)
-end)
-
--- HOOK 2: Cámara y Ratón (Solo devuelve las variables cacheadas)
+-- ÚNICO HOOK: Cámara y Ratón
 mt.__index = newcclosure(function(self, key)
-    if Config.Enabled and cachedAimVector and cachedAimPart and cachedAimPart.Parent then
+    if Config.Enabled and cachedAimCFrame and cachedAimPart and cachedAimPart.Parent then
+        -- Hook de Cámara
         if self == cameraRef and key == "CFrame" then
             local originalCF = oldIndex(self, key)
-            local ok, newCF = pcall(CFrame.lookAt, originalCF.Position, cachedAimVector)
-            if ok and newCF then return newCF end
+            -- Mantenemos la posición original de la cámara, solo cambiamos hacia donde mira
+            return CFrame.lookAt(originalCF.Position, cachedAimVector)
+        -- Hook del Ratón
         elseif mouseRef and self == mouseRef then
-            if key == "Hit" then return CFrame.new(cachedAimVector) end
+            if key == "Hit" then 
+                -- Retornamos un CFrame válido mirando desde la cámara al objetivo
+                return CFrame.lookAt(cameraRef.CFrame.Position, cachedAimVector) 
+            end
             if key == "Target" then return cachedAimPart end
             if key == "UnitRay" then
                 local origin = oldIndex(self, "Origin")
@@ -244,7 +229,7 @@ mt.__index = newcclosure(function(self, key)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim V16 (Ultra Optimizado) instalado. Cero Memory Leak.")
+print("[Froggy Hub] SilentAim V17 (Modo Fantasma) instalado. Cero detección de Anti-Cheat.")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
@@ -252,7 +237,6 @@ env.__BF_SA_CLEANUP = function()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     pcall(function()
         setreadonly(mt, false)
-        mt.__namecall = oldNamecall
         mt.__index = oldIndex
         setreadonly(mt, true)
     end)
