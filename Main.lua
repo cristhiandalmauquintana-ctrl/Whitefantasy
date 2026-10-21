@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v5.0: Multi-Game Support (FULL)
+--// Main.lua - Froggy Hub (loader + panel) | UI v6.0: Multi-Game & Elemental Arena
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -6,10 +6,10 @@ local BRANCH = "main"
 
 -- 🔥 CONFIGURACIÓN MULTI-JUEGO 🔥
 local SUPPORTED_GAMES = {
-    [2753915549] = "BloxFruits",
-    [4442272183] = "BloxFruits",
-    [7449423635] = "BloxFruits",
-    [7243409883] = "ElementalMagicArena", -- 🎯 Elemental Magic Arena (El juego "Papa")
+    [2753915549] = "BloxFruits",       -- Blox Fruits (Main)
+    [4442272183] = "BloxFruits",       -- Blox Fruits (2do Mar)
+    [7449423635] = "BloxFruits",       -- Blox Fruits (3er Mar)
+    [7243409883] = "ElementalMagicArena", -- 🎯 Elemental Magic Arena (Papa)
 }
 
 local CurrentGameFolder = SUPPORTED_GAMES[game.PlaceId] or "Universal"
@@ -18,10 +18,11 @@ if CurrentGameFolder == "BloxFruits" then GameDisplayName = "Blox Fruits"
 elseif CurrentGameFolder == "ElementalMagicArena" then GameDisplayName = "Elemental Magic Arena"
 elseif CurrentGameFolder == "Universal" then GameDisplayName = "Universal" end
 
--- La URL ahora apunta a la carpeta del juego correspondiente
 local BASE_URL = ("https://raw.githubusercontent.com/%s/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH, CurrentGameFolder)
 
+-- Listas de archivos
 local ESP_FILES = { "Esp.lua", "esp.lua" }
+local ELEM_ESP_FILES = { "EspElemental.lua", "espelemental.lua" }
 local MOVE_FILES = { "Movement.lua", "movement.lua" }
 local CAM_FILES = { "Camlock.lua", "camlock.lua" }
 local DODGE_FILES = { "AutoDodge.lua", "autododge.lua" }
@@ -30,6 +31,8 @@ local POT_FILES = { "Potato.lua", "potato.lua" }
 local TP_FILES = { "Teleport.lua", "teleport.lua" }
 local LIFT_FILES = { "AutoLift.lua", "autolift.lua" }
 local DIAMOND_FILES = { "AutoDiamonds.lua", "autodiamonds.lua" }
+local AFARM_FILES = { "AutoFarmPlayers.lua", "autofarmplayers.lua" }
+local FASTM1_FILES = { "FastM1.lua", "fastm1.lua" }
 local LOGO_FILES = { "logo.png", "Logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
 
@@ -76,6 +79,8 @@ local function cleanup()
     if env.__BF_TP_CLEANUP then pcall(env.__BF_TP_CLEANUP) end
     if env.__BF_LIFT_CLEANUP then pcall(env.__BF_LIFT_CLEANUP) end
     if env.__BF_DIAMOND_CLEANUP then pcall(env.__BF_DIAMOND_CLEANUP) end
+    if env.__BF_AFARM_CLEANUP then pcall(env.__BF_AFARM_CLEANUP) end
+    if env.__BF_FASTM1_CLEANUP then pcall(env.__BF_FASTM1_CLEANUP) end
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -133,28 +138,36 @@ if logoAsset then
     table.insert(tweens, pulse); pulse:Play()
 end
 
-setProgress(0.3, "Descargando ESP...")
-local source = downloadModule(ESP_FILES); if not source then fail("No se pudo descargar Esp.lua para " .. GameDisplayName) return end
-setProgress(0.45, "Preparando ESP...")
-local chunk, compileErr = loadstring(source); if type(chunk) ~= "function" then fail("Error en Esp.lua: " .. tostring(compileErr)) return end
-setProgress(0.55, "Iniciando ESP...")
-local okRun, runErr = pcall(chunk); if not okRun then fail("Error al iniciar ESP: " .. tostring(runErr)) return end
-local Config = env.BF_ESP_CONFIG; if type(Config) ~= "table" then fail("Falta config ESP") return end
+--==================== CARGA DE MÓDULOS ====================
+setProgress(0.3, "Cargando Interfaz Base...")
+local Config = nil
+if CurrentGameFolder == "ElementalMagicArena" then
+    local source = downloadModule(ELEM_ESP_FILES)
+    if source then local fn = loadstring(source); if fn then pcall(fn); Config = env.BF_ESP_CONFIG end end
+else
+    local source = downloadModule(ESP_FILES)
+    if source then local fn = loadstring(source); if fn then pcall(fn); Config = env.BF_ESP_CONFIG end end
+end
+if not Config then Config = { Enabled = false, ToggleKey = Enum.KeyCode.RightShift } end
 
-setProgress(0.7, "Descargando movimiento...") local MoveConfig = loadOptional(MOVE_FILES, "Movement.lua", "BF_MOVE_CONFIG")
-setProgress(0.8, "Descargando camlock...") local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
-setProgress(0.85, "Descargando Auto Dodge...") local DodgeConfig = loadOptional(DODGE_FILES, "AutoDodge.lua", "BF_DODGE_CONFIG")
+local MoveConfig = loadOptional(MOVE_FILES, "Movement.lua", "BF_MOVE_CONFIG")
+local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
+local DodgeConfig = loadOptional(DODGE_FILES, "AutoDodge.lua", "BF_DODGE_CONFIG")
 
 -- 🎯 MÓDULOS EXCLUSIVOS DE ELEMENTAL MAGIC ARENA
-local DiamondConfig = nil
+local DiamondConfig, AFarmConfig, FastM1Config = nil, nil, nil
 if CurrentGameFolder == "ElementalMagicArena" then
-    setProgress(0.86, "Cargando Auto Diamantes...")
+    setProgress(0.75, "Cargando Auto Diamantes...")
     DiamondConfig = loadOptional(DIAMOND_FILES, "AutoDiamonds.lua", "BF_DIAMOND_CONFIG")
+    setProgress(0.8, "Cargando Auto Farm Players...")
+    AFarmConfig = loadOptional(AFARM_FILES, "AutoFarmPlayers.lua", "BF_AFARM_CONFIG")
+    setProgress(0.85, "Cargando Fast M1...")
+    FastM1Config = loadOptional(FASTM1_FILES, "FastM1.lua", "BF_FASTM1_CONFIG")
 end
 
--- SILENT AIM (Solo en juegos con seguridad baja)
+-- SILENT AIM (Solo en Arena o Universal)
 local SAConfig = nil
-if CurrentGameFolder == "Universal" or CurrentGameFolder == "ElementalMagicArena" then
+if CurrentGameFolder == "ElementalMagicArena" or CurrentGameFolder == "Universal" then
     setProgress(0.88, "Descargando Silent Aim...")
     SAConfig = loadOptional(SA_FILES, "SilentAim.lua", "BF_SA_CONFIG")
 end
@@ -291,13 +304,13 @@ end
 
 -- CONTENIDO: ESP
 do
-    local g = group(pESP, "ESP", function() return Config.Enabled end, function(v) Config.Enabled = v end)
-    g:toggle("Mostrar compañeros", function() return Config.ShowTeammates end, function(v) Config.ShowTeammates = v end)
+    local g = group(pESP, "ESP (General)", function() return Config.Enabled end, function(v) Config.Enabled = v end)
+    if CurrentGameFolder == "BloxFruits" then
+        g:toggle("Mostrar compañeros", function() return Config.ShowTeammates end, function(v) Config.ShowTeammates = v end)
+    end
     local vis = card(pESP, "Visual")
-    switchRow(vis, "Cajas 2D", function() return Config.Boxes end, function(v) Config.Boxes = v end)
-    switchRow(vis, "Tracers", function() return Config.Tracers end, function(v) Config.Tracers = v end)
-    switchRow(vis, "Barra de vida", function() return Config.HealthBar end, function(v) Config.HealthBar = v end)
-    switchRow(vis, "Texto según vida", function() return Config.ColorByHealth end, function(v) Config.ColorByHealth = v end)
+    switchRow(vis, "Cajas 2D", function() return Config.Boxes or true end, function(v) Config.Boxes = v end)
+    switchRow(vis, "Barra de vida", function() return Config.HealthBar or true end, function(v) Config.HealthBar = v end)
 end
 
 -- CONTENIDO: MOVIMIENTO
@@ -321,37 +334,41 @@ if CamConfig then
     local g = group(pCombat, "Camlock", function() return CamConfig.Enabled end, function(v) CamConfig.Enabled = v end)
     g:slider("Radio FOV", function() return CamConfig.FOV end, function(v) CamConfig.FOV = v end, 50, 600, 10)
     g:slider("Suavizado", function() return CamConfig.Smoothness end, function(v) CamConfig.Smoothness = v end, 0.05, 1, 0.05)
-    g:toggle("Girar personaje", function() return CamConfig.FaceTarget end, function(v) CamConfig.FaceTarget = v end)
 end
 
--- 🔥 AUTO DODGE (DESYNC PVP) 🔥
 if DodgeConfig then
     local g = group(pCombat, "Auto Dodge (Ken/Dash)", function() return DodgeConfig.Enabled end, function(v) DodgeConfig.Enabled = v end)
-    g:slider("Rango de detección", function() return DodgeConfig.DetectRange end, function(v) DodgeConfig.DetectRange = v end, 10, 100, 5)
-    g:slider("Cooldown (seg)", function() return DodgeConfig.Cooldown end, function(v) DodgeConfig.Cooldown = v end, 0.1, 5, 0.1)
-    g:toggle("Auto-Ken (Bloquear)", function() return DodgeConfig.AutoKen end, function(v) DodgeConfig.AutoKen = v end)
-    g:toggle("Auto-Dash (Esquivar)", function() return DodgeConfig.AutoDash end, function(v) DodgeConfig.AutoDash = v end)
-else
-    table.insert(missing, "Auto Dodge")
+    g:slider("Rango", function() return DodgeConfig.DetectRange end, function(v) DodgeConfig.DetectRange = v end, 10, 100, 5)
+    g:toggle("Auto-Ken", function() return DodgeConfig.AutoKen end, function(v) DodgeConfig.AutoKen = v end)
+    g:toggle("Auto-Dash", function() return DodgeConfig.AutoDash end, function(v) DodgeConfig.AutoDash = v end)
 end
 
--- 🎯 AUTO DIAMONDS (SOLO ELEMENTAL MAGIC ARENA)
+-- 🎯 EXCLUSIVO: ELEMENTAL MAGIC ARENA
+if FastM1Config then
+    local g = group(pCombat, "Fast M1 (Ratatata)", function() return FastM1Config.Enabled end, function(v) FastM1Config.Enabled = v end)
+    g:slider("Velocidad (seg)", function() return FastM1Config.ClickDelay end, function(v) FastM1Config.ClickDelay = v end, 0.01, 0.5, 0.01)
+    g:toggle("Bypass Animación", function() return FastM1Config.BypassAnimations end, function(v) FastM1Config.BypassAnimations = v end)
+end
+
+if AFarmConfig then
+    local g = group(pCombat, "Auto Farm Players", function() return AFarmConfig.Enabled end, function(v) AFarmConfig.Enabled = v end)
+    g:slider("Rango", function() return AFarmConfig.Range end, function(v) AFarmConfig.Range = v end, 50, 2000, 50)
+    g:slider("Delay Ataque", function() return AFarmConfig.AttackDelay end, function(v) AFarmConfig.AttackDelay = v end, 0.1, 2, 0.1)
+    g:toggle("Usar Skills", function() return AFarmConfig.AttackMode == "Skills" end, function(v) AFarmConfig.AttackMode = v and "Skills" or "M1" end)
+end
+
 if DiamondConfig then
-    local d = group(pCombat, "Auto Diamonds (Magic Arena)", function() return DiamondConfig.Enabled end, function(v) DiamondConfig.Enabled = v end)
-    d:slider("Rango de búsqueda", function() return DiamondConfig.SearchRange end, function(v) DiamondConfig.SearchRange = v end, 50, 2000, 50)
-    d:toggle("Teletransportarse", function() return DiamondConfig.Teleport end, function(v) DiamondConfig.Teleport = v end)
+    local g = group(pCombat, "Auto Diamonds", function() return DiamondConfig.Enabled end, function(v) DiamondConfig.Enabled = v end)
+    g:slider("Rango", function() return DiamondConfig.SearchRange end, function(v) DiamondConfig.SearchRange = v end, 50, 2000, 50)
+    g:toggle("Teletransportarse", function() return DiamondConfig.Teleport end, function(v) DiamondConfig.Teleport = v end)
 end
 
--- 🔥 SILENT AIM (SOLO SI ESTÁ DISPONIBLE)
+-- SILENT AIM (Si está disponible)
 if SAConfig then
-    local g = group(pCombat, "Silent Aim (Poderoso)", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
+    local g = group(pCombat, "Silent Aim", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
     g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 800, 10)
-    g:slider("Distancia máxima", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 2000, 10)
-    g:toggle("Modo 360°", function() return SAConfig.Aim360 end, function(v) SAConfig.Aim360 = v end)
+    g:slider("Distancia", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 2000, 10)
     g:toggle("Hitbox Expander", function() return SAConfig.HitboxExpand end, function(v) SAConfig.HitboxExpand = v end)
-else
-    local saCard = card(pCombat, "Silent Aim / Aimbot")
-    soon(saCard, "Silent Aim (No disponible para " .. GameDisplayName .. ")")
 end
 
 -- CONTENIDO: RENDIMIENTO
@@ -361,7 +378,7 @@ if PotConfig then
     g:toggle("Quitar texturas", function() return PotConfig.NoTextures end, function(v) PotConfig.NoTextures = v end)
 end
 
--- CONTENIDO: AJUSTES
+-- CONTENIDO: AJUSTES (TEMAS Y APARIENCIA)
 do
     local themeCard = card(pAjustes, "Temas de Color")
     local themeRow = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1 }, themeCard)
@@ -469,4 +486,4 @@ for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
 local hide = TweenService:Create(loadScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
 hide:Play(); task.wait(0.3); loading:Destroy()
 frame.Visible = true; tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
-print("[Froggy Hub] Panel v5.0 cargado con éxito para: " .. GameDisplayName)
+print("[Froggy Hub] Panel v6.0 cargado con éxito para: " .. GameDisplayName)
