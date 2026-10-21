@@ -1,5 +1,4 @@
---// Froggy Hub - Silent Aim v5 (Multi-hook + Debug)
---// Engancha Raycast, FindPartOnRay, GetPartBoundsInBox, GetPartsInPart, GetPartBoundsInRadius
+--// Froggy Hub - Silent Aim v8 (FOV Visual + 360° + Optimizado)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,25 +11,72 @@ if env.__BF_SA_CLEANUP then pcall(env.__BF_SA_CLEANUP) end
 local Config = {
     Enabled = false,
     FOV = 200,
-    MaxDistance = 500,
+    ShowFOV = true,          -- NUEVO
+    Aim360 = false,          -- NUEVO
+    MaxDistance = 35,
     Prediction = 0.12,
     AimPart = "HumanoidRootPart",
     TeamCheck = true,
     IgnoreFriends = false,
     AttackNPCs = false,
     TargetPart = nil,
-    Debug = false,  -- Imprime en consola qué métodos se llaman al atacar
+    Debug = false,
 }
 env.BF_SA_CONFIG = Config
 
 local connections = {}
 local friendCache = {}
+
+local function getParent()
+    if gethui then
+        local ok, ui = pcall(gethui)
+        if ok and typeof(ui) == "Instance" then return ui end
+    end
+    local ok, core = pcall(function() return game:GetService("CoreGui") end)
+    if ok and core then return core end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- === UI DEL FOV ===
+local fovGui = Instance.new("ScreenGui")
+fovGui.Name = "FroggySA_FOV"
+fovGui.ResetOnSpawn = false
+fovGui.IgnoreGuiInset = true
+fovGui.DisplayOrder = 54
+fovGui.Parent = getParent()
+
+local fovCircle = Instance.new("Frame")
+fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+fovCircle.Position = UDim2.fromScale(0.5, 0.5)
+fovCircle.BackgroundTransparency = 1
+fovCircle.BorderSizePixel = 0
+fovCircle.Visible = false
+fovCircle.Parent = fovGui
+Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
+
+local fovStroke = Instance.new("UIStroke", fovCircle)
+fovStroke.Color = Color3.fromRGB(110, 220, 90)
+fovStroke.Thickness = 1.5
+fovStroke.Transparency = 0.4
+
 local cameraRef = Workspace.CurrentCamera
 pcall(function()
     Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
         cameraRef = Workspace.CurrentCamera
     end)
 end)
+
+local myChar, myHead, myRoot
+local function updateCache()
+    myChar = LocalPlayer.Character
+    if myChar then
+        myHead = myChar:FindFirstChild("Head")
+        myRoot = myChar:FindFirstChild("HumanoidRootPart")
+    end
+end
+LocalPlayer.CharacterAdded:Connect(updateCache)
+LocalPlayer.CharacterRemoving:Connect(function() myChar, myHead, myRoot = nil, nil, nil end)
+updateCache()
 
 local function isFriend(player)
     local c = friendCache[player.UserId]
@@ -47,37 +93,56 @@ local function isAllowed(p)
     return true
 end
 
--- Loop de selección (sin hooks)
+-- Bucle de selección (Con soporte para 360°)
 local updateTimer = 0
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
+    -- Actualizar UI del FOV
+    fovCircle.Visible = Config.Enabled and Config.ShowFOV
+    if fovCircle.Visible then
+        fovCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
+    end
+
     updateTimer = updateTimer + dt
     if updateTimer < 0.05 then return end
     updateTimer = 0
     if not Config.Enabled then Config.TargetPart = nil return end
 
     local cam = cameraRef
-    if not cam then return end
+    if not cam or not myRoot then return end
+
     local center = cam.ViewportSize / 2
-    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    local bestPart, bestDist = nil, Config.FOV
+    local bestPart = nil
+    local bestDist = Config.FOV
+    local best3DDist = math.huge
 
     local function try(part, hum)
         if not hum or not part or hum.Health <= 0 then return end
-        local pos, onScreen = cam:WorldToViewportPoint(part.Position)
-        if not onScreen or pos.Z <= 0 then return end
-        local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-        if d >= bestDist then return end
-        if myRoot and Config.MaxDistance > 0 then
-            if (part.Position - myRoot.Position).Magnitude > Config.MaxDistance then return end
+        
+        local dist3D = (part.Position - myRoot.Position).Magnitude
+        if dist3D > Config.MaxDistance then return end
+
+        if Config.Aim360 then
+            -- Lógica 360°: Ignorar pantalla, buscar el más cercano en 3D
+            if dist3D < best3DDist then
+                bestPart, best3DDist = part, dist3D
+            end
+        else
+            -- Lógica Normal: Buscar el más cercano en el FOV de la pantalla
+            local pos, onScreen = cam:WorldToViewportPoint(part.Position)
+            if onScreen and pos.Z > 0 then
+                local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                if d < bestDist then
+                    bestPart, bestDist = part, d
+                end
+            end
         end
-        bestPart, bestDist = part, d
     end
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if isAllowed(player) then
+        if isAllowed(player) and player.Character then
             local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            local part = char and (char:FindFirstChild(Config.AimPart) or char:FindFirstChild("HumanoidRootPart"))
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local part = char:FindFirstChild(Config.AimPart) or char:FindFirstChild("HumanoidRootPart")
             try(part, hum)
         end
     end
@@ -98,11 +163,9 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     Config.TargetPart = bestPart
 end))
 
--- ==========================================
--- HOOK MULTI-MÉTODO
--- ==========================================
+-- HOOK
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v5: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v8: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
@@ -110,93 +173,33 @@ local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
 
--- Contador de métodos (para debug)
-local methodCount = {}
-
-local function debugLog(msg)
-    if Config.Debug then
-        print("[SA-Debug] " .. msg)
-    end
-end
-
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
 
-    -- Debug: contar métodos usados
-    if Config.Debug and (self == Workspace or tostring(self):find("Mouse")) then
-        methodCount[method] = (methodCount[method] or 0) + 1
+    if not Config.Enabled or not Config.TargetPart or not Config.TargetPart.Parent then
+        return oldNamecall(self, ...)
     end
 
-    if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent then
-        local targetPart = Config.TargetPart
-        local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
-        if lead.Magnitude > 40 then lead = lead.Unit * 40 end
-        local aimPos = targetPart.Position + lead
+    if method == "FindPartOnRayWithIgnoreList" and self == Workspace then
+        local args = {...}
+        local ray = args[1]
+        
+        if typeof(ray) == "Ray" then
+            local origin = ray.Origin
+            local isFromPlayer = false
+            if myHead and (origin - myHead.Position).Magnitude < 15 then isFromPlayer = true end
+            if not isFromPlayer and myRoot and (origin - myRoot.Position).Magnitude < 15 then isFromPlayer = true end
+            
+            if isFromPlayer and ray.Direction.Magnitude < 100 then
+                local targetPart = Config.TargetPart
+                local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
+                if lead.Magnitude > 40 then lead = lead.Unit * 40 end
+                local aimPos = targetPart.Position + lead
 
-        -- 1. Raycast
-        if method == "Raycast" and self == Workspace then
-            local args = {...}
-            local origin = args[1]
-            if typeof(origin) == "Vector3" then
                 local dir = aimPos - origin
                 if dir.Magnitude > 0.1 then
-                    args[2] = dir.Unit * math.max(dir.Magnitude, 500)
-                    debugLog("Raycast redirigido (" .. math.floor(dir.Magnitude) .. " studs)")
+                    args[1] = Ray.new(origin, dir.Unit * ray.Direction.Magnitude)
                     return oldNamecall(self, unpack(args))
-                end
-            end
-        end
-
-        -- 2. FindPartOnRay (legacy)
-        if (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == Workspace then
-            local args = {...}
-            local ray = args[1]
-            if typeof(ray) == "Ray" then
-                local dir = aimPos - ray.Origin
-                if dir.Magnitude > 0.1 then
-                    args[1] = Ray.new(ray.Origin, dir.Unit * 500)
-                    debugLog(method .. " redirigido")
-                    return oldNamecall(self, unpack(args))
-                end
-            end
-        end
-
-        -- 3. GetPartBoundsInBox / GetPartBoundsInRadius / GetPartsInPart (melee hitboxes)
-        if (method == "GetPartBoundsInBox" or method == "GetPartBoundsInRadius" or method == "GetPartsInPart") and self == Workspace then
-            local args = {...}
-            local cframe = args[1]
-            if typeof(cframe) == "CFrame" then
-                local dir = aimPos - cframe.Position
-                if dir.Magnitude > 0.1 then
-                    args[1] = cframe + dir
-                    debugLog(method .. " movido a " .. math.floor(dir.Magnitude) .. " studs")
-                    return oldNamecall(self, unpack(args))
-                end
-            end
-        end
-
-        -- 4. ScreenPointToRay (algunos juegos lo usan para skills)
-        if method == "ScreenPointToRay" and self == cameraRef then
-            local args = {...}
-            local ok, ray = pcall(oldNamecall, self, unpack(args))
-            if ok and typeof(ray) == "Ray" then
-                local dir = aimPos - ray.Origin
-                if dir.Magnitude > 0.1 then
-                    debugLog("ScreenPointToRay redirigido")
-                    return Ray.new(ray.Origin, dir.Unit * 500)
-                end
-            end
-        end
-
-        -- 5. ViewportPointToRay (similar al anterior)
-        if method == "ViewportPointToRay" and self == cameraRef then
-            local args = {...}
-            local ok, ray = pcall(oldNamecall, self, unpack(args))
-            if ok and typeof(ray) == "Ray" then
-                local dir = aimPos - ray.Origin
-                if dir.Magnitude > 0.1 then
-                    debugLog("ViewportPointToRay redirigido")
-                    return Ray.new(ray.Origin, dir.Unit * 500)
                 end
             end
         end
@@ -206,23 +209,12 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim v5 instalado (multi-método).")
-
--- Función para ver qué métodos se llamaron (útil para debug)
-env.BF_SA_METHODS = function()
-    if next(methodCount) == nil then
-        return "Ningún método detectado. Activa Debug y ataca para ver."
-    end
-    local list = {}
-    for k, v in pairs(methodCount) do
-        table.insert(list, k .. ": " .. v)
-    end
-    return table.concat(list, "\n")
-end
+print("[Froggy Hub] SilentAim v8 instalado (FOV + 360).")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
     Config.TargetPart = nil
+    fovGui:Destroy()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     pcall(function()
         setreadonly(mt, false)
@@ -230,6 +222,5 @@ env.__BF_SA_CLEANUP = function()
         setreadonly(mt, true)
     end)
     env.BF_SA_CONFIG = nil
-    env.BF_SA_METHODS = nil
     env.__BF_SA_CLEANUP = nil
 end
