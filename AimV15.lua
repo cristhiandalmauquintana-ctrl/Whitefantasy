@@ -1,5 +1,4 @@
---// Froggy Hub - Silent Aim v15 (PvP Hunter Edition - Team Check Fixed)
---// Optimizado para cazar jugadores con protección de equipos.
+--// Froggy Hub - Silent Aim v16 (Ultra Optimizado - Anti Memory Leak)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -82,26 +81,23 @@ local function isFriend(player)
     return friendCache[player.UserId]
 end
 
--- TEAM CHECK BLINDADO (A prueba de fallos en Blox Fruits)
 local function isAllowed(p)
     if p == LocalPlayer then return false end
-    
     if Config.TeamCheck then
         local ok, isSameTeam = pcall(function()
-            if LocalPlayer.Team ~= nil and p.Team ~= nil then
-                return LocalPlayer.Team == p.Team
-            end
-            if LocalPlayer.TeamColor ~= nil and p.TeamColor ~= nil then
-                return LocalPlayer.TeamColor == p.TeamColor
-            end
+            if LocalPlayer.Team ~= nil and p.Team ~= nil then return LocalPlayer.Team == p.Team end
             return false
         end)
         if ok and isSameTeam then return false end
     end
-    
     if Config.IgnoreFriends and isFriend(p) then return false end
     return true
 end
+
+-- Variables cacheadas para el Hook (Evita cálculos en el hook)
+local cachedAimCFrame = nil
+local cachedAimPart = nil
+local cachedAimVector = nil
 
 local updateTimer = 0
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
@@ -114,6 +110,9 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     
     if not Config.Enabled then 
         Config.TargetPart = nil 
+        cachedAimCFrame = nil
+        cachedAimPart = nil
+        cachedAimVector = nil
         return 
     end
 
@@ -128,21 +127,16 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     local function try(part, hum, isPlayer)
         if not hum or not part or hum.Health <= 0 then return end
         local dist3D = (part.Position - myRoot.Position).Magnitude
-        
         if dist3D > Config.MaxDistance then return end
         local priorityBoost = (isPlayer and Config.PvPMode) and -1000 or 0
 
         if Config.Aim360 then
-            if (dist3D + priorityBoost) < best3DDist then 
-                bestPart, best3DDist = part, (dist3D + priorityBoost) 
-            end
+            if (dist3D + priorityBoost) < best3DDist then bestPart, best3DDist = part, (dist3D + priorityBoost) end
         else
             local pos, onScreen = cam:WorldToViewportPoint(part.Position)
             if onScreen and pos.Z > 0 then
                 local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                if (d + priorityBoost) < bestDist then 
-                    bestPart, bestDist = part, (d + priorityBoost) 
-                end
+                if (d + priorityBoost) < bestDist then bestPart, bestDist = part, (d + priorityBoost) end
             end
         end
     end
@@ -173,10 +167,36 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     end
 
     Config.TargetPart = bestPart
+
+    -- CALCULAMOS EL AIM AQUÍ (Fuera del hook, solo 20 veces por segundo)
+    if bestPart and bestPart.Parent then
+        cachedAimPart = bestPart
+        local ok, vel = pcall(function() return bestPart.AssemblyLinearVelocity end)
+        if ok and vel then
+            local dynamicPrediction = Config.Prediction
+            if Config.PvPMode then
+                dynamicPrediction = math.clamp(vel.Magnitude * 0.015, 0.1, 0.35)
+            end
+            local lead = vel * dynamicPrediction
+            if lead.Magnitude > 80 then lead = lead.Unit * 80 end
+            local pos = bestPart.Position + lead
+            
+            -- Protección anti-NaN
+            if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then pos = bestPart.Position end
+            
+            cachedAimVector = pos
+            local origin = myHead and myHead.Position or myRoot.Position
+            cachedAimCFrame = CFrame.lookAt(origin, pos) -- CFrame pre-calculado
+        end
+    else
+        cachedAimPart = nil
+        cachedAimVector = nil
+        cachedAimCFrame = nil
+    end
 end))
 
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v15: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v16: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
@@ -185,47 +205,18 @@ local oldNamecall = mt.__namecall
 local oldIndex = mt.__index
 setreadonly(mt, false)
 
-local function getAimPos(targetPart)
-    if not targetPart or not targetPart.Parent then return nil end
-    local ok, vel = pcall(function() return targetPart.AssemblyLinearVelocity end)
-    if not ok or not vel then return targetPart.Position end
-    
-    local dynamicPrediction = Config.Prediction
-    if Config.PvPMode then
-        local speed = vel.Magnitude
-        dynamicPrediction = math.clamp(speed * 0.015, 0.1, 0.35) 
-    end
-    
-    local lead = vel * dynamicPrediction
-    if lead.Magnitude > 80 then lead = lead.Unit * 80 end 
-    local pos = targetPart.Position + lead
-    
-    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return targetPart.Position end
-    return pos
-end
-
--- HOOK 1: RemoteEvents (Frutas y Habilidades)
+-- HOOK 1: RemoteEvents (Usa variables cacheadas, cero cálculos aquí)
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent and method == "FireServer" then
+    if Config.Enabled and cachedAimVector and cachedAimPart and cachedAimPart.Parent and method == "FireServer" then
         local args = {...}
-        local aimPos = getAimPos(Config.TargetPart)
-        if aimPos then
-            for i, arg in ipairs(args) do
-                if typeof(arg) == "CFrame" then
-                    local ok, newCF = pcall(CFrame.lookAt, arg.Position, aimPos)
-                    if ok and newCF then
-                        args[i] = newCF
-                        if Config.Debug then print("[SA] Remote CFrame -> Target") end
-                    end
-                elseif typeof(arg) == "Vector3" and arg.Magnitude > 1 then
-                    local origin = myHead and myHead.Position or myRoot.Position
-                    local dir = (aimPos - origin)
-                    if dir.Magnitude > 0.1 then
-                        args[i] = dir.Unit
-                        if Config.Debug then print("[SA] Remote Vector -> Target") end
-                    end
-                end
+        for i, arg in ipairs(args) do
+            if typeof(arg) == "CFrame" then
+                args[i] = cachedAimCFrame
+            elseif typeof(arg) == "Vector3" and arg.Magnitude > 1 then
+                local origin = myHead and myHead.Position or myRoot.Position
+                local dir = (cachedAimVector - origin)
+                if dir.Magnitude > 0.1 then args[i] = dir.Unit end
             end
         end
         return oldNamecall(self, unpack(args))
@@ -233,25 +224,19 @@ mt.__namecall = newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end)
 
--- HOOK 2: Cámara, Ratón y Raycast (Pistolas, Espadas y M1)
+-- HOOK 2: Cámara y Ratón (Solo devuelve las variables cacheadas)
 mt.__index = newcclosure(function(self, key)
-    if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent then
+    if Config.Enabled and cachedAimVector and cachedAimPart and cachedAimPart.Parent then
         if self == cameraRef and key == "CFrame" then
             local originalCF = oldIndex(self, key)
-            local aimPos = getAimPos(Config.TargetPart)
-            if aimPos then
-                local ok, newCF = pcall(CFrame.lookAt, originalCF.Position, aimPos)
-                if ok and newCF then return newCF end
-            end
+            local ok, newCF = pcall(CFrame.lookAt, originalCF.Position, cachedAimVector)
+            if ok and newCF then return newCF end
         elseif mouseRef and self == mouseRef then
-            local aimPos = getAimPos(Config.TargetPart)
-            if aimPos then
-                if key == "Hit" then return CFrame.new(aimPos) end
-                if key == "Target" then return Config.TargetPart end
-                if key == "UnitRay" then
-                    local origin = oldIndex(self, "Origin")
-                    return Ray.new(origin, (aimPos - origin).Unit * 1000)
-                end
+            if key == "Hit" then return CFrame.new(cachedAimVector) end
+            if key == "Target" then return cachedAimPart end
+            if key == "UnitRay" then
+                local origin = oldIndex(self, "Origin")
+                return Ray.new(origin, (cachedAimVector - origin).Unit * 1000)
             end
         end
     end
@@ -259,7 +244,7 @@ mt.__index = newcclosure(function(self, key)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim V15 PVP cargado correctamente (TeamCheck Blindado).")
+print("[Froggy Hub] SilentAim V16 (Ultra Optimizado) instalado. Cero Memory Leak.")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
