@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v3.8: PvP Edition
+--// Main.lua - Froggy Hub (loader + panel) | UI v4.0: Silent Aim Removed
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -6,7 +6,6 @@ local BRANCH = "main"
 local ESP_FILES = { "Esp.lua", "esp.lua" }
 local MOVE_FILES = { "Movement.lua", "movement.lua" }
 local CAM_FILES = { "Camlock.lua", "camlock.lua" }
-local SA_FILES = { "AimV15.lua", "aimv15.lua" }
 local POT_FILES = { "Potato.lua", "potato.lua" }
 local TP_FILES = { "Teleport.lua", "teleport.lua" }
 local LIFT_FILES = { "AutoLift.lua", "autolift.lua" }
@@ -65,7 +64,7 @@ local function cleanup()
     if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
     if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
     if env.__BF_CAM_CLEANUP then pcall(env.__BF_CAM_CLEANUP) end
-    if env.__BF_SA_CLEANUP then pcall(env.__BF_SA_CLEANUP) end
+    if env.__BF_SA_CLEANUP then pcall(env.__BF_SA_CLEANUP) end -- Limpieza de emergencia por si quedó algo viejo
     if env.__BF_POTATO_CLEANUP then pcall(env.__BF_POTATO_CLEANUP) end
     if env.__BF_TP_CLEANUP then pcall(env.__BF_TP_CLEANUP) end
     if env.__BF_LIFT_CLEANUP then pcall(env.__BF_LIFT_CLEANUP) end
@@ -145,7 +144,7 @@ if type(Config) ~= "table" then fail("No se encontró la configuración del ESP.
 
 setProgress(0.7, "Descargando movimiento...") local MoveConfig = loadOptional(MOVE_FILES, "Movement.lua", "BF_MOVE_CONFIG")
 setProgress(0.82, "Descargando camlock...") local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
-setProgress(0.88, "Descargando silent aim...") local SAConfig = loadOptional(SA_FILES, "SilentAim.lua", "BF_SA_CONFIG")
+-- EL SILENT AIM YA NO SE CARGA PARA EVITAR CRASHEOS
 setProgress(0.9, "Descargando teleport...") local TpConfig = loadOptional(TP_FILES, "Teleport.lua", "BF_TP_CONFIG")
 setProgress(0.93, "Descargando elevación...") local LiftConfig = loadOptional(LIFT_FILES, "AutoLift.lua", "BF_LIFT_CONFIG")
 setProgress(0.95, "Descargando optimización...") local PotConfig = loadOptional(POT_FILES, "Potato.lua", "BF_POTATO")
@@ -412,20 +411,11 @@ if CamConfig then
     g:toggle("Mostrar círculo FOV", function() return CamConfig.ShowFOV end, function(v) CamConfig.ShowFOV = v end)
 else table.insert(missing, "Camlock") end
 
--- 🔥 SILENT AIM (v15 PVP) 🔥
-if SAConfig then
-    local g = group(pCombat, "Silent Aim (v15 PvP)", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
-    g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 800, 10)
-    g:slider("Distancia (Studs)", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 500, 10)
-    
-    g:toggle("Modo PvP (Prioridad Players)", function() return SAConfig.PvPMode end, function(v) SAConfig.PvPMode = v end)
-    g:toggle("Modo 360°", function() return SAConfig.Aim360 end, function(v) SAConfig.Aim360 = v end)
-    g:toggle("Atacar NPCs (Farmeo)", function() return SAConfig.AttackNPCs end, function(v) SAConfig.AttackNPCs = v end)
-    g:toggle("Mostrar FOV", function() return SAConfig.ShowFOV end, function(v) SAConfig.ShowFOV = v end)
-    g:toggle("Team check", function() return SAConfig.TeamCheck end, function(v) SAConfig.TeamCheck = v end)
-    g:toggle("Debug", function() return SAConfig.Debug end, function(v) SAConfig.Debug = v end) 
-else 
-    table.insert(missing, "Silent Aim") 
+-- SILENT AIM PRÓXIMAMENTE
+do
+    local saCard = card(pCombat, "Silent Aim / Aimbot")
+    soon(saCard, "Silent Aim (En desarrollo)")
+    soon(saCard, "Aimbot para frutas y armas")
 end
 
 -- CONTENIDO: RENDIMIENTO
@@ -436,9 +426,8 @@ if PotConfig then
     g:toggle("Materiales planos", function() return PotConfig.FlatMaterials end, function(v) PotConfig.FlatMaterials = v end)
 else table.insert(missing, "Gráficos patata") end
 
--- CONTENIDO: AJUSTES (TEMAS Y APARIENCIA)
+-- CONTENIDO: AJUSTES
 do
-    -- 1. Temas
     local themeCard = card(pAjustes, "Temas de Color")
     local themeRow = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1 }, themeCard)
     new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, themeRow)
@@ -454,19 +443,10 @@ do
     local function applyTheme(theme)
         local oldC = {}
         for k, v in pairs(C) do oldC[k] = v end
-
-        C.Accent = theme.Accent
-        C.On = theme.Accent
-        C.Bg = theme.Bg
-        C.Header = theme.Bg:Lerp(Color3.new(1,1,1), 0.05)
-        C.Row = theme.Bg:Lerp(Color3.new(1,1,1), 0.1)
-        C.Stroke = theme.Bg:Lerp(Color3.new(1,1,1), 0.2)
+        C.Accent = theme.Accent; C.On = theme.Accent; C.Bg = theme.Bg
+        C.Header = theme.Bg:Lerp(Color3.new(1,1,1), 0.05); C.Row = theme.Bg:Lerp(Color3.new(1,1,1), 0.1); C.Stroke = theme.Bg:Lerp(Color3.new(1,1,1), 0.2)
         C.AccentText = Color3.fromRGB(14, 24, 12)
-
-        local function colorMatches(c1, c2)
-            return math.abs(c1.R - c2.R) < 0.02 and math.abs(c1.G - c2.G) < 0.02 and math.abs(c1.B - c2.B) < 0.02
-        end
-
+        local function colorMatches(c1, c2) return math.abs(c1.R - c2.R) < 0.02 and math.abs(c1.G - c2.G) < 0.02 and math.abs(c1.B - c2.B) < 0.02 end
         for _, desc in ipairs(gui:GetDescendants()) do
             if desc:IsA("Frame") or desc:IsA("TextButton") or desc:IsA("TextLabel") then
                 for k, v in pairs(oldC) do
@@ -474,9 +454,7 @@ do
                     if colorMatches(desc.TextColor3, v) then desc.TextColor3 = C[k] end
                 end
             elseif desc:IsA("UIStroke") then
-                for k, v in pairs(oldC) do
-                    if colorMatches(desc.Color, v) then desc.Color = C[k] end
-                end
+                for k, v in pairs(oldC) do if colorMatches(desc.Color, v) then desc.Color = C[k] end end
             end
         end
         for _, refresh in ipairs(refreshers) do refresh() end
@@ -489,17 +467,11 @@ do
         b.Activated:Connect(function() applyTheme(t) end)
     end
 
-    -- 2. Tamaño y Transparencia
     local ap = card(pAjustes, "Apariencia del panel")
     local presetRow = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1 }, ap)
     new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, presetRow)
 
-    local presets = {
-        { Name = "Discreto", Scale = 0.7, Trans = 0.5 },
-        { Name = "Normal", Scale = 1, Trans = 0 },
-        { Name = "Grande", Scale = 1.25, Trans = 0 },
-    }
-
+    local presets = { { Name = "Discreto", Scale = 0.7, Trans = 0.5 }, { Name = "Normal", Scale = 1, Trans = 0 }, { Name = "Grande", Scale = 1.25, Trans = 0 } }
     local presetButtons = {}
     local function refreshPresets()
         for _, b in ipairs(presetButtons) do
@@ -514,28 +486,14 @@ do
         stroke(btn, C.Stroke)
         table.insert(presetButtons, { btn = btn, data = p })
         btn.Activated:Connect(function()
-            PanelConfig.Mode = p.Name
-            PanelConfig.Scale = p.Scale
-            PanelConfig.Transparency = p.Trans
-            applyPanelStyle()
-            refreshPresets()
+            PanelConfig.Mode = p.Name; PanelConfig.Scale = p.Scale; PanelConfig.Transparency = p.Trans
+            applyPanelStyle(); refreshPresets()
         end)
     end
     refreshPresets()
 
-    slider(ap, "Escala del panel", function() return PanelConfig.Scale end, function(v)
-        PanelConfig.Scale = v
-        PanelConfig.Mode = "Personalizado"
-        applyPanelStyle()
-        refreshPresets()
-    end, 0.65, 1.4, 0.05)
-
-    slider(ap, "Transparencia", function() return PanelConfig.Transparency end, function(v)
-        PanelConfig.Transparency = v
-        PanelConfig.Mode = "Personalizado"
-        applyPanelStyle()
-        refreshPresets()
-    end, 0, 0.85, 0.05)
+    slider(ap, "Escala del panel", function() return PanelConfig.Scale end, function(v) PanelConfig.Scale = v; PanelConfig.Mode = "Personalizado"; applyPanelStyle(); refreshPresets() end, 0.65, 1.4, 0.05)
+    slider(ap, "Transparencia", function() return PanelConfig.Transparency end, function(v) PanelConfig.Transparency = v; PanelConfig.Mode = "Personalizado"; applyPanelStyle(); refreshPresets() end, 0, 0.85, 0.05)
 end
 
 -- CONTENIDO: MISC
@@ -562,10 +520,7 @@ local function makeDraggable(handle, getPos, setPos, onTap)
             local conn
             conn = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
-                    if active == input then
-                        active = nil
-                        if not moved and onTap then onTap() end
-                    end
+                    if active == input then active = nil; if not moved and onTap then onTap() end end
                     conn:Disconnect()
                 end
             end)
@@ -573,8 +528,7 @@ local function makeDraggable(handle, getPos, setPos, onTap)
     end))
     table.insert(connections, UserInputService.InputChanged:Connect(function(input)
         if not active then return end
-        if active.UserInputType == Enum.UserInputType.Touch then
-            if input ~= active then return end
+        if active.UserInputType == Enum.UserInputType.Touch then if input ~= active then return end
         elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
         local d = input.Position - startMouse
         if d.Magnitude > 8 then moved = true end
@@ -628,4 +582,4 @@ loading:Destroy()
 frame.Visible = true
 tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
 
-print("[Froggy Hub] Panel v3.8 cargado con éxito.")
+print("[Froggy Hub] Panel v4.0 cargado con éxito. Silent Aim deshabilitado temporalmente.")
