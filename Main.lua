@@ -6,6 +6,7 @@ local BRANCH = "main"
 local ESP_FILES = { "Esp.lua", "esp.lua" }
 local MOVE_FILES = { "Movement.lua", "movement.lua" }
 local CAM_FILES = { "Camlock.lua", "camlock.lua" }
+local SA_FILES = { "SilentAim.lua", "silentaim.lua" }
 local POT_FILES = { "Potato.lua", "potato.lua" }
 local TP_FILES = { "Teleport.lua", "teleport.lua" }
 local LIFT_FILES = { "AutoLift.lua", "autolift.lua" }
@@ -89,6 +90,7 @@ local function cleanup()
     if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
     if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
     if env.__BF_CAM_CLEANUP then pcall(env.__BF_CAM_CLEANUP) end
+    if env.__BF_SA_CLEANUP then pcall(env.__BF_SA_CLEANUP) end
     if env.__BF_POTATO_CLEANUP then pcall(env.__BF_POTATO_CLEANUP) end
     if env.__BF_TP_CLEANUP then pcall(env.__BF_TP_CLEANUP) end
     if env.__BF_LIFT_CLEANUP then pcall(env.__BF_LIFT_CLEANUP) end
@@ -246,6 +248,8 @@ setProgress(0.7, "Descargando movimiento...")
 local MoveConfig = loadOptional(MOVE_FILES, "Movement.lua", "BF_MOVE_CONFIG")
 setProgress(0.85, "Descargando camlock...")
 local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
+setProgress(0.88, "Descargando Silent Aim...")
+local SAConfig = loadOptional(SA_FILES, "SilentAim.lua", "BF_SA_CONFIG")
 setProgress(0.9, "Descargando teleport...")
 local TpConfig = loadOptional(TP_FILES, "Teleport.lua", "BF_TP_CONFIG")
 setProgress(0.93, "Descargando elevación...")
@@ -685,6 +689,21 @@ if CamConfig then
     g:toggle("Mostrar círculo FOV", function() return CamConfig.ShowFOV end, function(v) CamConfig.ShowFOV = v end)
 else
     table.insert(missing, "Camlock")
+end
+
+if SAConfig then
+    local g = group(pCombat, "Silent Aim", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
+    g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 600, 10)
+    g:slider("Distancia máxima", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 0, 1000, 50)
+    g:slider("Predicción (seg)", function() return SAConfig.Prediction end, function(v) SAConfig.Prediction = v end, 0, 0.5, 0.05)
+    g:toggle("Atacar NPCs", function() return SAConfig.AttackNPCs end, function(v) SAConfig.AttackNPCs = v end)
+    g:toggle("Apuntar a la cabeza", function() return SAConfig.AimPart == "Head" end,
+        function(v) SAConfig.AimPart = v and "Head" or "HumanoidRootPart" end)
+    g:toggle("Team check", function() return SAConfig.TeamCheck end, function(v) SAConfig.TeamCheck = v end)
+    g:toggle("Ignorar amigos", function() return SAConfig.IgnoreFriends end, function(v) SAConfig.IgnoreFriends = v end)
+    g:toggle("Wall check", function() return SAConfig.WallCheck end, function(v) SAConfig.WallCheck = v end)
+else
+    table.insert(missing, "Silent Aim")
 end
 
 --// Rendimiento
