@@ -8,6 +8,7 @@ local MOVE_FILES = { "Movement.lua", "movement.lua" }   -- speed / super jump / 
 local CAM_FILES = { "Camlock.lua", "camlock.lua" }      -- camlock / aim assist
 local POT_FILES = { "Potato.lua", "potato.lua" }        -- gráficos patata
 local TP_FILES = { "Teleport.lua", "teleport.lua" }     -- teleport al enemigo más cercano
+local LIFT_FILES = { "AutoLift.lua", "autolift.lua" }   -- elevarse con poca vida
 local LOGO_FILES = { "logo.png", "Logo.png" }           -- logo del repositorio
 local HUB_NAME = "Froggy Hub"
 
@@ -65,6 +66,7 @@ local function cleanup()
     if env.__BF_CAM_CLEANUP then pcall(env.__BF_CAM_CLEANUP) end
     if env.__BF_POTATO_CLEANUP then pcall(env.__BF_POTATO_CLEANUP) end
     if env.__BF_TP_CLEANUP then pcall(env.__BF_TP_CLEANUP) end
+    if env.__BF_LIFT_CLEANUP then pcall(env.__BF_LIFT_CLEANUP) end
     gui:Destroy()
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -281,6 +283,26 @@ if tpSource then
     end
 else
     warn("Froggy Hub: no se pudo descargar Teleport.lua")
+end
+
+--// Elevación con poca vida: si falla, el panel igual abre
+setProgress(0.93, "Descargando elevación...")
+local LiftConfig = nil
+local liftSource = downloadModule(LIFT_FILES)
+if liftSource then
+    local liftChunk, liftErr = loadstring(liftSource)
+    if type(liftChunk) == "function" then
+        local okLift, liftRunErr = pcall(liftChunk)
+        if okLift then
+            LiftConfig = env.BF_LIFT_CONFIG
+        else
+            warn("Froggy Hub: error al iniciar AutoLift.lua: " .. tostring(liftRunErr))
+        end
+    else
+        warn("Froggy Hub: error de sintaxis en AutoLift.lua: " .. tostring(liftErr))
+    end
+else
+    warn("Froggy Hub: no se pudo descargar AutoLift.lua")
 end
 
 --// Gráficos patata: si falla, el panel igual abre
@@ -755,6 +777,29 @@ if TpConfig then
         function(v) TpConfig.IgnoreFriends = v end)
 else
     soon("Teleport")
+end
+
+if LiftConfig then
+    toggle("Elevarse con poca vida",
+        function() return LiftConfig.Enabled end,
+        function(v) LiftConfig.Enabled = v end)
+    slider("  Activar con vida (%)",
+        function() return LiftConfig.Threshold end,
+        function(v) LiftConfig.Threshold = v end,
+        5, 95, 5)
+    slider("  Altura (studs)",
+        function() return LiftConfig.Height end,
+        function(v) LiftConfig.Height = v end,
+        50, 3000, 50)
+    toggle("  Bajar solo al recuperar vida",
+        function() return LiftConfig.AutoDescend end,
+        function(v) LiftConfig.AutoDescend = v end)
+    slider("  Bajar al recuperar (%)",
+        function() return LiftConfig.RecoverPercent end,
+        function(v) LiftConfig.RecoverPercent = v end,
+        10, 100, 5)
+else
+    soon("Elevarse con poca vida")
 end
 
 section("Combate")
