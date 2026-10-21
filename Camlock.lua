@@ -117,9 +117,11 @@ end
 
 local function visible(part)
     local camera = workspace.CurrentCamera
+    if not camera then return false end
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = { LocalPlayer.Character }
+    local char = LocalPlayer.Character
+    params.FilterDescendantsInstances = char and {char} or {}
     params.RespectCanCollide = true -- ignora partes invisibles sin colisión
     local origin = camera.CFrame.Position
     local result = workspace:Raycast(origin, part.Position - origin, params)
@@ -256,4 +258,4 @@ env.__BF_CAM_CLEANUP = function()
     gui:Destroy()
     env.BF_CAM_CONFIG = nil
     env.__BF_CAM_CLEANUP = nil
-end
+end[span_2](start_span)[span_2](end_span)
