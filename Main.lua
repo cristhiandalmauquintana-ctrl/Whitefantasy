@@ -285,16 +285,24 @@ setProgress(1, "Listo")
 task.wait(0.5)
 
 --==================== PANEL PRINCIPAL ====================
-local camera = workspace.CurrentCamera
-local viewport = camera and camera.ViewportSize or Vector2.new(800, 600)
-local WIDTH = math.min(320, viewport.X - 24)
-local HEIGHT = math.min(440, viewport.Y - 60)
+local function screenSize()
+    local sz = gui.AbsoluteSize
+    if sz.X < 50 or sz.Y < 50 then
+        local cam = workspace.CurrentCamera
+        sz = cam and cam.ViewportSize or Vector2.new(800, 600)
+    end
+    return sz
+end
+
+local S0 = screenSize()
+local WIDTH = math.min(320, S0.X - 24)
+local HEIGHT = math.min(440, S0.Y - 20)
 local HEADER_H = 44
 
 local frame = Instance.new("Frame")
 frame.Size = UDim2.fromOffset(WIDTH, HEIGHT)
-frame.AnchorPoint = Vector2.new(0.5, 0.5)
-frame.Position = UDim2.fromScale(0.5, 0.5)
+frame.AnchorPoint = Vector2.new(0, 0) -- anclado arriba-izquierda: la barra nunca se mueve al cambiar de tamaño
+frame.Position = UDim2.fromOffset(math.floor((S0.X - WIDTH) / 2), math.floor((S0.Y - HEIGHT) / 2))
 frame.BackgroundColor3 = C.Bg
 frame.BorderSizePixel = 0
 frame.ClipsDescendants = true
@@ -330,7 +338,7 @@ end
 local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
 title.Position = UDim2.fromOffset(titleX, 0)
-title.Size = UDim2.new(1, -(titleX + 80), 1, 0)
+title.Size = UDim2.new(1, -(titleX + 90), 1, 0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 17
 title.TextXAlignment = Enum.TextXAlignment.Left
@@ -340,8 +348,8 @@ title.Parent = header
 
 local function headerButton(text, xOffset)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(28, 28)
-    b.Position = UDim2.new(1, xOffset, 0.5, -14)
+    b.Size = UDim2.fromOffset(32, 32)
+    b.Position = UDim2.new(1, xOffset, 0.5, -16)
     b.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
     b.BorderSizePixel = 0
     b.Font = Enum.Font.GothamBold
@@ -354,8 +362,8 @@ local function headerButton(text, xOffset)
     return b
 end
 
-local closeBtn = headerButton("X", -38)
-local minBtn = headerButton("-", -72)
+local closeBtn = headerButton("X", -42)
+local minBtn = headerButton("-", -80)
 
 --// Cuerpo con scroll
 local body = Instance.new("ScrollingFrame")
@@ -775,60 +783,143 @@ hint.Font = Enum.Font.Gotham
 hint.TextSize = 11
 hint.TextWrapped = true
 hint.TextColor3 = C.Dim
-hint.Text = "RightShift = ESP  |  V o botón DASH = dash  |  C o botón LOCK = camlock  |  Arrastra la barra superior para mover"
+hint.Text = "RightShift = ESP  |  V o botón DASH = dash  |  C o botón LOCK = camlock  |  Arrastra la barra superior para mover  |  RightControl = abrir/minimizar"
 hint.Parent = body
 
---// Minimizar
-local minimized = false
-minBtn.Activated:Connect(function()
-    minimized = not minimized
-    body.Visible = not minimized
-    minBtn.Text = minimized and "+" or "-"
-    frame.Size = minimized and UDim2.fromOffset(WIDTH, HEADER_H) or UDim2.fromOffset(WIDTH, HEIGHT)
-end)
+--// Posición: el panel SIEMPRE queda completo dentro de la pantalla
+local function clampPanel(x, y)
+    local sz = screenSize()
+    return math.clamp(x, 0, math.max(0, sz.X - WIDTH)),
+           math.clamp(y, 0, math.max(0, sz.Y - HEIGHT))
+end
 
---// Arrastrar: solo sigue el dedo/ratón que empezó en la cabecera
-local dragging = false
-local dragInput, dragStart, startPos
+local function setPanelPos(x, y)
+    x, y = clampPanel(x, y)
+    frame.Position = UDim2.fromOffset(x, y)
+end
 
-table.insert(connections, header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragInput = input
-        dragStart = input.Position
-        startPos = frame.Position
+--// Arrastre genérico (dedo o ratón). Si casi no se movió, cuenta como "toque".
+local function makeDraggable(handle, getPos, setPos, onTap)
+    local active, startMouse, startPos, moved
 
-        local conn
-        conn = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-                dragInput = nil
-                conn:Disconnect()
-            end
-        end)
-    end
+    table.insert(connections, handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            active = input
+            startMouse = input.Position
+            startPos = getPos()
+            moved = false
+
+            local conn
+            conn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if active == input then
+                        active = nil
+                        if not moved and onTap then onTap() end
+                    end
+                    conn:Disconnect()
+                end
+            end)
+        end
+    end))
+
+    table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+        if not active then return end
+        if active.UserInputType == Enum.UserInputType.Touch then
+            if input ~= active then return end -- ignora otros dedos
+        elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then
+            return
+        end
+        local d = input.Position - startMouse
+        if d.Magnitude > 8 then moved = true end
+        if moved then setPos(startPos.X + d.X, startPos.Y + d.Y) end
+    end))
+end
+
+makeDraggable(header,
+    function() return Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset) end,
+    setPanelPos)
+
+--// Burbuja: así queda el panel al minimizarlo (se arrastra; un toque lo abre)
+local BUBBLE = 52
+local bubble = Instance.new("TextButton")
+bubble.Size = UDim2.fromOffset(BUBBLE, BUBBLE)
+bubble.BackgroundColor3 = C.Header
+bubble.BorderSizePixel = 0
+bubble.AutoButtonColor = false
+bubble.Text = ""
+bubble.Visible = false
+bubble.Parent = gui
+Instance.new("UICorner", bubble).CornerRadius = UDim.new(1, 0)
+local bubbleStroke = Instance.new("UIStroke", bubble)
+bubbleStroke.Color = C.Accent
+bubbleStroke.Thickness = 2
+
+if logoAsset then
+    local bl = Instance.new("ImageLabel")
+    bl.AnchorPoint = Vector2.new(0.5, 0.5)
+    bl.Position = UDim2.fromScale(0.5, 0.5)
+    bl.Size = UDim2.new(1, -14, 1, -14)
+    bl.BackgroundTransparency = 1
+    bl.ScaleType = Enum.ScaleType.Fit
+    bl.Image = logoAsset
+    bl.Active = false
+    bl.Parent = bubble
+else
+    local bt = Instance.new("TextLabel")
+    bt.Size = UDim2.fromScale(1, 1)
+    bt.BackgroundTransparency = 1
+    bt.Font = Enum.Font.GothamBold
+    bt.TextSize = 22
+    bt.TextColor3 = C.Accent
+    bt.Text = "F"
+    bt.Active = false
+    bt.Parent = bubble
+end
+
+local function setBubblePos(x, y)
+    local sz = screenSize()
+    bubble.Position = UDim2.fromOffset(
+        math.clamp(x, 0, math.max(0, sz.X - BUBBLE)),
+        math.clamp(y, 0, math.max(0, sz.Y - BUBBLE))
+    )
+end
+
+local function restorePanel()
+    bubble.Visible = false
+    frame.Visible = true
+    setPanelPos(bubble.Position.X.Offset - 8, bubble.Position.Y.Offset - 8)
+end
+
+local function minimizePanel()
+    setBubblePos(frame.Position.X.Offset + 8, frame.Position.Y.Offset + 8)
+    frame.Visible = false
+    bubble.Visible = true
+end
+
+makeDraggable(bubble,
+    function() return Vector2.new(bubble.Position.X.Offset, bubble.Position.Y.Offset) end,
+    setBubblePos,
+    restorePanel)
+
+minBtn.Activated:Connect(minimizePanel)
+
+--// Si cambia el tamaño de la pantalla (rotar, etc.), reacomodar todo
+table.insert(connections, gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+    local sz = screenSize()
+    WIDTH = math.min(320, sz.X - 24)
+    HEIGHT = math.min(440, sz.Y - 20)
+    frame.Size = UDim2.fromOffset(WIDTH, HEIGHT)
+    setPanelPos(frame.Position.X.Offset, frame.Position.Y.Offset)
+    setBubblePos(bubble.Position.X.Offset, bubble.Position.Y.Offset)
 end))
 
-table.insert(connections, UserInputService.InputChanged:Connect(function(input)
-    if not dragging or not dragInput then return end
-
-    if dragInput.UserInputType == Enum.UserInputType.Touch then
-        if input ~= dragInput then return end -- ignora otros dedos
-    elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then
-        return
+--// RightControl: abre/minimiza el panel (por si lo pierdes de vista)
+table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.RightControl then
+        if frame.Visible then minimizePanel() else restorePanel() end
     end
-
-    local delta = input.Position - dragStart
-    local screen = gui.AbsoluteSize
-    local size = frame.AbsoluteSize
-    local maxX = math.max(0, (screen.X - size.X) / 2)
-    local maxY = math.max(0, (screen.Y - size.Y) / 2)
-
-    frame.Position = UDim2.new(
-        0.5, math.clamp(startPos.X.Offset + delta.X, -maxX, maxX),
-        0.5, math.clamp(startPos.Y.Offset + delta.Y, -maxY, maxY)
-    )
 end))
 
 --// Sincronizar botones si el ESP se cambia con la tecla
