@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v3.5: Final Edition
+--// Main.lua - Froggy Hub (loader + panel) | UI v3.7: Universal Edition
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -413,19 +413,19 @@ if CamConfig then
     g:toggle("Mostrar círculo FOV", function() return CamConfig.ShowFOV end, function(v) CamConfig.ShowFOV = v end)
 else table.insert(missing, "Camlock") end
 
--- 🔥 SILENT AIM (SOLO FRUTAS/HABILIDADES) 🔥
 if SAConfig then
-    local g = group(pCombat, "Silent Aim (Solo Frutas)", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
+    local g = group(pCombat, "Silent Aim (v12)", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
     g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 800, 10)
+    g:slider("Distancia Frutas/Armas", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 1000, 10)
+    g:slider("Distancia M1 (Seguro)", function() return SAConfig.M1Distance end, function(v) SAConfig.M1Distance = v end, 10, 100, 5)
     
-    -- Distancia limitada a 400 studs para evitar kicks
-    g:slider("Distancia máxima (Studs)", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 400, 10)
-    
-    g:toggle("Modo 360° (Ignorar FOV)", function() return SAConfig.Aim360 end, function(v) SAConfig.Aim360 = v end)
-    g:toggle("Mostrar círculo FOV", function() return SAConfig.ShowFOV end, function(v) SAConfig.ShowFOV = v end)
+    g:toggle("Expandir Hitbox", function() return SAConfig.HitboxExpand end, function(v) SAConfig.HitboxExpand = v end)
+    g:toggle("Modo 360°", function() return SAConfig.Aim360 end, function(v) SAConfig.Aim360 = v end)
+    g:toggle("Mostrar FOV", function() return SAConfig.ShowFOV end, function(v) SAConfig.ShowFOV = v end)
     g:toggle("Atacar NPCs", function() return SAConfig.AttackNPCs end, function(v) SAConfig.AttackNPCs = v end)
     g:toggle("Team check", function() return SAConfig.TeamCheck end, function(v) SAConfig.TeamCheck = v end)
     g:toggle("Ignorar amigos", function() return SAConfig.IgnoreFriends end, function(v) SAConfig.IgnoreFriends = v end)
+    g:toggle("Debug", function() return SAConfig.Debug end, function(v) SAConfig.Debug = v end) 
 else 
     table.insert(missing, "Silent Aim") 
 end
@@ -465,15 +465,20 @@ do
         C.Stroke = theme.Bg:Lerp(Color3.new(1,1,1), 0.2)
         C.AccentText = Color3.fromRGB(14, 24, 12)
 
+        -- Función matemática para comparar colores exactos (con margen de error)
+        local function colorMatches(c1, c2)
+            return math.abs(c1.R - c2.R) < 0.02 and math.abs(c1.G - c2.G) < 0.02 and math.abs(c1.B - c2.B) < 0.02
+        end
+
         for _, desc in ipairs(gui:GetDescendants()) do
             if desc:IsA("Frame") or desc:IsA("TextButton") or desc:IsA("TextLabel") then
                 for k, v in pairs(oldC) do
-                    if desc.BackgroundColor3 == v then desc.BackgroundColor3 = C[k] end
-                    if desc.TextColor3 == v then desc.TextColor3 = C[k] end
+                    if colorMatches(desc.BackgroundColor3, v) then desc.BackgroundColor3 = C[k] end
+                    if colorMatches(desc.TextColor3, v) then desc.TextColor3 = C[k] end
                 end
             elseif desc:IsA("UIStroke") then
                 for k, v in pairs(oldC) do
-                    if desc.Color == v then desc.Color = C[k] end
+                    if colorMatches(desc.Color, v) then desc.Color = C[k] end
                 end
             end
         end
@@ -626,4 +631,4 @@ loading:Destroy()
 frame.Visible = true
 tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
 
-print("[Froggy Hub] Panel v3.5 cargado con éxito. ¡Listo para dominar!")
+print("[Froggy Hub] Panel v3.7 cargado con éxito.")
