@@ -14,13 +14,13 @@ local Config = {
     FOV = 400,
     ShowFOV = true,
     Aim360 = true,
-    MaxDistance = 250,       -- Bajado a 250 para PvP (evita kicks por distancia)
-    Prediction = 0.15,       -- Se ajustará dinámicamente
-    AimPart = "Head",        -- Cabeza por defecto para PvP
+    MaxDistance = 250,       
+    Prediction = 0.15,       
+    AimPart = "Head",        
     TeamCheck = true,
     IgnoreFriends = false,
     AttackNPCs = false,
-    PvPMode = true,          -- NUEVO: Prioridad a jugadores y predicción avanzada
+    PvPMode = true,          
     TargetPart = nil,
     Debug = false,
 }
@@ -52,7 +52,7 @@ fovCircle.Visible = false
 fovCircle.Parent = fovGui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
 local fovStroke = Instance.new("UIStroke", fovCircle)
-fovStroke.Color = Color3.fromRGB(255, 50, 50) -- Rojo para PvP
+fovStroke.Color = Color3.fromRGB(255, 50, 50) 
 fovStroke.Thickness = 2
 fovStroke.Transparency = 0.3
 
@@ -111,15 +111,11 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     local bestDist = Config.FOV
     local best3DDist = math.huge
 
-    -- Función de evaluación de distancia y FOV
     local function try(part, hum, isPlayer)
         if not hum or not part or hum.Health <= 0 then return end
         local dist3D = (part.Position - myRoot.Position).Magnitude
         
-        -- Límite de distancia
         if dist3D > Config.MaxDistance then return end
-
-        -- PvP Mode: Los jugadores siempre tienen prioridad sobre los NPCs
         local priorityBoost = (isPlayer and Config.PvPMode) and -1000 or 0
 
         if Config.Aim360 then
@@ -137,19 +133,16 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         end
     end
 
-    -- 1. Escanear Jugadores (Siempre primero)
     for _, player in ipairs(Players:GetPlayers()) do
         if isAllowed(player) and player.Character then
             local char = player.Character
             local hum = char:FindFirstChildOfClass("Humanoid")
-            -- En PvP apuntamos a la cabeza para romper Ken
             local aimPart = Config.PvPMode and char:FindFirstChild("Head") or char:FindFirstChild(Config.AimPart)
             local part = aimPart or char:FindFirstChild("HumanoidRootPart")
             try(part, hum, true)
         end
     end
 
-    -- 2. Escanear NPCs (Solo si no hay jugadores o si se permite)
     if Config.AttackNPCs and (not bestPart or not Config.PvPMode) then
         local folder = Workspace:FindFirstChild("Enemies")
         if folder then
@@ -183,23 +176,20 @@ local function getAimPos(targetPart)
     local ok, vel = pcall(function() return targetPart.AssemblyLinearVelocity end)
     if not ok or not vel then return targetPart.Position end
     
-    -- Predicción dinámica para PvP (si el jugador corre rápido, predecimos más lejos)
     local dynamicPrediction = Config.Prediction
     if Config.PvPMode then
         local speed = vel.Magnitude
-        -- Multiplicador de predicción según la velocidad del jugador
         dynamicPrediction = math.clamp(speed * 0.015, 0.1, 0.35) 
     end
     
     local lead = vel * dynamicPrediction
-    if lead.Magnitude > 80 then lead = lead.Unit * 80 end -- Cap más alto para jugadores
+    if lead.Magnitude > 80 then lead = lead.Unit * 80 end 
     local pos = targetPart.Position + lead
     
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return targetPart.Position end
     return pos
 end
 
--- HOOK 1: RemoteEvents (Frutas y Habilidades)
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
     if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent and method == "FireServer" then
@@ -211,14 +201,12 @@ mt.__namecall = newcclosure(function(self, ...)
                     local ok, newCF = pcall(CFrame.lookAt, arg.Position, aimPos)
                     if ok and newCF then
                         args[i] = newCF
-                        if Config.Debug then print("[SA] Remote CFrame -> Target") end
                     end
                 elseif typeof(arg) == "Vector3" and arg.Magnitude > 1 then
                     local origin = myHead and myHead.Position or myRoot.Position
                     local dir = (aimPos - origin)
                     if dir.Magnitude > 0.1 then
                         args[i] = dir.Unit
-                        if Config.Debug then print("[SA] Remote Vector -> Target") end
                     end
                 end
             end
@@ -228,7 +216,6 @@ mt.__namecall = newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end)
 
--- HOOK 2: Cámara, Ratón y Raycast (Pistolas, Espadas y M1)
 mt.__index = newcclosure(function(self, key)
     if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent then
         if self == cameraRef and key == "CFrame" then
@@ -254,7 +241,7 @@ mt.__index = newcclosure(function(self, key)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim v15 (PvP Hunter) instalado. Prioridad a jugadores.")
+print("[Froggy Hub] SilentAim V15 PVP cargado correctamente (Sin Hitbox).")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
