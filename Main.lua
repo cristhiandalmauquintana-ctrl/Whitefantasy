@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v2: pestañas, switches y tarjetas
+--// Main.lua - Froggy Hub (loader + panel) | UI v3: pestaña Ajustes + apariencia
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -180,7 +180,6 @@ local function downloadModule(names)
     return nil
 end
 
---// Módulo opcional: si falla, el panel igual abre
 local function loadOptional(names, label, configKey)
     local src = downloadModule(names)
     if not src then
@@ -246,9 +245,9 @@ end
 
 setProgress(0.7, "Descargando movimiento...")
 local MoveConfig = loadOptional(MOVE_FILES, "Movement.lua", "BF_MOVE_CONFIG")
-setProgress(0.85, "Descargando camlock...")
+setProgress(0.82, "Descargando camlock...")
 local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
-setProgress(0.88, "Descargando Silent Aim...")
+setProgress(0.88, "Descargando silent aim...")
 local SAConfig = loadOptional(SA_FILES, "SilentAim.lua", "BF_SA_CONFIG")
 setProgress(0.9, "Descargando teleport...")
 local TpConfig = loadOptional(TP_FILES, "Teleport.lua", "BF_TP_CONFIG")
@@ -286,7 +285,6 @@ stroke(frame, C.Stroke)
 local panelScale = Instance.new("UIScale", frame)
 panelScale.Scale = 0.8
 
---// Cabecera (arrastrable)
 local header = new("Frame", {
     Size = UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3 = C.Header, BorderSizePixel = 0, Active = true,
 }, frame)
@@ -325,7 +323,6 @@ end
 local closeBtn = headerButton("X", -40)
 local minBtn = headerButton("-", -76)
 
---// Barra de pestañas
 local tabBar = new("ScrollingFrame", {
     Position = UDim2.fromOffset(0, HEADER_H), Size = UDim2.new(1, 0, 0, TAB_H),
     BackgroundColor3 = C.Header, BorderSizePixel = 0, ScrollBarThickness = 0,
@@ -342,6 +339,32 @@ new("Frame", {
     BackgroundColor3 = C.Stroke, BorderSizePixel = 0,
 }, frame)
 
+-- ========== CONFIG DE APARIENCIA ==========
+local PanelConfig = {
+    Mode = "Normal",
+    Scale = 1,
+    Transparency = 0,
+}
+env.BF_PANEL_CONFIG = PanelConfig
+
+local function applyPanelStyle()
+    local scale = PanelConfig.Scale
+    local trans = PanelConfig.Transparency
+    tween(panelScale, 0.2, { Scale = scale })
+    tween(frame, 0.25, { BackgroundTransparency = trans })
+    tween(header, 0.25, { BackgroundTransparency = math.min(trans + 0.05, 0.9) })
+    tween(tabBar, 0.25, { BackgroundTransparency = math.min(trans + 0.05, 0.9) })
+    task.defer(function()
+        local sz = screenSize()
+        local scaledW = WIDTH * scale
+        local scaledH = HEIGHT * scale
+        local x = math.clamp(frame.Position.X.Offset, 0, math.max(0, sz.X - scaledW))
+        local y = math.clamp(frame.Position.Y.Offset, 0, math.max(0, sz.Y - scaledH))
+        frame.Position = UDim2.fromOffset(x, y)
+    end)
+end
+
+--==================== PESTAÑAS ====================
 local BODY_Y = HEADER_H + TAB_H + 1
 local pages, tabButtons = {}, {}
 local order = 0
@@ -385,7 +408,8 @@ local pESP = createPage("ESP", 1)
 local pMove = createPage("Movimiento", 2)
 local pCombat = createPage("Combate", 3)
 local pPerf = createPage("Rendimiento", 4)
-local pMisc = createPage("Misc", 5)
+local pAjustes = createPage("Ajustes", 5)
+local pMisc = createPage("Misc", 6)
 
 --==================== COMPONENTES ====================
 local function cardFrame(page)
@@ -403,7 +427,6 @@ local function cardFrame(page)
     return card
 end
 
---// Tarjeta simple con título
 local function card(page, title)
     local c = cardFrame(page)
     new("TextLabel", {
@@ -414,7 +437,6 @@ local function card(page, title)
     return c
 end
 
---// Fila con switch
 local function switchRow(parent, text, get, set, onChange, bold)
     local row = new("Frame", {
         LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1,
@@ -454,7 +476,6 @@ local function switchRow(parent, text, get, set, onChange, bold)
     return row
 end
 
---// Slider (dedo o ratón)
 local function slider(parent, text, get, set, minV, maxV, stepV)
     local row = new("Frame", {
         LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1,
@@ -535,7 +556,6 @@ local function slider(parent, text, get, set, minV, maxV, stepV)
     table.insert(refreshers, refresh)
 end
 
---// Grupo: interruptor principal + opciones que solo se ven cuando está activo
 local function group(page, title, get, set)
     local c = cardFrame(page)
     local sub = new("Frame", {
@@ -621,8 +641,7 @@ local function soon(parent, text)
     corner(tag, 6)
 end
 
---==================== CONTENIDO ====================
---// ESP
+--==================== CONTENIDO: ESP ====================
 do
     local g = group(pESP, "ESP", function() return Config.Enabled end, function(v) Config.Enabled = v end)
     g:toggle("Mostrar compañeros", function() return Config.ShowTeammates end, function(v) Config.ShowTeammates = v end)
@@ -639,7 +658,7 @@ do
     colorRow(col, "Texto (sin vida)", "TextColor")
 end
 
---// Movimiento
+--==================== CONTENIDO: MOVIMIENTO ====================
 if MoveConfig then
     local s = group(pMove, "Speed", function() return MoveConfig.SpeedEnabled end, function(v) MoveConfig.SpeedEnabled = v end)
     s:slider("Velocidad extra", function() return MoveConfig.Speed end, function(v) MoveConfig.Speed = v end, 5, 200, 5)
@@ -673,7 +692,7 @@ else
     table.insert(missing, "Elevarse con poca vida")
 end
 
---// Combate
+--==================== CONTENIDO: COMBATE ====================
 if CamConfig then
     local g = group(pCombat, "Camlock", function() return CamConfig.Enabled end, function(v) CamConfig.Enabled = v end)
     g:slider("Radio FOV", function() return CamConfig.FOV end, function(v) CamConfig.FOV = v end, 50, 600, 10)
@@ -692,7 +711,7 @@ else
 end
 
 if SAConfig then
-    local g = group(pCombat, "Silent Aim", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
+    local g = group(pCombat, "Silent Aim (v5)", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
     g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 600, 10)
     g:slider("Distancia máxima", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 0, 1000, 50)
     g:slider("Predicción (seg)", function() return SAConfig.Prediction end, function(v) SAConfig.Prediction = v end, 0, 0.5, 0.05)
@@ -701,12 +720,12 @@ if SAConfig then
         function(v) SAConfig.AimPart = v and "Head" or "HumanoidRootPart" end)
     g:toggle("Team check", function() return SAConfig.TeamCheck end, function(v) SAConfig.TeamCheck = v end)
     g:toggle("Ignorar amigos", function() return SAConfig.IgnoreFriends end, function(v) SAConfig.IgnoreFriends = v end)
-    g:toggle("Wall check", function() return SAConfig.WallCheck end, function(v) SAConfig.WallCheck = v end)
+    g:toggle("Debug (ver consola)", function() return SAConfig.Debug end, function(v) SAConfig.Debug = v end)
 else
     table.insert(missing, "Silent Aim")
 end
 
---// Rendimiento
+--==================== CONTENIDO: RENDIMIENTO ====================
 if PotConfig then
     local g = group(pPerf, "Gráficos patata", function() return PotConfig.Enabled end, function(v) PotConfig.Set(v) end)
     g:toggle("Quitar partículas y efectos", function() return PotConfig.NoParticles end, function(v) PotConfig.NoParticles = v end)
@@ -716,7 +735,84 @@ else
     table.insert(missing, "Gráficos patata")
 end
 
---// Misc
+--==================== CONTENIDO: AJUSTES ====================
+do
+    local ap = card(pAjustes, "Apariencia del panel")
+
+    -- Botones de presets
+    local presetRow = new("Frame", {
+        LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1,
+    }, ap)
+    new("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, presetRow)
+
+    local presets = {
+        { Name = "Discreto", Scale = 0.7, Trans = 0.5 },
+        { Name = "Normal", Scale = 1, Trans = 0 },
+        { Name = "Grande", Scale = 1.25, Trans = 0 },
+    }
+
+    local presetButtons = {}
+    local function refreshPresets()
+        for _, b in ipairs(presetButtons) do
+            local active = (PanelConfig.Mode == b.data.Name)
+            tween(b.btn, 0.15, {
+                BackgroundColor3 = active and C.Accent or C.Row,
+                TextColor3 = active and C.AccentText or C.Dim,
+            })
+        end
+    end
+
+    for i, p in ipairs(presets) do
+        local btn = new("TextButton", {
+            LayoutOrder = i, Size = UDim2.new(1/3, -4, 1, 0),
+            BackgroundColor3 = C.Row, BorderSizePixel = 0, Font = Enum.Font.GothamBold,
+            TextSize = 11, TextColor3 = C.Dim, Text = p.Name, AutoButtonColor = false,
+        }, presetRow)
+        corner(btn, 6)
+        stroke(btn, C.Stroke)
+        table.insert(presetButtons, { btn = btn, data = p })
+        btn.Activated:Connect(function()
+            PanelConfig.Mode = p.Name
+            PanelConfig.Scale = p.Scale
+            PanelConfig.Transparency = p.Trans
+            applyPanelStyle()
+            refreshPresets()
+            task.defer(function()
+                for _, refresh in ipairs(refreshers) do refresh() end
+            end)
+        end)
+    end
+    refreshPresets()
+
+    -- Sliders
+    slider(ap, "Escala del panel", function() return PanelConfig.Scale end, function(v)
+        PanelConfig.Scale = v
+        PanelConfig.Mode = "Personalizado"
+        applyPanelStyle()
+        refreshPresets()
+    end, 0.65, 1.4, 0.05)
+
+    slider(ap, "Transparencia", function() return PanelConfig.Transparency end, function(v)
+        PanelConfig.Transparency = v
+        PanelConfig.Mode = "Personalizado"
+        applyPanelStyle()
+        refreshPresets()
+    end, 0, 0.85, 0.05)
+
+    -- Info
+    local info = card(pAjustes, "Información")
+    new("TextLabel", {
+        LayoutOrder = nextOrder(), BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y, Font = Enum.Font.Gotham, TextSize = 12, TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = C.Dim,
+        Text = "Discreto: reduce el panel y lo hace semi-transparente para no llamar la atención.\nNormal: el panel por defecto.\nGrande: aumenta el panel para pantallas grandes o dedos gruesos.\n\nLos sliders permiten personalizar libremente la escala y la opacidad.",
+    }, info)
+end
+
+--==================== CONTENIDO: MISC ====================
 do
     local sc = card(pMisc, "Próximamente")
     for _, name in ipairs({ "Fly", "Noclip", "Fruit Finder", "Server Hop", "Anti-AFK", "Guardar ajustes" }) do
@@ -740,8 +836,9 @@ selectTab("ESP")
 --==================== POSICIÓN, ARRASTRE Y BURBUJA ====================
 local function clampPanel(x, y)
     local sz = screenSize()
-    return math.clamp(x, 0, math.max(0, sz.X - WIDTH)),
-           math.clamp(y, 0, math.max(0, sz.Y - HEIGHT))
+    local scale = PanelConfig.Scale or 1
+    return math.clamp(x, 0, math.max(0, sz.X - WIDTH * scale)),
+           math.clamp(y, 0, math.max(0, sz.Y - HEIGHT * scale))
 end
 
 local function setPanelPos(x, y)
@@ -852,7 +949,6 @@ table.insert(connections, UserInputService.InputBegan:Connect(function(input, pr
     end
 end))
 
---// Sincronizar switches si el ESP se cambia con la tecla
 table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Config.ToggleKey then
         task.defer(function()
@@ -865,7 +961,7 @@ end))
 
 closeBtn.Activated:Connect(cleanup)
 
---// Transición: la carga se cierra y el panel aparece
+--// Transición final
 for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
 local hide = TweenService:Create(loadScale,
     TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
@@ -874,4 +970,4 @@ task.wait(0.3)
 loading:Destroy()
 
 frame.Visible = true
-tween(panelScale, 0.3, { Scale = 1 })
+tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
