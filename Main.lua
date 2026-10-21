@@ -701,9 +701,16 @@ if CamConfig then
     toggle("Apuntar a la cabeza",
         function() return CamConfig.AimPart == "Head" end,
         function(v) CamConfig.AimPart = v and "Head" or "HumanoidRootPart" end)
-    toggle("Ignorar compañeros",
-        function() return CamConfig.IgnoreTeammates end,
-        function(v) CamConfig.IgnoreTeammates = v end)
+    toggle("Team check",
+        function() return CamConfig.TeamCheck end,
+        function(v) CamConfig.TeamCheck = v end)
+    toggle("Ignorar amigos",
+        function() return CamConfig.IgnoreFriends end,
+        function(v) CamConfig.IgnoreFriends = v end)
+    slider("  Soltar a distancia (0 = nunca)",
+        function() return CamConfig.ReleaseDistance end,
+        function(v) CamConfig.ReleaseDistance = v end,
+        0, 2000, 50)
     toggle("Wall check",
         function() return CamConfig.WallCheck end,
         function(v) CamConfig.WallCheck = v end)
