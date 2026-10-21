@@ -13,7 +13,9 @@ end
 local Config = {
     Enabled = false,              -- muestra el botón LOCK y activa el sistema
     FOV = 250,                    -- radio (px) para ELEGIR objetivo
-    Smoothness = 0.25,            -- 0.05 = muy suave, 1 = instantáneo
+    Smoothness = 0.5,             -- 0.05 = muy suave, 1 = instantáneo (máxima fuerza)
+    FaceTarget = true,            -- gira tu personaje hacia el objetivo (los golpes salen hacia donde miras)
+    Prediction = 0.12,            -- segundos de anticipación al movimiento del objetivo (0 = apagado)
     AimPart = "HumanoidRootPart", -- "HumanoidRootPart" o "Head"
     MaxDistance = 400,            -- studs máximos para ELEGIR objetivo
     ReleaseDistance = 0,          -- studs a los que se suelta (0 = nunca por distancia)
@@ -162,9 +164,20 @@ local function refreshButton()
     end
 end
 
+local rotateLocked = false
+local function restoreRotate()
+    if rotateLocked then
+        rotateLocked = false
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function() hum.AutoRotate = true end) end
+    end
+end
+
 local function release()
     target = nil
     lostSince = nil
+    restoreRotate()
     refreshButton()
 end
 
@@ -237,14 +250,40 @@ RunService:BindToRenderStep("FroggyCamlock", Enum.RenderPriority.Camera.Value + 
         end
     end
 
+    -- anticipar hacia dónde se mueve el objetivo
+    local lead = part.AssemblyLinearVelocity * Config.Prediction
+    if lead.Magnitude > 40 then lead = lead.Unit * 40 end
+    local aimPos = part.Position + lead
+
+    -- girar al personaje hacia el objetivo (solo en horizontal)
+    if Config.FaceTarget then
+        local myChar = LocalPlayer.Character
+        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if myHum and myRoot then
+            if not rotateLocked then
+                rotateLocked = true
+                pcall(function() myHum.AutoRotate = false end)
+            end
+            local flat = Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z)
+            if (flat - myRoot.Position).Magnitude > 2 then
+                myRoot.CFrame = CFrame.lookAt(myRoot.Position, flat)
+            end
+        end
+    else
+        restoreRotate()
+    end
+
+    -- cámara hacia el objetivo
     local camCF = camera.CFrame
-    local goal = CFrame.lookAt(camCF.Position, part.Position)
+    local goal = CFrame.lookAt(camCF.Position, aimPos)
     camera.CFrame = camCF:Lerp(goal, math.clamp(Config.Smoothness, 0.05, 1))
 end)
 
 env.__BF_CAM_CLEANUP = function()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     pcall(function() RunService:UnbindFromRenderStep("FroggyCamlock") end)
+    restoreRotate()
     gui:Destroy()
     env.BF_CAM_CONFIG = nil
     env.__BF_CAM_CLEANUP = nil
