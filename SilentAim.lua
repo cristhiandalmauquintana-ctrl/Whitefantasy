@@ -1,5 +1,5 @@
---// Froggy Hub - Silent Aim v13 (Safe NPC + Physics Protection)
---// Evita el crasheo de física al expandir hitboxes de múltiples NPCs
+--// Froggy Hub - Silent Aim v15 (PvP Hunter Edition)
+--// Optimizado para cazar jugadores: Predicción dinámica y prioridad a Players.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14,14 +14,13 @@ local Config = {
     FOV = 400,
     ShowFOV = true,
     Aim360 = true,
-    MaxDistance = 350,
-    M1Distance = 35,
-    Prediction = 0.15,
-    HitboxExpand = true,
-    AimPart = "HumanoidRootPart",
+    MaxDistance = 250,       -- Bajado a 250 para PvP (evita kicks por distancia)
+    Prediction = 0.15,       -- Se ajustará dinámicamente
+    AimPart = "Head",        -- Cabeza por defecto para PvP
     TeamCheck = true,
     IgnoreFriends = false,
     AttackNPCs = false,
+    PvPMode = true,          -- NUEVO: Prioridad a jugadores y predicción avanzada
     TargetPart = nil,
     Debug = false,
 }
@@ -53,7 +52,7 @@ fovCircle.Visible = false
 fovCircle.Parent = fovGui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
 local fovStroke = Instance.new("UIStroke", fovCircle)
-fovStroke.Color = Color3.fromRGB(110, 220, 90)
+fovStroke.Color = Color3.fromRGB(255, 50, 50) -- Rojo para PvP
 fovStroke.Thickness = 2
 fovStroke.Transparency = 0.3
 
@@ -90,35 +89,6 @@ local function isAllowed(p)
     return true
 end
 
--- HITBOX EXPANDER SEGURO (Solo 1 objetivo a la vez)
-local lastTargetPart = nil
-local originalSize = nil
-
-local function resetHitbox()
-    if lastTargetPart and lastTargetPart.Parent and originalSize then
-        pcall(function() lastTargetPart.Size = originalSize end)
-    end
-    lastTargetPart = nil
-    originalSize = nil
-end
-
-local function safeExpandHitbox(part)
-    if not Config.HitboxExpand then
-        resetHitbox()
-        return
-    end
-    if lastTargetPart == part then return end -- Ya está expandido
-    
-    resetHitbox() -- Restaurar el anterior antes de expandir el nuevo
-    if not part or not part.Parent then return end
-
-    lastTargetPart = part
-    originalSize = part.Size
-    pcall(function()
-        part.Size = Vector3.new(8, 8, 8) -- Tamaño seguro anti-crash
-    end)
-end
-
 local updateTimer = 0
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     fovCircle.Visible = Config.Enabled and Config.ShowFOV
@@ -130,7 +100,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     
     if not Config.Enabled then 
         Config.TargetPart = nil 
-        resetHitbox() 
         return 
     end
 
@@ -142,54 +111,65 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     local bestDist = Config.FOV
     local best3DDist = math.huge
 
-    local function try(part, hum)
+    -- Función de evaluación de distancia y FOV
+    local function try(part, hum, isPlayer)
         if not hum or not part or hum.Health <= 0 then return end
         local dist3D = (part.Position - myRoot.Position).Magnitude
+        
+        -- Límite de distancia
         if dist3D > Config.MaxDistance then return end
 
+        -- PvP Mode: Los jugadores siempre tienen prioridad sobre los NPCs
+        local priorityBoost = (isPlayer and Config.PvPMode) and -1000 or 0
+
         if Config.Aim360 then
-            if dist3D < best3DDist then bestPart, best3DDist = part, dist3D end
+            if (dist3D + priorityBoost) < best3DDist then 
+                bestPart, best3DDist = part, (dist3D + priorityBoost) 
+            end
         else
             local pos, onScreen = cam:WorldToViewportPoint(part.Position)
             if onScreen and pos.Z > 0 then
                 local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                if d < bestDist then bestPart, bestDist = part, d end
+                if (d + priorityBoost) < bestDist then 
+                    bestPart, bestDist = part, (d + priorityBoost) 
+                end
             end
         end
     end
 
+    -- 1. Escanear Jugadores (Siempre primero)
     for _, player in ipairs(Players:GetPlayers()) do
         if isAllowed(player) and player.Character then
             local char = player.Character
             local hum = char:FindFirstChildOfClass("Humanoid")
-            local part = char:FindFirstChild(Config.AimPart) or char:FindFirstChild("HumanoidRootPart")
-            try(part, hum)
+            -- En PvP apuntamos a la cabeza para romper Ken
+            local aimPart = Config.PvPMode and char:FindFirstChild("Head") or char:FindFirstChild(Config.AimPart)
+            local part = aimPart or char:FindFirstChild("HumanoidRootPart")
+            try(part, hum, true)
         end
     end
 
-    if Config.AttackNPCs then
+    -- 2. Escanear NPCs (Solo si no hay jugadores o si se permite)
+    if Config.AttackNPCs and (not bestPart or not Config.PvPMode) then
         local folder = Workspace:FindFirstChild("Enemies")
         if folder then
             for _, npc in ipairs(folder:GetChildren()) do
                 if npc:IsA("Model") and not Players:GetPlayerFromCharacter(npc) then
                     local hum = npc:FindFirstChildOfClass("Humanoid")
-                    local part = npc:FindFirstChild(Config.AimPart) or npc:FindFirstChild("HumanoidRootPart")
-                    try(part, hum)
+                    if hum and hum.Health > 0 then
+                        local part = npc:FindFirstChild(Config.AimPart) or npc:FindFirstChild("HumanoidRootPart")
+                        try(part, hum, false)
+                    end
                 end
             end
         end
     end
 
     Config.TargetPart = bestPart
-    if bestPart then
-        safeExpandHitbox(bestPart)
-    else
-        resetHitbox()
-    end
 end))
 
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v13: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v15: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
@@ -199,9 +179,24 @@ local oldIndex = mt.__index
 setreadonly(mt, false)
 
 local function getAimPos(targetPart)
-    local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
-    if lead.Magnitude > 60 then lead = lead.Unit * 60 end
-    return targetPart.Position + lead
+    if not targetPart or not targetPart.Parent then return nil end
+    local ok, vel = pcall(function() return targetPart.AssemblyLinearVelocity end)
+    if not ok or not vel then return targetPart.Position end
+    
+    -- Predicción dinámica para PvP (si el jugador corre rápido, predecimos más lejos)
+    local dynamicPrediction = Config.Prediction
+    if Config.PvPMode then
+        local speed = vel.Magnitude
+        -- Multiplicador de predicción según la velocidad del jugador
+        dynamicPrediction = math.clamp(speed * 0.015, 0.1, 0.35) 
+    end
+    
+    local lead = vel * dynamicPrediction
+    if lead.Magnitude > 80 then lead = lead.Unit * 80 end -- Cap más alto para jugadores
+    local pos = targetPart.Position + lead
+    
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return targetPart.Position end
+    return pos
 end
 
 -- HOOK 1: RemoteEvents (Frutas y Habilidades)
@@ -210,15 +205,22 @@ mt.__namecall = newcclosure(function(self, ...)
     if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent and method == "FireServer" then
         local args = {...}
         local aimPos = getAimPos(Config.TargetPart)
-        
-        for i, arg in ipairs(args) do
-            if typeof(arg) == "CFrame" then
-                args[i] = CFrame.lookAt(arg.Position, aimPos)
-                if Config.Debug then print("[SA] Remote CFrame -> Target") end
-            elseif typeof(arg) == "Vector3" then
-                local origin = myHead and myHead.Position or myRoot.Position
-                args[i] = (aimPos - origin).Unit
-                if Config.Debug then print("[SA] Remote Vector -> Target") end
+        if aimPos then
+            for i, arg in ipairs(args) do
+                if typeof(arg) == "CFrame" then
+                    local ok, newCF = pcall(CFrame.lookAt, arg.Position, aimPos)
+                    if ok and newCF then
+                        args[i] = newCF
+                        if Config.Debug then print("[SA] Remote CFrame -> Target") end
+                    end
+                elseif typeof(arg) == "Vector3" and arg.Magnitude > 1 then
+                    local origin = myHead and myHead.Position or myRoot.Position
+                    local dir = (aimPos - origin)
+                    if dir.Magnitude > 0.1 then
+                        args[i] = dir.Unit
+                        if Config.Debug then print("[SA] Remote Vector -> Target") end
+                    end
+                end
             end
         end
         return oldNamecall(self, unpack(args))
@@ -232,15 +234,19 @@ mt.__index = newcclosure(function(self, key)
         if self == cameraRef and key == "CFrame" then
             local originalCF = oldIndex(self, key)
             local aimPos = getAimPos(Config.TargetPart)
-            local ok, newCF = pcall(CFrame.lookAt, originalCF.Position, aimPos)
-            if ok and newCF then return newCF end
+            if aimPos then
+                local ok, newCF = pcall(CFrame.lookAt, originalCF.Position, aimPos)
+                if ok and newCF then return newCF end
+            end
         elseif mouseRef and self == mouseRef then
             local aimPos = getAimPos(Config.TargetPart)
-            if key == "Hit" then return CFrame.new(aimPos) end
-            if key == "Target" then return Config.TargetPart end
-            if key == "UnitRay" then
-                local origin = oldIndex(self, "Origin")
-                return Ray.new(origin, (aimPos - origin).Unit * 1000)
+            if aimPos then
+                if key == "Hit" then return CFrame.new(aimPos) end
+                if key == "Target" then return Config.TargetPart end
+                if key == "UnitRay" then
+                    local origin = oldIndex(self, "Origin")
+                    return Ray.new(origin, (aimPos - origin).Unit * 1000)
+                end
             end
         end
     end
@@ -248,11 +254,10 @@ mt.__index = newcclosure(function(self, key)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim v13 (Safe NPC) instalado. Adiós crasheos.")
+print("[Froggy Hub] SilentAim v15 (PvP Hunter) instalado. Prioridad a jugadores.")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
-    resetHitbox()
     fovGui:Destroy()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     pcall(function()
