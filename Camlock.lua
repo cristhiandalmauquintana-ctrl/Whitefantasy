@@ -12,12 +12,15 @@ end
 
 local Config = {
     Enabled = false,              -- muestra el botón LOCK y activa el sistema
-    FOV = 250,                    -- radio (px) alrededor del centro de la pantalla
+    FOV = 250,                    -- radio (px) para ELEGIR objetivo
     Smoothness = 0.25,            -- 0.05 = muy suave, 1 = instantáneo
     AimPart = "HumanoidRootPart", -- "HumanoidRootPart" o "Head"
-    MaxDistance = 400,            -- studs
-    IgnoreTeammates = true,
-    WallCheck = false,            -- no fijar a quien esté tras una pared
+    MaxDistance = 400,            -- studs máximos para ELEGIR objetivo
+    ReleaseDistance = 0,          -- studs a los que se suelta (0 = nunca por distancia)
+    LostGrace = 3,                -- seg que aguanta el lock si el objetivo desaparece un momento
+    TeamCheck = true,             -- no fijar a jugadores de tu mismo equipo
+    IgnoreFriends = false,        -- no fijar a tus amigos de Roblox
+    WallCheck = false,            -- no elegir a quien esté tras una pared
     ShowFOV = true,
     LockKey = Enum.KeyCode.C,
 }
@@ -74,23 +77,39 @@ lockStroke.Thickness = 2
 
 --==================== Lógica ====================
 local connections = {}
-local target = nil -- Player fijado
+local target = nil        -- Player fijado
+local lostSince = nil     -- desde cuándo no se encuentra su personaje
 
-local function getAimPart(player)
-    local char = player.Character
-    if not char then return nil end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local part = char:FindFirstChild(Config.AimPart) or char:FindFirstChild("HumanoidRootPart")
-    if not hum or not part or hum.Health <= 0 then return nil end
-    return part
+local friendCache = {}
+local function isFriend(player)
+    local cached = friendCache[player.UserId]
+    if cached ~= nil then return cached end
+    local ok, result = pcall(function() return LocalPlayer:IsFriendsWith(player.UserId) end)
+    friendCache[player.UserId] = ok and result or false
+    return friendCache[player.UserId]
+end
+
+local function sameTeam(player)
+    if LocalPlayer.Team ~= nil and player.Team == LocalPlayer.Team then return true end
+    if LocalPlayer.TeamColor == player.TeamColor and LocalPlayer.Neutral == false and player.Neutral == false then
+        return true
+    end
+    return false
 end
 
 local function isAllowed(player)
     if player == LocalPlayer then return false end
-    if Config.IgnoreTeammates and LocalPlayer.Team ~= nil and player.Team == LocalPlayer.Team then
-        return false
-    end
+    if Config.TeamCheck and sameTeam(player) then return false end
+    if Config.IgnoreFriends and isFriend(player) then return false end
     return true
+end
+
+local function getHumanoidAndPart(player)
+    local char = player.Character
+    if not char then return nil, nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local part = char:FindFirstChild(Config.AimPart) or char:FindFirstChild("HumanoidRootPart")
+    return hum, part
 end
 
 local function isVisible(part)
@@ -112,13 +131,13 @@ local function getClosest()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if isAllowed(player) then
-            local part = getAimPart(player)
-            if part then
+            local hum, part = getHumanoidAndPart(player)
+            if hum and part and hum.Health > 0 then
                 local pos, onScreen = camera:WorldToViewportPoint(part.Position)
                 if onScreen and pos.Z > 0 then
                     local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                     local inRange = true
-                    if myRoot then
+                    if myRoot and Config.MaxDistance > 0 then
                         inRange = (part.Position - myRoot.Position).Magnitude <= Config.MaxDistance
                     end
                     if d < bestDist and inRange and (not Config.WallCheck or isVisible(part)) then
@@ -143,14 +162,21 @@ local function refreshButton()
     end
 end
 
+local function release()
+    target = nil
+    lostSince = nil
+    refreshButton()
+end
+
 local function toggleLock()
     if not Config.Enabled then return end
     if target then
-        target = nil
+        release()
     else
         target = getClosest()
+        lostSince = nil
+        refreshButton()
     end
-    refreshButton()
 end
 
 table.insert(connections, lockBtn.Activated:Connect(toggleLock))
@@ -172,23 +198,43 @@ RunService:BindToRenderStep("FroggyCamlock", Enum.RenderPriority.Camera.Value + 
     circle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
 
     if not Config.Enabled then
-        if target then
-            target = nil
-            refreshButton()
-        end
+        if target then release() end
         return
     end
 
     if not target then return end
 
-    -- soltar si el objetivo ya no es válido
-    local part = isAllowed(target) and getAimPart(target) or nil
-    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not part
-        or (myRoot and (part.Position - myRoot.Position).Magnitude > Config.MaxDistance * 1.5) then
-        target = nil
-        refreshButton()
+    -- el jugador se fue del servidor, o cambió a tu equipo / se hizo amigo
+    if target.Parent == nil or not isAllowed(target) then
+        release()
         return
+    end
+
+    local hum, part = getHumanoidAndPart(target)
+
+    -- murió: soltar
+    if hum and hum.Health <= 0 then
+        release()
+        return
+    end
+
+    -- sin personaje por un momento (streaming, respawn, lag): esperar sin soltar
+    if not part then
+        lostSince = lostSince or os.clock()
+        if os.clock() - lostSince > Config.LostGrace then
+            release()
+        end
+        return
+    end
+    lostSince = nil
+
+    -- soltar por distancia solo si está activado (0 = nunca)
+    if Config.ReleaseDistance > 0 then
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if myRoot and (part.Position - myRoot.Position).Magnitude > Config.ReleaseDistance then
+            release()
+            return
+        end
     end
 
     local camCF = camera.CFrame
