@@ -1,5 +1,5 @@
---// Froggy Hub - Silent Aim v15 (PvP Hunter Edition)
---// Optimizado para cazar jugadores: Predicción dinámica y prioridad a Players.
+--// Froggy Hub - Silent Aim v15 (PvP Hunter Edition - Team Check Fixed)
+--// Optimizado para cazar jugadores con protección de equipos.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -82,9 +82,23 @@ local function isFriend(player)
     return friendCache[player.UserId]
 end
 
+-- TEAM CHECK BLINDADO (A prueba de fallos en Blox Fruits)
 local function isAllowed(p)
     if p == LocalPlayer then return false end
-    if Config.TeamCheck and LocalPlayer.Team ~= nil and p.Team == LocalPlayer.Team then return false end
+    
+    if Config.TeamCheck then
+        local ok, isSameTeam = pcall(function()
+            if LocalPlayer.Team ~= nil and p.Team ~= nil then
+                return LocalPlayer.Team == p.Team
+            end
+            if LocalPlayer.TeamColor ~= nil and p.TeamColor ~= nil then
+                return LocalPlayer.TeamColor == p.TeamColor
+            end
+            return false
+        end)
+        if ok and isSameTeam then return false end
+    end
+    
     if Config.IgnoreFriends and isFriend(p) then return false end
     return true
 end
@@ -190,6 +204,7 @@ local function getAimPos(targetPart)
     return pos
 end
 
+-- HOOK 1: RemoteEvents (Frutas y Habilidades)
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
     if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent and method == "FireServer" then
@@ -201,12 +216,14 @@ mt.__namecall = newcclosure(function(self, ...)
                     local ok, newCF = pcall(CFrame.lookAt, arg.Position, aimPos)
                     if ok and newCF then
                         args[i] = newCF
+                        if Config.Debug then print("[SA] Remote CFrame -> Target") end
                     end
                 elseif typeof(arg) == "Vector3" and arg.Magnitude > 1 then
                     local origin = myHead and myHead.Position or myRoot.Position
                     local dir = (aimPos - origin)
                     if dir.Magnitude > 0.1 then
                         args[i] = dir.Unit
+                        if Config.Debug then print("[SA] Remote Vector -> Target") end
                     end
                 end
             end
@@ -216,6 +233,7 @@ mt.__namecall = newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end)
 
+-- HOOK 2: Cámara, Ratón y Raycast (Pistolas, Espadas y M1)
 mt.__index = newcclosure(function(self, key)
     if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent then
         if self == cameraRef and key == "CFrame" then
@@ -241,7 +259,7 @@ mt.__index = newcclosure(function(self, key)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim V15 PVP cargado correctamente (Sin Hitbox).")
+print("[Froggy Hub] SilentAim V15 PVP cargado correctamente (TeamCheck Blindado).")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
