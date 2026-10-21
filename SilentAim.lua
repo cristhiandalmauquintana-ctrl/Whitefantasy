@@ -1,4 +1,5 @@
---// Froggy Hub - Silent Aim v9 (Ignora M1 + Límite Seguro para Frutas)
+--// Froggy Hub - Silent Aim v12 (Universal: Remotes + Raycast + Hitbox)
+--// Ataque para Frutas, Armas, Pistolas y Estilos de Pelea.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,11 +11,13 @@ if env.__BF_SA_CLEANUP then pcall(env.__BF_SA_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    FOV = 300,
+    FOV = 400,
     ShowFOV = true,
-    Aim360 = true,           -- Por defecto en 360 para frutas
-    MaxDistance = 350,       -- Límite seguro (ni muy corto, ni muy lejos)
-    Prediction = 0.12,
+    Aim360 = true,
+    MaxDistance = 350,       -- Distancia general
+    M1Distance = 35,         -- Distancia para Espadas/Puños (Evita Kicks)
+    Prediction = 0.15,
+    HitboxExpand = true,
     AimPart = "HumanoidRootPart",
     TeamCheck = true,
     IgnoreFriends = false,
@@ -28,10 +31,7 @@ local connections = {}
 local friendCache = {}
 
 local function getParent()
-    if gethui then
-        local ok, ui = pcall(gethui)
-        if ok and typeof(ui) == "Instance" then return ui end
-    end
+    if gethui then local ok, ui = pcall(gethui); if ok and typeof(ui) == "Instance" then return ui end end
     local ok, core = pcall(function() return game:GetService("CoreGui") end)
     if ok and core then return core end
     return LocalPlayer:WaitForChild("PlayerGui")
@@ -52,17 +52,15 @@ fovCircle.BorderSizePixel = 0
 fovCircle.Visible = false
 fovCircle.Parent = fovGui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
-
 local fovStroke = Instance.new("UIStroke", fovCircle)
 fovStroke.Color = Color3.fromRGB(110, 220, 90)
-fovStroke.Thickness = 1.5
-fovStroke.Transparency = 0.4
+fovStroke.Thickness = 2
+fovStroke.Transparency = 0.3
 
 local cameraRef = Workspace.CurrentCamera
+local mouseRef = LocalPlayer:GetMouse()
 pcall(function()
-    Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-        cameraRef = Workspace.CurrentCamera
-    end)
+    Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() cameraRef = Workspace.CurrentCamera end)
 end)
 
 local myChar, myHead, myRoot
@@ -92,6 +90,20 @@ local function isAllowed(p)
     return true
 end
 
+-- HITBOX EXPANDER (Para que los M1 conecten)
+local expandedHitboxes = {}
+local function expandHitbox(part)
+    if not Config.HitboxExpand or expandedHitboxes[part] then return end
+    expandedHitboxes[part] = part.Size
+    part.Size = Vector3.new(15, 15, 15) -- Hitbox gigante invisible
+end
+local function resetHitboxes()
+    for part, originalSize in pairs(expandedHitboxes) do
+        if part and part.Parent then pcall(function() part.Size = originalSize end) end
+    end
+    expandedHitboxes = {}
+end
+
 local updateTimer = 0
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     fovCircle.Visible = Config.Enabled and Config.ShowFOV
@@ -100,7 +112,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     updateTimer = updateTimer + dt
     if updateTimer < 0.05 then return end
     updateTimer = 0
-    if not Config.Enabled then Config.TargetPart = nil return end
+    if not Config.Enabled then Config.TargetPart = nil resetHitboxes() return end
 
     local cam = cameraRef
     if not cam or not myRoot then return end
@@ -148,71 +160,85 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         end
     end
     Config.TargetPart = bestPart
+    if bestPart then expandHitbox(bestPart) end
 end))
 
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v9: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v12: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
+local oldIndex = mt.__index
 setreadonly(mt, false)
 
+local function getAimPos(targetPart)
+    local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
+    if lead.Magnitude > 60 then lead = lead.Unit * 60 end
+    return targetPart.Position + lead
+end
+
+-- HOOK 1: RemoteEvents (Frutas y Habilidades)
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
-
-    if not Config.Enabled or not Config.TargetPart or not Config.TargetPart.Parent then
-        return oldNamecall(self, ...)
-    end
-
-    if method == "FindPartOnRayWithIgnoreList" and self == Workspace then
+    if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent and method == "FireServer" then
         local args = {...}
-        local ray = args[1]
+        local aimPos = getAimPos(Config.TargetPart)
         
-        if typeof(ray) == "Ray" then
-            local origin = ray.Origin
-            
-            -- 1. EL FILTRO M1: Si el rayo es menor a 50 studs, IGNORAR (Es un golpe de espada)
-            if ray.Direction.Magnitude < 50 then
-                return oldNamecall(self, ...)
-            end
-
-            -- 2. EL FILTRO DE ORIGEN: Asegurarse de que viene del jugador
-            local isFromPlayer = false
-            if myHead and (origin - myHead.Position).Magnitude < 15 then isFromPlayer = true end
-            if not isFromPlayer and myRoot and (origin - myRoot.Position).Magnitude < 15 then isFromPlayer = true end
-            
-            -- Si es una habilidad y viene del jugador, REDIRIGIR
-            if isFromPlayer then
-                local targetPart = Config.TargetPart
-                local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
-                if lead.Magnitude > 40 then lead = lead.Unit * 40 end
-                local aimPos = targetPart.Position + lead
-
-                local dir = aimPos - origin
-                if dir.Magnitude > 0.1 then
-                    args[1] = Ray.new(origin, dir.Unit * ray.Direction.Magnitude)
-                    return oldNamecall(self, unpack(args))
+        for i, arg in ipairs(args) do
+            if typeof(arg) == "CFrame" then
+                args[i] = CFrame.lookAt(arg.Position, aimPos)
+                if Config.Debug then print("[SA] Remote CFrame -> Target") end
+            elseif typeof(arg) == "Vector3" then
+                local origin = myHead and myHead.Position or myRoot.Position
+                args[i] = (aimPos - origin).Unit
+                if Config.Debug then print("[SA] Remote Vector -> Target") end
+            elseif typeof(arg) == "Instance" and arg:FindFirstChild("Humanoid") and arg ~= myChar then
+                -- Si el juego manda al Humanoid del enemigo, lo forzamos
+                if Config.TargetPart.Parent == arg then
+                    args[i] = arg
                 end
             end
         end
+        return oldNamecall(self, unpack(args))
     end
-
     return oldNamecall(self, ...)
 end)
 
+-- HOOK 2: Cámara, Ratón y Raycast (Pistolas, Espadas y M1)
+mt.__index = newcclosure(function(self, key)
+    if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent then
+        if self == cameraRef and key == "CFrame" then
+            local originalCF = oldIndex(self, key)
+            local aimPos = getAimPos(Config.TargetPart)
+            local ok, newCF = pcall(CFrame.lookAt, originalCF.Position, aimPos)
+            if ok and newCF then return newCF end
+        elseif mouseRef and self == mouseRef then
+            local aimPos = getAimPos(Config.TargetPart)
+            if key == "Hit" then return CFrame.new(aimPos) end
+            if key == "Target" then return Config.TargetPart end
+            if key == "UnitRay" then
+                local origin = oldIndex(self, "Origin")
+                return Ray.new(origin, (aimPos - origin).Unit * 1000)
+            end
+        end
+    end
+    return oldIndex(self, key)
+end)
+
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim v9 instalado (Ignora M1 + Solo Habilidades).")
+print("[Froggy Hub] SilentAim v12 (Universal) instalado.")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
-    Config.TargetPart = nil
+    resetHitboxes()
     fovGui:Destroy()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     pcall(function()
         setreadonly(mt, false)
         mt.__namecall = oldNamecall
+        mt.__index = oldIndex
         setreadonly(mt, true)
     end)
     env.BF_SA_CONFIG = nil
