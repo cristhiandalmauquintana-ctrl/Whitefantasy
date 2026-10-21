@@ -13,7 +13,7 @@ end
 local Config = {
     Enabled = false,
     Threshold = 30,        -- % de vida a la que se activa
-    Height = 1000,         -- studs que subes sobre tu posición
+    Height = 6000,         -- studs que subes sobre tu posición
     RiseSpeed = 250,       -- velocidad de subida (studs/s)
     AutoDescend = true,    -- bajar solo cuando recuperes vida
     RecoverPercent = 60,   -- % de vida para bajar solo (si AutoDescend está activo)
