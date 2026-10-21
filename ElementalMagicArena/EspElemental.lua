@@ -1,4 +1,4 @@
---// Froggy Hub - ESP Elemental (Sincronizado con Hitbox Expander)
+--// Froggy Hub - ESP Elemental (Fixed & Sincronizado)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -6,11 +6,12 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
+-- 🔥 CONFIGURACIÓN CORREGIDA (Igual al Main.lua)
 local Config = {
     Enabled = true,
-    ShowBox = true,
+    Boxes = true,        -- Coincide con el Main
+    HealthBar = true,    -- Coincide con el Main
     ShowName = true,
-    ShowHealth = true,
     ShowElement = true,
     ShowTracers = true,
     MaxDistance = 2000,
@@ -19,14 +20,17 @@ local Config = {
 local Objects = {}
 local Connections = {}
 
+local function getParent()
+    if gethui then local ok, ui = pcall(gethui); if ok and typeof(ui) == "Instance" then return ui end end
+    local ok, core = pcall(function() return game:GetService("CoreGui") end)
+    if ok and core then return core end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+local drawGui = getParent()
+
 local function getElement(player)
     local ok, elem = pcall(function() return player:GetAttribute("Element") end)
     if ok and elem then return elem end
-    local char = player.Character
-    if char then
-        local eObj = char:FindFirstChild("Element")
-        if eObj and eObj:IsA("StringValue") then return eObj.Value end
-    end
     return "Default"
 end
 
@@ -39,7 +43,7 @@ local function createESP(player)
     billboard.Size = UDim2.fromOffset(250, 60)
     billboard.StudsOffset = Vector3.new(0, 3.5, 0)
     billboard.Enabled = false
-    billboard.Parent = game:GetService("CoreGui")
+    billboard.Parent = drawGui
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.BackgroundTransparency = 1
@@ -65,7 +69,7 @@ local function createESP(player)
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
     box.Visible = false
-    box.Parent = game:GetService("CoreGui")
+    box.Parent = drawGui
 
     local boxStroke = Instance.new("UIStroke")
     boxStroke.Thickness = 2
@@ -79,7 +83,7 @@ local function createESP(player)
     barBg.BackgroundTransparency = 0.2
     barBg.BorderSizePixel = 0
     barBg.Visible = false
-    barBg.Parent = game:GetService("CoreGui")
+    barBg.Parent = drawGui
     Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
 
     local barFill = Instance.new("Frame")
@@ -96,7 +100,7 @@ local function createESP(player)
     tracer.BorderSizePixel = 0
     tracer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     tracer.Visible = false
-    tracer.Parent = game:GetService("CoreGui")
+    tracer.Parent = drawGui
 
     Objects[player] = {
         Billboard = billboard,
@@ -124,7 +128,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- 🔥 SINCRONIZACIÓN CON EL HITBOX EXPANDER 🔥
     local hitboxConfig = env.BF_HITBOX_CONFIG
     local isHitboxActive = hitboxConfig and hitboxConfig.Enabled
     local hitboxSize = isHitboxActive and hitboxConfig.Size or 0
@@ -136,30 +139,16 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         local hum = char and char:FindFirstChildOfClass("Humanoid")
 
         local visible = root and hum and hum.Health > 0
-        if visible and (root.Position - myRoot.Position).Magnitude > Config.MaxDistance then
-            visible = false
-        end
+        if visible and (root.Position - myRoot.Position).Magnitude > Config.MaxDistance then visible = false end
 
         data.Billboard.Enabled = visible
         if visible then
             local elemName = getElement(player)
-            local elemColor = Color3.fromRGB(255, 255, 255)
-            
-            if elemName == "Fire" then elemColor = Color3.fromRGB(255, 100, 50) end
-            if elemName == "Water" then elemColor = Color3.fromRGB(50, 150, 255) end
-            if elemName == "Dragon" then elemColor = Color3.fromRGB(255, 0, 0) end
-            if elemName == "Void" then elemColor = Color3.fromRGB(150, 0, 255) end
-
             data.NameLabel.Text = player.Name
             data.InfoLabel.Text = "[" .. elemName .. "]"
-            data.NameLabel.TextColor3 = elemColor
-            data.BoxStroke.Color = elemColor
-            data.Tracer.BackgroundColor3 = elemColor
 
-            -- Calcular tamaño de la caja (Normal vs Hitbox Expandida)
             local topPos, bottomPos
             if isHitboxActive then
-                -- Si el hitbox está activo, calculamos el bounding box usando el tamaño del hitbox
                 if hitboxPart == "Torso" then
                     local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
                     if torso then
@@ -181,7 +170,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
                 end
             end
 
-            -- Si no es hitbox o no encontramos la parte, usamos el tamaño normal
             if not topPos then
                 topPos = root.Position + Vector3.new(0, 3, 0)
                 bottomPos = root.Position - Vector3.new(0, 3.2, 0)
@@ -197,14 +185,14 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
 
                 data.Box.Size = UDim2.fromOffset(width, height)
                 data.Box.Position = UDim2.fromOffset(cx, cy)
-                data.Box.Visible = true
+                data.Box.Visible = Config.Boxes -- Corregido
 
                 local ratio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
                 data.BarBg.Size = UDim2.fromOffset(5, height)
                 data.BarBg.Position = UDim2.fromOffset(cx - width / 2 - 8, cy)
                 data.BarFill.Size = UDim2.fromScale(1, ratio)
                 data.BarFill.BackgroundColor3 = Color3.fromRGB(255 * (1 - ratio), 255 * ratio, 0)
-                data.BarBg.Visible = true
+                data.BarBg.Visible = Config.HealthBar -- Corregido
 
                 local viewport = Camera.ViewportSize
                 local fromX, fromY = viewport.X / 2, viewport.Y
