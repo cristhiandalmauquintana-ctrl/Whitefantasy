@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v6.3: Total Restoration
+--// Main.lua - Froggy Hub (loader + panel) | UI v6.4: Version Tag
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -27,6 +27,7 @@ local AFARM_FILES = { "AutoFarmPlayers.lua" }
 local HITBOX_FILES = { "HitboxExpander.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
+local HUB_VERSION = "v6.4"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -178,6 +179,18 @@ if logoAsset then new("ImageLabel", { Position = UDim2.fromOffset(10, 7), Size =
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(titleX, 5), Size = UDim2.new(1, -(titleX + 90), 0, 22), Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Text, Text = HUB_NAME }, header)
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(titleX, 26), Size = UDim2.new(1, -(titleX + 90), 0, 14), Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Accent, Text = "Panel de control" }, header)
 
+-- 🔥 INDICADOR DE VERSIÓN EN LA ESQUINA 🔥
+new("TextLabel", {
+    BackgroundTransparency = 1,
+    Position = UDim2.new(1, -120, 0.5, -7),
+    Size = UDim2.fromOffset(40, 14),
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = C.Dim,
+    TextXAlignment = Enum.TextXAlignment.Right,
+    Text = HUB_VERSION,
+}, header)
+
 local function headerButton(text, xOffset)
     local b = new("TextButton", { Size = UDim2.fromOffset(30, 30), Position = UDim2.new(1, xOffset, 0.5, -15), BackgroundColor3 = C.Row, BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = C.Text, Text = text, AutoButtonColor = false }, header)
     corner(b, 8)
@@ -296,31 +309,20 @@ do
     switchRow(vis, "Cajas 2D", function() return Config.Boxes end, function(v) Config.Boxes = v end)
     switchRow(vis, "Tracers", function() return Config.Tracers end, function(v) Config.Tracers = v end)
     switchRow(vis, "Barra de vida", function() return Config.HealthBar end, function(v) Config.HealthBar = v end)
-    switchRow(vis, "Texto según vida", function() return Config.ColorByHealth end, function(v) Config.ColorByHealth = v end)
 end
 
--- CONTENIDO: MOVIMIENTO (RESTAURADO CON JUMP)
+-- CONTENIDO: MOVIMIENTO
 if MoveConfig then
     local s = group(pMove, "Speed", function() return MoveConfig.SpeedEnabled end, function(v) MoveConfig.SpeedEnabled = v end)
     s:slider("Velocidad extra", function() return MoveConfig.Speed end, function(v) MoveConfig.Speed = v end, 5, 200, 5)
 
     local j = group(pMove, "Super Jump", function() return MoveConfig.JumpEnabled end, function(v) MoveConfig.JumpEnabled = v end)
     j:slider("Fuerza de salto", function() return MoveConfig.JumpPower end, function(v) MoveConfig.JumpPower = v end, 50, 300, 10)
-
-    local d = group(pMove, "Dash Multiplier", function() return MoveConfig.DashEnabled end, function(v) MoveConfig.DashEnabled = v end)
-    d:slider("Multiplicador", function() return MoveConfig.DashMultiplier end, function(v) MoveConfig.DashMultiplier = v end, 1, 8, 0.5)
 end
 
 if TpConfig then
     local t = group(pMove, "Teleport (botón TP)", function() return TpConfig.Enabled end, function(v) TpConfig.Enabled = v end)
     t:slider("Cooldown (seg)", function() return TpConfig.Cooldown end, function(v) TpConfig.Cooldown = v end, 1, 60, 1)
-    t:slider("Distancia detrás", function() return TpConfig.Offset end, function(v) TpConfig.Offset = v end, 2, 15, 1)
-end
-
-if LiftConfig then
-    local l = group(pMove, "Elevarse con poca vida", function() return LiftConfig.Enabled end, function(v) LiftConfig.Enabled = v end)
-    l:slider("Activar con vida (%)", function() return LiftConfig.Threshold end, function(v) LiftConfig.Threshold = v end, 5, 95, 5)
-    l:slider("Altura (studs)", function() return LiftConfig.Height end, function(v) LiftConfig.Height = v end, 50, 3000, 50)
 end
 
 -- CONTENIDO: COMBATE
@@ -330,26 +332,12 @@ if CamConfig then
     g:slider("Suavizado", function() return CamConfig.Smoothness end, function(v) CamConfig.Smoothness = v end, 0.05, 1, 0.05)
 end
 
-if DodgeConfig then
-    local g = group(pCombat, "Auto Dodge (Ken/Dash)", function() return DodgeConfig.Enabled end, function(v) DodgeConfig.Enabled = v end)
-    g:slider("Rango", function() return DodgeConfig.DetectRange end, function(v) DodgeConfig.DetectRange = v end, 10, 100, 5)
-    g:toggle("Auto-Ken", function() return DodgeConfig.AutoKen end, function(v) DodgeConfig.AutoKen = v end)
-    g:toggle("Auto-Dash", function() return DodgeConfig.AutoDash end, function(v) DodgeConfig.AutoDash = v end)
-end
-
--- HITBOX EXPANDER
 if HitboxConfig then
     local g = group(pCombat, "Hitbox Expander (Selectivo)", function() return HitboxConfig.Enabled end, function(v) HitboxConfig.Enabled = v end)
     g:slider("Tamaño Hitbox", function() return HitboxConfig.Size end, function(v) HitboxConfig.Size = v end, 10, 100, 5)
     g:toggle("Mostrar caja 3D", function() return HitboxConfig.ShowVisual end, function(v) HitboxConfig.ShowVisual = v end)
     g:toggle("Expandir Torso", function() return HitboxConfig.TargetPart == "Torso" end, function(v) HitboxConfig.TargetPart = v and "Torso" or "HumanoidRootPart"; for _, r in ipairs(refreshers) do r() end end)
     g:toggle("Expandir Cabeza", function() return HitboxConfig.TargetPart == "Head" end, function(v) HitboxConfig.TargetPart = v and "Head" or "HumanoidRootPart"; for _, r in ipairs(refreshers) do r() end end)
-end
-
--- RESTO DE OPCIONES (AutoFarm, Diamonds, SilentAim...)
-if AFarmConfig then
-    local g = group(pCombat, "Auto Farm Players", function() return AFarmConfig.Enabled end, function(v) AFarmConfig.Enabled = v end)
-    g:slider("Rango", function() return AFarmConfig.Range end, function(v) AFarmConfig.Range = v end, 50, 2000, 50)
 end
 
 -- CONTENIDO: RENDIMIENTO
@@ -416,7 +404,7 @@ end
 
 selectTab("ESP")
 
--- 🔥 RESTAURACIÓN DE ARRASTRE Y MINIMIZACIÓN 🔥
+-- 🔥 ARRASTRE Y MINIMIZACIÓN 🔥
 local function clampPanel(x, y) local sz = screenSize(); local scale = PanelConfig.Scale or 1; return math.clamp(x, 0, math.max(0, sz.X - WIDTH * scale)), math.clamp(y, 0, math.max(0, sz.Y - HEIGHT * scale)) end
 local function setPanelPos(x, y) x, y = clampPanel(x, y); frame.Position = UDim2.fromOffset(x, y) end
 
@@ -470,4 +458,4 @@ for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
 local hide = TweenService:Create(loadScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
 hide:Play(); task.wait(0.3); loading:Destroy()
 frame.Visible = true; tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
-print("[Froggy Hub] Panel v6.3 cargado con éxito para: " .. GameDisplayName)
+print("[Froggy Hub] Panel " .. HUB_VERSION .. " cargado con éxito para: " .. GameDisplayName)
