@@ -790,7 +790,7 @@ if LiftConfig then
     slider("  Altura (studs)",
         function() return LiftConfig.Height end,
         function(v) LiftConfig.Height = v end,
-        50, 30000, 50)
+        50, 3000, 50)
     toggle("  Bajar solo al recuperar vida",
         function() return LiftConfig.AutoDescend end,
         function(v) LiftConfig.AutoDescend = v end)
@@ -815,6 +815,13 @@ if CamConfig then
         function() return CamConfig.Smoothness end,
         function(v) CamConfig.Smoothness = v end,
         0.05, 1, 0.05)
+    toggle("Girar personaje al objetivo",
+        function() return CamConfig.FaceTarget end,
+        function(v) CamConfig.FaceTarget = v end)
+    slider("  Predicción (seg)",
+        function() return CamConfig.Prediction end,
+        function(v) CamConfig.Prediction = v end,
+        0, 0.5, 0.05)
     toggle("Apuntar a la cabeza",
         function() return CamConfig.AimPart == "Head" end,
         function(v) CamConfig.AimPart = v and "Head" or "HumanoidRootPart" end)
