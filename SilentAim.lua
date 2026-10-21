@@ -1,4 +1,4 @@
---// Froggy Hub - Silent Aim v8 (FOV Visual + 360° + Optimizado)
+--// Froggy Hub - Silent Aim v9 (Ignora M1 + Límite Seguro para Frutas)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,10 +10,10 @@ if env.__BF_SA_CLEANUP then pcall(env.__BF_SA_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    FOV = 200,
-    ShowFOV = true,          -- NUEVO
-    Aim360 = false,          -- NUEVO
-    MaxDistance = 35,
+    FOV = 300,
+    ShowFOV = true,
+    Aim360 = true,           -- Por defecto en 360 para frutas
+    MaxDistance = 350,       -- Límite seguro (ni muy corto, ni muy lejos)
     Prediction = 0.12,
     AimPart = "HumanoidRootPart",
     TeamCheck = true,
@@ -37,7 +37,6 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- === UI DEL FOV ===
 local fovGui = Instance.new("ScreenGui")
 fovGui.Name = "FroggySA_FOV"
 fovGui.ResetOnSpawn = false
@@ -93,14 +92,10 @@ local function isAllowed(p)
     return true
 end
 
--- Bucle de selección (Con soporte para 360°)
 local updateTimer = 0
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
-    -- Actualizar UI del FOV
     fovCircle.Visible = Config.Enabled and Config.ShowFOV
-    if fovCircle.Visible then
-        fovCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
-    end
+    if fovCircle.Visible then fovCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2) end
 
     updateTimer = updateTimer + dt
     if updateTimer < 0.05 then return end
@@ -117,23 +112,16 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
 
     local function try(part, hum)
         if not hum or not part or hum.Health <= 0 then return end
-        
         local dist3D = (part.Position - myRoot.Position).Magnitude
         if dist3D > Config.MaxDistance then return end
 
         if Config.Aim360 then
-            -- Lógica 360°: Ignorar pantalla, buscar el más cercano en 3D
-            if dist3D < best3DDist then
-                bestPart, best3DDist = part, dist3D
-            end
+            if dist3D < best3DDist then bestPart, best3DDist = part, dist3D end
         else
-            -- Lógica Normal: Buscar el más cercano en el FOV de la pantalla
             local pos, onScreen = cam:WorldToViewportPoint(part.Position)
             if onScreen and pos.Z > 0 then
                 local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                if d < bestDist then
-                    bestPart, bestDist = part, d
-                end
+                if d < bestDist then bestPart, bestDist = part, d end
             end
         end
     end
@@ -159,13 +147,11 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
             end
         end
     end
-
     Config.TargetPart = bestPart
 end))
 
--- HOOK
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v8: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v9: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
@@ -186,11 +172,19 @@ mt.__namecall = newcclosure(function(self, ...)
         
         if typeof(ray) == "Ray" then
             local origin = ray.Origin
+            
+            -- 1. EL FILTRO M1: Si el rayo es menor a 50 studs, IGNORAR (Es un golpe de espada)
+            if ray.Direction.Magnitude < 50 then
+                return oldNamecall(self, ...)
+            end
+
+            -- 2. EL FILTRO DE ORIGEN: Asegurarse de que viene del jugador
             local isFromPlayer = false
             if myHead and (origin - myHead.Position).Magnitude < 15 then isFromPlayer = true end
             if not isFromPlayer and myRoot and (origin - myRoot.Position).Magnitude < 15 then isFromPlayer = true end
             
-            if isFromPlayer and ray.Direction.Magnitude < 100 then
+            -- Si es una habilidad y viene del jugador, REDIRIGIR
+            if isFromPlayer then
                 local targetPart = Config.TargetPart
                 local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
                 if lead.Magnitude > 40 then lead = lead.Unit * 40 end
@@ -209,7 +203,7 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim v8 instalado (FOV + 360).")
+print("[Froggy Hub] SilentAim v9 instalado (Ignora M1 + Solo Habilidades).")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
