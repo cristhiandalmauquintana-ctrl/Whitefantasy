@@ -1,5 +1,5 @@
---// Froggy Hub - Silent Aim v17 (Modo Fantasma - Anti-Crash)
---// Sin Hook de Remotes. Solo Cámara y Ratón para evadir el Anti-Cheat.
+--// Froggy Hub - Silent Aim v18 (Community-Proven Anti-Crash)
+--// Basado en técnicas de filtrado con getcallingscript y hook de Mouse.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14,17 +14,22 @@ local Config = {
     FOV = 400,
     ShowFOV = true,
     Aim360 = true,
-    MaxDistance = 250,       
-    Prediction = 0.15,       
-    AimPart = "Head",        
+    MaxDistance = 250,
+    Prediction = 0.15,
+    AimPart = "Head",
     TeamCheck = true,
     IgnoreFriends = false,
     AttackNPCs = false,
-    PvPMode = true,          
     TargetPart = nil,
     Debug = false,
 }
 env.BF_SA_CONFIG = Config
+
+-- Nombres de los scripts internos de Blox Fruits que disparan los rayos de combate.
+-- Añade más si encuentras que alguna habilidad no se redirige.
+local CallingScripts = {
+    "Combat", "Sword", "Gun", "Fruit", "Skill", "Weapon"
+}
 
 local connections = {}
 local friendCache = {}
@@ -52,7 +57,7 @@ fovCircle.Visible = false
 fovCircle.Parent = fovGui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
 local fovStroke = Instance.new("UIStroke", fovCircle)
-fovStroke.Color = Color3.fromRGB(255, 50, 50) 
+fovStroke.Color = Color3.fromRGB(255, 50, 50)
 fovStroke.Thickness = 2
 fovStroke.Transparency = 0.3
 
@@ -95,8 +100,6 @@ local function isAllowed(p)
     return true
 end
 
--- Variables cacheadas para el Hook
-local cachedAimCFrame = nil
 local cachedAimPart = nil
 local cachedAimVector = nil
 
@@ -108,14 +111,8 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     updateTimer = updateTimer + dt
     if updateTimer < 0.05 then return end
     updateTimer = 0
-    
-    if not Config.Enabled then 
-        Config.TargetPart = nil 
-        cachedAimCFrame = nil
-        cachedAimPart = nil
-        cachedAimVector = nil
-        return 
-    end
+
+    if not Config.Enabled then Config.TargetPart = nil cachedAimPart = nil cachedAimVector = nil return end
 
     local cam = cameraRef
     if not cam or not myRoot then return end
@@ -169,55 +166,63 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
 
     Config.TargetPart = bestPart
 
-    -- CALCULAMOS EL AIM AQUÍ (Fuera del hook)
     if bestPart and bestPart.Parent then
         cachedAimPart = bestPart
         local ok, vel = pcall(function() return bestPart.AssemblyLinearVelocity end)
         if ok and vel then
-            local dynamicPrediction = Config.Prediction
-            if Config.PvPMode then
-                dynamicPrediction = math.clamp(vel.Magnitude * 0.015, 0.1, 0.35)
-            end
-            local lead = vel * dynamicPrediction
+            local pred = Config.Prediction
+            if Config.PvPMode then pred = math.clamp(vel.Magnitude * 0.015, 0.1, 0.35) end
+            local lead = vel * pred
             if lead.Magnitude > 80 then lead = lead.Unit * 80 end
-            local pos = bestPart.Position + lead
-            
-            if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then pos = bestPart.Position end
-            
-            cachedAimVector = pos
-            local origin = cameraRef.CFrame.Position
-            cachedAimCFrame = CFrame.lookAt(origin, pos) 
+            cachedAimVector = bestPart.Position + lead
         end
     else
         cachedAimPart = nil
         cachedAimVector = nil
-        cachedAimCFrame = nil
     end
 end))
 
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v17: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v18: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
 local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
 local oldIndex = mt.__index
 setreadonly(mt, false)
 
--- ÚNICO HOOK: Cámara y Ratón
+-- HOOK DE NAMECALL FILTRADO (Rayos de armas/habilidades)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if Config.Enabled and cachedAimVector and cachedAimPart and cachedAimPart.Parent then
+        if method == "FindPartOnRayWithIgnoreList" or method == "Raycast" then
+            local args = {...}
+            local ray = args[1]
+            if typeof(ray) == "Ray" then
+                local callingScript = getcallingscript()
+                -- Solo modificamos si el script que llama está en nuestra lista blanca
+                if callingScript and table.find(CallingScripts, callingScript.Name) then
+                    local origin = ray.Origin
+                    local direction = (cachedAimVector - origin).Unit * ray.Direction.Magnitude
+                    args[1] = Ray.new(origin, direction)
+                    return oldNamecall(self, unpack(args))
+                end
+            end
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+
+-- HOOK DE INDEX (Ratón y Cámara)
 mt.__index = newcclosure(function(self, key)
-    if Config.Enabled and cachedAimCFrame and cachedAimPart and cachedAimPart.Parent then
-        -- Hook de Cámara
+    if Config.Enabled and cachedAimVector and cachedAimPart and cachedAimPart.Parent then
         if self == cameraRef and key == "CFrame" then
             local originalCF = oldIndex(self, key)
-            -- Mantenemos la posición original de la cámara, solo cambiamos hacia donde mira
-            return CFrame.lookAt(originalCF.Position, cachedAimVector)
-        -- Hook del Ratón
+            local ok, newCF = pcall(CFrame.lookAt, originalCF.Position, cachedAimVector)
+            if ok and newCF then return newCF end
         elseif mouseRef and self == mouseRef then
-            if key == "Hit" then 
-                -- Retornamos un CFrame válido mirando desde la cámara al objetivo
-                return CFrame.lookAt(cameraRef.CFrame.Position, cachedAimVector) 
-            end
+            if key == "Hit" then return CFrame.new(cachedAimVector) end
             if key == "Target" then return cachedAimPart end
             if key == "UnitRay" then
                 local origin = oldIndex(self, "Origin")
@@ -229,7 +234,7 @@ mt.__index = newcclosure(function(self, key)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim V17 (Modo Fantasma) instalado. Cero detección de Anti-Cheat.")
+print("[Froggy Hub] SilentAim V18 (Community Filter) instalado. Anti-Crash activo.")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
@@ -237,6 +242,7 @@ env.__BF_SA_CLEANUP = function()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     pcall(function()
         setreadonly(mt, false)
+        mt.__namecall = oldNamecall
         mt.__index = oldIndex
         setreadonly(mt, true)
     end)
