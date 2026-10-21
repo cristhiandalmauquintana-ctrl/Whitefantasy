@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v6.2: Bug Fix Edition
+--// Main.lua - Froggy Hub (loader + panel) | UI v6.3: Total Restoration
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -145,8 +145,6 @@ if CurrentGameFolder == "ElementalMagicArena" then
     DiamondConfig = loadOptional(DIAMOND_FILES, "AutoDiamonds.lua", "BF_DIAMOND_CONFIG")
     AFarmConfig = loadOptional(AFARM_FILES, "AutoFarmPlayers.lua", "BF_AFARM_CONFIG")
     HitboxConfig = loadOptional(HITBOX_FILES, "HitboxExpander.lua", "BF_HITBOX_CONFIG")
-    
-    -- 🔥 FALLBACK POR SI EL ARCHIVO FALLA, CREAMOS LA CONFIG POR DEFECTO
     if not HitboxConfig then 
         HitboxConfig = { Enabled = false, Size = 25, TargetPart = "Torso", ShowVisual = true, IgnoreFriends = true }
         env.BF_HITBOX_CONFIG = HitboxConfig
@@ -291,53 +289,185 @@ end
 -- CONTENIDO: ESP
 do
     local g = group(pESP, "ESP", function() return Config.Enabled end, function(v) Config.Enabled = v end)
+    if CurrentGameFolder == "BloxFruits" then
+        g:toggle("Mostrar compañeros", function() return Config.ShowTeammates end, function(v) Config.ShowTeammates = v end)
+    end
     local vis = card(pESP, "Visual")
     switchRow(vis, "Cajas 2D", function() return Config.Boxes end, function(v) Config.Boxes = v end)
+    switchRow(vis, "Tracers", function() return Config.Tracers end, function(v) Config.Tracers = v end)
     switchRow(vis, "Barra de vida", function() return Config.HealthBar end, function(v) Config.HealthBar = v end)
+    switchRow(vis, "Texto según vida", function() return Config.ColorByHealth end, function(v) Config.ColorByHealth = v end)
 end
 
--- CONTENIDO: MOVIMIENTO (Igual que antes)
+-- CONTENIDO: MOVIMIENTO (RESTAURADO CON JUMP)
 if MoveConfig then
     local s = group(pMove, "Speed", function() return MoveConfig.SpeedEnabled end, function(v) MoveConfig.SpeedEnabled = v end)
     s:slider("Velocidad extra", function() return MoveConfig.Speed end, function(v) MoveConfig.Speed = v end, 5, 200, 5)
+
+    local j = group(pMove, "Super Jump", function() return MoveConfig.JumpEnabled end, function(v) MoveConfig.JumpEnabled = v end)
+    j:slider("Fuerza de salto", function() return MoveConfig.JumpPower end, function(v) MoveConfig.JumpPower = v end, 50, 300, 10)
+
+    local d = group(pMove, "Dash Multiplier", function() return MoveConfig.DashEnabled end, function(v) MoveConfig.DashEnabled = v end)
+    d:slider("Multiplicador", function() return MoveConfig.DashMultiplier end, function(v) MoveConfig.DashMultiplier = v end, 1, 8, 0.5)
+end
+
+if TpConfig then
+    local t = group(pMove, "Teleport (botón TP)", function() return TpConfig.Enabled end, function(v) TpConfig.Enabled = v end)
+    t:slider("Cooldown (seg)", function() return TpConfig.Cooldown end, function(v) TpConfig.Cooldown = v end, 1, 60, 1)
+    t:slider("Distancia detrás", function() return TpConfig.Offset end, function(v) TpConfig.Offset = v end, 2, 15, 1)
+end
+
+if LiftConfig then
+    local l = group(pMove, "Elevarse con poca vida", function() return LiftConfig.Enabled end, function(v) LiftConfig.Enabled = v end)
+    l:slider("Activar con vida (%)", function() return LiftConfig.Threshold end, function(v) LiftConfig.Threshold = v end, 5, 95, 5)
+    l:slider("Altura (studs)", function() return LiftConfig.Height end, function(v) LiftConfig.Height = v end, 50, 3000, 50)
 end
 
 -- CONTENIDO: COMBATE
-if HitboxConfig then
-    local g = group(pCombat, "Hitbox Expander (Selectivo)", function() return HitboxConfig.Enabled end, function(v) HitboxConfig.Enabled = v end)
-    
-    g:slider("Tamaño Hitbox", function() return HitboxConfig.Size end, function(v) HitboxConfig.Size = v end, 10, 100, 5)
-    g:toggle("Mostrar caja 3D", function() return HitboxConfig.ShowVisual end, function(v) HitboxConfig.ShowVisual = v end)
-    
-    -- Selectores radio (al activar uno, apaga los demás forzando el refresh)
-    g:toggle("Expandir Torso", function() return HitboxConfig.TargetPart == "Torso" end, function(v) 
-        HitboxConfig.TargetPart = v and "Torso" or "HumanoidRootPart"
-        for _, refresh in ipairs(refreshers) do refresh() end
-    end)
-    
-    g:toggle("Expandir Cabeza", function() return HitboxConfig.TargetPart == "Head" end, function(v) 
-        HitboxConfig.TargetPart = v and "Head" or "HumanoidRootPart"
-        for _, refresh in ipairs(refreshers) do refresh() end
-    end)
-    
-    g:toggle("Expandir Cuerpo Completo", function() return HitboxConfig.TargetPart == "All" end, function(v) 
-        HitboxConfig.TargetPart = v and "All" or "HumanoidRootPart"
-        for _, refresh in ipairs(refreshers) do refresh() end
-    end)
+if CamConfig then
+    local g = group(pCombat, "Camlock", function() return CamConfig.Enabled end, function(v) CamConfig.Enabled = v end)
+    g:slider("Radio FOV", function() return CamConfig.FOV end, function(v) CamConfig.FOV = v end, 50, 600, 10)
+    g:slider("Suavizado", function() return CamConfig.Smoothness end, function(v) CamConfig.Smoothness = v end, 0.05, 1, 0.05)
 end
 
--- AJUSTES Y MISC (Igual que antes)
+if DodgeConfig then
+    local g = group(pCombat, "Auto Dodge (Ken/Dash)", function() return DodgeConfig.Enabled end, function(v) DodgeConfig.Enabled = v end)
+    g:slider("Rango", function() return DodgeConfig.DetectRange end, function(v) DodgeConfig.DetectRange = v end, 10, 100, 5)
+    g:toggle("Auto-Ken", function() return DodgeConfig.AutoKen end, function(v) DodgeConfig.AutoKen = v end)
+    g:toggle("Auto-Dash", function() return DodgeConfig.AutoDash end, function(v) DodgeConfig.AutoDash = v end)
+end
+
+-- HITBOX EXPANDER
+if HitboxConfig then
+    local g = group(pCombat, "Hitbox Expander (Selectivo)", function() return HitboxConfig.Enabled end, function(v) HitboxConfig.Enabled = v end)
+    g:slider("Tamaño Hitbox", function() return HitboxConfig.Size end, function(v) HitboxConfig.Size = v end, 10, 100, 5)
+    g:toggle("Mostrar caja 3D", function() return HitboxConfig.ShowVisual end, function(v) HitboxConfig.ShowVisual = v end)
+    g:toggle("Expandir Torso", function() return HitboxConfig.TargetPart == "Torso" end, function(v) HitboxConfig.TargetPart = v and "Torso" or "HumanoidRootPart"; for _, r in ipairs(refreshers) do r() end end)
+    g:toggle("Expandir Cabeza", function() return HitboxConfig.TargetPart == "Head" end, function(v) HitboxConfig.TargetPart = v and "Head" or "HumanoidRootPart"; for _, r in ipairs(refreshers) do r() end end)
+end
+
+-- RESTO DE OPCIONES (AutoFarm, Diamonds, SilentAim...)
+if AFarmConfig then
+    local g = group(pCombat, "Auto Farm Players", function() return AFarmConfig.Enabled end, function(v) AFarmConfig.Enabled = v end)
+    g:slider("Rango", function() return AFarmConfig.Range end, function(v) AFarmConfig.Range = v end, 50, 2000, 50)
+end
+
+-- CONTENIDO: RENDIMIENTO
+if PotConfig then
+    local g = group(pPerf, "Gráficos patata", function() return PotConfig.Enabled end, function(v) PotConfig.Set(v) end)
+    g:toggle("Quitar partículas", function() return PotConfig.NoParticles end, function(v) PotConfig.NoParticles = v end)
+    g:toggle("Quitar texturas", function() return PotConfig.NoTextures end, function(v) PotConfig.NoTextures = v end)
+end
+
+-- CONTENIDO: AJUSTES
 do
     local themeCard = card(pAjustes, "Temas de Color")
     local themeRow = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1 }, themeCard)
     new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, themeRow)
-    -- ... (Lógica de temas)
+    local THEMES = {
+        { Name = "Froggy", Accent = Color3.fromRGB(110, 220, 90), Bg = Color3.fromRGB(16, 16, 22) },
+        { Name = "Cyber", Accent = Color3.fromRGB(255, 50, 150), Bg = Color3.fromRGB(20, 10, 30) },
+        { Name = "Blood", Accent = Color3.fromRGB(220, 60, 60), Bg = Color3.fromRGB(18, 10, 10) },
+        { Name = "Ocean", Accent = Color3.fromRGB(50, 200, 255), Bg = Color3.fromRGB(10, 18, 25) },
+        { Name = "Dark", Accent = Color3.fromRGB(200, 200, 200), Bg = Color3.fromRGB(10, 10, 10) },
+    }
+    local function applyTheme(theme)
+        local oldC = {}; for k, v in pairs(C) do oldC[k] = v end
+        C.Accent = theme.Accent; C.On = theme.Accent; C.Bg = theme.Bg; C.Header = theme.Bg:Lerp(Color3.new(1,1,1), 0.05); C.Row = theme.Bg:Lerp(Color3.new(1,1,1), 0.1); C.Stroke = theme.Bg:Lerp(Color3.new(1,1,1), 0.2); C.AccentText = Color3.fromRGB(14, 24, 12)
+        local function colorMatches(c1, c2) return math.abs(c1.R - c2.R) < 0.02 and math.abs(c1.G - c2.G) < 0.02 and math.abs(c1.B - c2.B) < 0.02 end
+        for _, desc in ipairs(gui:GetDescendants()) do
+            if desc:IsA("Frame") or desc:IsA("TextButton") or desc:IsA("TextLabel") then
+                for k, v in pairs(oldC) do
+                    if colorMatches(desc.BackgroundColor3, v) then desc.BackgroundColor3 = C[k] end
+                    if colorMatches(desc.TextColor3, v) then desc.TextColor3 = C[k] end
+                end
+            elseif desc:IsA("UIStroke") then for k, v in pairs(oldC) do if colorMatches(desc.Color, v) then desc.Color = C[k] end end end
+        end
+        for _, refresh in ipairs(refreshers) do refresh() end; applyPanelStyle()
+    end
+    for _, t in ipairs(THEMES) do
+        local b = new("TextButton", { Size = UDim2.fromOffset(50, 26), BackgroundColor3 = t.Accent, BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = Color3.new(0,0,0), Text = t.Name, AutoButtonColor = false }, themeRow)
+        corner(b, 6); b.Activated:Connect(function() applyTheme(t) end)
+    end
+
+    local ap = card(pAjustes, "Apariencia del panel")
+    local presetRow = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1 }, ap)
+    new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, presetRow)
+    local presets = { { Name = "Discreto", Scale = 0.7, Trans = 0.5 }, { Name = "Normal", Scale = 1, Trans = 0 }, { Name = "Grande", Scale = 1.25, Trans = 0 } }
+    local presetButtons = {}
+    local function refreshPresets() for _, b in ipairs(presetButtons) do local active = (PanelConfig.Mode == b.data.Name); tween(b.btn, 0.15, { BackgroundColor3 = active and C.Accent or C.Row, TextColor3 = active and C.AccentText or C.Dim }) end end
+    for i, p in ipairs(presets) do
+        local btn = new("TextButton", { LayoutOrder = i, Size = UDim2.new(1/3, -4, 1, 0), BackgroundColor3 = C.Row, BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = C.Dim, Text = p.Name, AutoButtonColor = false }, presetRow)
+        corner(btn, 6); stroke(btn, C.Stroke)
+        table.insert(presetButtons, { btn = btn, data = p })
+        btn.Activated:Connect(function() PanelConfig.Mode = p.Name; PanelConfig.Scale = p.Scale; PanelConfig.Transparency = p.Trans; applyPanelStyle(); refreshPresets() end)
+    end
+    refreshPresets()
+    slider(ap, "Escala del panel", function() return PanelConfig.Scale end, function(v) PanelConfig.Scale = v; PanelConfig.Mode = "Personalizado"; applyPanelStyle(); refreshPresets() end, 0.65, 1.4, 0.05)
+    slider(ap, "Transparencia", function() return PanelConfig.Transparency end, function(v) PanelConfig.Transparency = v; PanelConfig.Mode = "Personalizado"; applyPanelStyle(); refreshPresets() end, 0, 0.85, 0.05)
+end
+
+-- CONTENIDO: MISC
+do
+    local sc = card(pMisc, "Próximamente")
+    for _, name in ipairs({ "Fly", "Noclip", "Fruit Finder", "Server Hop", "Anti-AFK" }) do soon(sc, name) end
+    for _, name in ipairs(missing) do soon(sc, name .. " (módulo no cargado)") end
 end
 
 selectTab("ESP")
--- (Arrastre, minimizar y cierre)
+
+-- 🔥 RESTAURACIÓN DE ARRASTRE Y MINIMIZACIÓN 🔥
+local function clampPanel(x, y) local sz = screenSize(); local scale = PanelConfig.Scale or 1; return math.clamp(x, 0, math.max(0, sz.X - WIDTH * scale)), math.clamp(y, 0, math.max(0, sz.Y - HEIGHT * scale)) end
+local function setPanelPos(x, y) x, y = clampPanel(x, y); frame.Position = UDim2.fromOffset(x, y) end
+
+local function makeDraggable(handle, getPos, setPos, onTap)
+    local active, startMouse, startPos, moved
+    table.insert(connections, handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            active = input; startMouse = input.Position; startPos = getPos(); moved = false
+            local conn; conn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if active == input then active = nil; if not moved and onTap then onTap() end end
+                    conn:Disconnect()
+                end
+            end)
+        end
+    end))
+    table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+        if not active then return end
+        if active.UserInputType == Enum.UserInputType.Touch then if input ~= active then return end
+        elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        local d = input.Position - startMouse; if d.Magnitude > 8 then moved = true end; if moved then setPos(startPos.X + d.X, startPos.Y + d.Y) end
+    end))
+end
+makeDraggable(header, function() return Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset) end, setPanelPos)
+
+local BUBBLE = 52
+local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Header, BorderSizePixel = 0, AutoButtonColor = false, Text = "", Visible = false }, gui)
+corner(bubble, 99); stroke(bubble, C.Accent, 2)
+if logoAsset then new("ImageLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, -14, 1, -14), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Image = logoAsset, Active = false }, bubble)
+else new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 22, TextColor3 = C.Accent, Text = "F", Active = false }, bubble) end
+
+local function setBubblePos(x, y) local sz = screenSize(); bubble.Position = UDim2.fromOffset(math.clamp(x, 0, math.max(0, sz.X - BUBBLE)), math.clamp(y, 0, math.max(0, sz.Y - BUBBLE))) end
+local function restorePanel() bubble.Visible = false; frame.Visible = true; setPanelPos(bubble.Position.X.Offset - 8, bubble.Position.Y.Offset - 8) end
+local function minimizePanel() setBubblePos(frame.Position.X.Offset + 8, frame.Position.Y.Offset + 8); frame.Visible = false; bubble.Visible = true end
+
+makeDraggable(bubble, function() return Vector2.new(bubble.Position.X.Offset, bubble.Position.Y.Offset) end, setBubblePos, restorePanel)
+minBtn.Activated:Connect(minimizePanel)
+
+table.insert(connections, gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+    local sz = screenSize(); WIDTH = math.min(340, sz.X - 24); HEIGHT = math.min(480, sz.Y - 20)
+    frame.Size = UDim2.fromOffset(WIDTH, HEIGHT); setPanelPos(frame.Position.X.Offset, frame.Position.Y.Offset); setBubblePos(bubble.Position.X.Offset, bubble.Position.Y.Offset)
+end))
+
+table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.RightControl then if frame.Visible then minimizePanel() else restorePanel() end end
+end))
+closeBtn.Activated:Connect(cleanup)
+
 for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
 local hide = TweenService:Create(loadScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
 hide:Play(); task.wait(0.3); loading:Destroy()
 frame.Visible = true; tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
-print("[Froggy Hub] Panel v6.2 cargado con éxito para: " .. GameDisplayName)
+print("[Froggy Hub] Panel v6.3 cargado con éxito para: " .. GameDisplayName)
