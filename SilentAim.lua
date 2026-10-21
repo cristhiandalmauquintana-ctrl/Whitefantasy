@@ -1,5 +1,5 @@
---// Froggy Hub - Silent Aim (Aim Assist silencioso)
---// Intercepta la cámara y el ratón para redirigir golpes sin mover la pantalla.
+--// Froggy Hub - Silent Aim (con soporte para NPCs) - FIXED
+--// Bugs corregidos: recursión infinita en __index, Mouse.Hit tipo CFrame, hook seguro.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,19 +12,30 @@ end
 
 local Config = {
     Enabled = false,
-    FOV = 200,                    -- Radio en píxeles para elegir objetivo
-    MaxDistance = 400,            -- Studs máximos
-    Prediction = 0.12,            -- Anticipación de movimiento
-    AimPart = "HumanoidRootPart", -- "HumanoidRootPart" o "Head"
+    FOV = 200,
+    MaxDistance = 400,
+    Prediction = 0.12,
+    AimPart = "HumanoidRootPart",
     TeamCheck = true,
     IgnoreFriends = false,
     WallCheck = false,
-    Target = nil,                 -- Jugador actual (interno)
+    AttackNPCs = false,
+    TargetPart = nil,
 }
 env.BF_SA_CONFIG = Config
 
 local connections = {}
 local friendCache = {}
+
+-- ⚠️ CACHE CRÍTICO (evita la recursión infinita dentro del hook)
+local mouseRef
+pcall(function() mouseRef = LocalPlayer:GetMouse() end)
+local cameraRef = workspace.CurrentCamera
+pcall(function()
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        cameraRef = workspace.CurrentCamera
+    end)
+end)
 
 local function isFriend(player)
     local cached = friendCache[player.UserId]
@@ -35,8 +46,7 @@ local function isFriend(player)
 end
 
 local function sameTeam(player)
-    if LocalPlayer.Team ~= nil and player.Team == LocalPlayer.Team then return true end
-    return false
+    return LocalPlayer.Team ~= nil and player.Team == LocalPlayer.Team
 end
 
 local function isAllowed(player)
@@ -46,47 +56,42 @@ local function isAllowed(player)
     return true
 end
 
-local function getPart(player)
-    local char = player.Character
-    if not char then return nil end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return nil end
-    return char:FindFirstChild(Config.AimPart) or char:FindFirstChild("HumanoidRootPart")
-end
-
 local function isVisible(part)
-    local camera = workspace.CurrentCamera
+    local cam = cameraRef
+    if not cam then return true end
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = { LocalPlayer.Character }
-    local result = workspace:Raycast(camera.CFrame.Position, part.Position - camera.CFrame.Position, params)
+    params.FilterDescendantsInstances = { LocalPlayer.Character, part.Parent }
+    local result = workspace:Raycast(cam.CFrame.Position, part.Position - cam.CFrame.Position, params)
     return result == nil or result.Instance:IsDescendantOf(part.Parent)
 end
 
--- Actualiza el objetivo constantemente
+-- Loop de búsqueda (FUERA del hook, sin riesgo de recursión)
 local updateTimer = 0
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     updateTimer = updateTimer + dt
-    if updateTimer < 0.05 then return end -- 20 veces por segundo
+    if updateTimer < 0.05 then return end
     updateTimer = 0
 
     if not Config.Enabled then
-        Config.Target = nil
+        Config.TargetPart = nil
         return
     end
 
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-    local center = camera.ViewportSize / 2
+    local cam = cameraRef
+    if not cam then return end
+    local center = cam.ViewportSize / 2
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    
-    local best, bestDist = nil, Config.FOV
+    local bestPart, bestDist = nil, Config.FOV
 
+    -- 1. Jugadores
     for _, player in ipairs(Players:GetPlayers()) do
         if isAllowed(player) then
-            local part = getPart(player)
-            if part then
-                local pos, onScreen = camera:WorldToViewportPoint(part.Position)
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local part = char and (char:FindFirstChild(Config.AimPart) or char:FindFirstChild("HumanoidRootPart"))
+            if hum and part and hum.Health > 0 then
+                local pos, onScreen = cam:WorldToViewportPoint(part.Position)
                 if onScreen and pos.Z > 0 then
                     local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                     local inRange = true
@@ -94,60 +99,99 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
                         inRange = (part.Position - myRoot.Position).Magnitude <= Config.MaxDistance
                     end
                     if d < bestDist and inRange and (not Config.WallCheck or isVisible(part)) then
-                        best, bestDist = player, d
+                        bestPart, bestDist = part, d
                     end
                 end
             end
         end
     end
-    Config.Target = best
-end))
 
---// El Hook (La magia del Silent Aim)
-local oldIndex
-oldIndex = hookmetamethod(game, "__index", function(self, key)
-    if not Config.Enabled or not Config.Target then
-        return oldIndex(self, key)
-    end
-
-    local targetPart = getPart(Config.Target)
-    if not targetPart then
-        return oldIndex(self, key)
-    end
-
-    -- Calcular la posición con predicción
-    local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
-    if lead.Magnitude > 40 then lead = lead.Unit * 40 end
-    local aimPos = targetPart.Position + lead
-
-    -- 1. Hookear la Cámara (para habilidades que usan Camera.CFrame)
-    local camera = workspace.CurrentCamera
-    if self == camera and key == "CFrame" then
-        local originalCFrame = oldIndex(self, key)
-        return CFrame.lookAt(originalCFrame.Position, aimPos)
-    end
-
-    -- 2. Hookear el Ratón (para espadas, armas y skills que usan Mouse.Hit)
-    local mouse = LocalPlayer:GetMouse()
-    if self == mouse then
-        if key == "Hit" then
-            return aimPos
-        elseif key == "Target" then
-            return targetPart
-        elseif key == "UnitRay" then
-            local origin = oldIndex(self, "Origin")
-            return Ray.new(origin, (aimPos - origin).Unit * 1000)
+    -- 2. NPCs
+    if Config.AttackNPCs then
+        local enemiesFolder = workspace:FindFirstChild("Enemies")
+        local scanTargets = enemiesFolder and enemiesFolder:GetChildren() or {}
+        for _, npc in ipairs(scanTargets) do
+            if not Players:GetPlayerFromCharacter(npc) then
+                local hum = npc:FindFirstChildOfClass("Humanoid")
+                local part = npc:FindFirstChild(Config.AimPart) or npc:FindFirstChild("HumanoidRootPart")
+                if hum and part and hum.Health > 0 then
+                    local pos, onScreen = cam:WorldToViewportPoint(part.Position)
+                    if onScreen and pos.Z > 0 then
+                        local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                        local inRange = true
+                        if myRoot and Config.MaxDistance > 0 then
+                            inRange = (part.Position - myRoot.Position).Magnitude <= Config.MaxDistance
+                        end
+                        if d < bestDist and inRange and (not Config.WallCheck or isVisible(part)) then
+                            bestPart, bestDist = part, d
+                        end
+                    end
+                end
+            end
         end
     end
 
-    return oldIndex(self, key)
+    Config.TargetPart = bestPart
+end))
+
+--// Hook seguro
+if type(hookmetamethod) ~= "function" then
+    warn("[Froggy Hub] SilentAim: tu executor NO soporta hookmetamethod.")
+    return
+end
+
+local oldIndex
+local hookOk, hookErr = pcall(function()
+    oldIndex = hookmetamethod(game, "__index", function(self, key)
+        -- Salida rápida (no interfiere si está apagado)
+        if not Config.Enabled then
+            return oldIndex(self, key)
+        end
+        local targetPart = Config.TargetPart
+        if not targetPart or not targetPart.Parent then
+            return oldIndex(self, key)
+        end
+
+        -- Cámara (para skills que usan Camera.CFrame)
+        if self == cameraRef and key == "CFrame" then
+            local originalCFrame = oldIndex(self, key)
+            local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
+            if lead.Magnitude > 40 then lead = lead.Unit * 40 end
+            local aimPos = targetPart.Position + lead
+            return CFrame.lookAt(originalCFrame.Position, aimPos)
+        end
+
+        -- Ratón (para espadas, armas y skills)
+        if mouseRef and self == mouseRef then
+            local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
+            if lead.Magnitude > 40 then lead = lead.Unit * 40 end
+            local aimPos = targetPart.Position + lead
+
+            if key == "Hit" then
+                -- ⚠️ Mouse.Hit devuelve CFrame, NO Vector3
+                return CFrame.new(aimPos)
+            elseif key == "Target" then
+                return targetPart
+            elseif key == "UnitRay" then
+                local origin = oldIndex(self, "Origin").Position
+                return Ray.new(origin, (aimPos - origin).Unit * 1000)
+            end
+        end
+
+        return oldIndex(self, key)
+    end)
 end)
 
+if not hookOk then
+    warn("[Froggy Hub] SilentAim: error al instalar el hook: " .. tostring(hookErr))
+    return
+end
+
+print("[Froggy Hub] SilentAim instalado correctamente.")
+
 env.__BF_SA_CLEANUP = function()
+    Config.Enabled = false
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
-    if oldIndex then
-        pcall(function() hookmetamethod = oldIndex end) -- Restaurar el hook original si es posible
-    end
     env.BF_SA_CONFIG = nil
     env.__BF_SA_CLEANUP = nil
 end
