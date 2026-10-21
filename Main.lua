@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v6.0: Multi-Game & Elemental Arena
+--// Main.lua - Froggy Hub (loader + panel) | UI v6.1: Hitbox Selectivo
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -32,7 +32,7 @@ local TP_FILES = { "Teleport.lua", "teleport.lua" }
 local LIFT_FILES = { "AutoLift.lua", "autolift.lua" }
 local DIAMOND_FILES = { "AutoDiamonds.lua", "autodiamonds.lua" }
 local AFARM_FILES = { "AutoFarmPlayers.lua", "autofarmplayers.lua" }
-local FASTM1_FILES = { "FastM1.lua", "fastm1.lua" }
+local HITBOX_FILES = { "HitboxExpander.lua", "hitboxexpander.lua" }
 local LOGO_FILES = { "logo.png", "Logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
 
@@ -80,7 +80,7 @@ local function cleanup()
     if env.__BF_LIFT_CLEANUP then pcall(env.__BF_LIFT_CLEANUP) end
     if env.__BF_DIAMOND_CLEANUP then pcall(env.__BF_DIAMOND_CLEANUP) end
     if env.__BF_AFARM_CLEANUP then pcall(env.__BF_AFARM_CLEANUP) end
-    if env.__BF_FASTM1_CLEANUP then pcall(env.__BF_FASTM1_CLEANUP) end
+    if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -155,14 +155,14 @@ local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
 local DodgeConfig = loadOptional(DODGE_FILES, "AutoDodge.lua", "BF_DODGE_CONFIG")
 
 -- 🎯 MÓDULOS EXCLUSIVOS DE ELEMENTAL MAGIC ARENA
-local DiamondConfig, AFarmConfig, FastM1Config = nil, nil, nil
+local DiamondConfig, AFarmConfig, HitboxConfig = nil, nil, nil
 if CurrentGameFolder == "ElementalMagicArena" then
-    setProgress(0.75, "Cargando Auto Diamantes...")
+    setProgress(0.7, "Cargando Auto Diamantes...")
     DiamondConfig = loadOptional(DIAMOND_FILES, "AutoDiamonds.lua", "BF_DIAMOND_CONFIG")
-    setProgress(0.8, "Cargando Auto Farm Players...")
+    setProgress(0.75, "Cargando Auto Farm Players...")
     AFarmConfig = loadOptional(AFARM_FILES, "AutoFarmPlayers.lua", "BF_AFARM_CONFIG")
-    setProgress(0.85, "Cargando Fast M1...")
-    FastM1Config = loadOptional(FASTM1_FILES, "FastM1.lua", "BF_FASTM1_CONFIG")
+    setProgress(0.8, "Cargando Hitbox Expander...")
+    HitboxConfig = loadOptional(HITBOX_FILES, "HitboxExpander.lua", "BF_HITBOX_CONFIG")
 end
 
 -- SILENT AIM (Solo en Arena o Universal)
@@ -304,7 +304,7 @@ end
 
 -- CONTENIDO: ESP
 do
-    local g = group(pESP, "ESP (General)", function() return Config.Enabled end, function(v) Config.Enabled = v end)
+    local g = group(pESP, "ESP", function() return Config.Enabled end, function(v) Config.Enabled = v end)
     if CurrentGameFolder == "BloxFruits" then
         g:toggle("Mostrar compañeros", function() return Config.ShowTeammates end, function(v) Config.ShowTeammates = v end)
     end
@@ -344,12 +344,6 @@ if DodgeConfig then
 end
 
 -- 🎯 EXCLUSIVO: ELEMENTAL MAGIC ARENA
-if FastM1Config then
-    local g = group(pCombat, "Fast M1 (Ratatata)", function() return FastM1Config.Enabled end, function(v) FastM1Config.Enabled = v end)
-    g:slider("Velocidad (seg)", function() return FastM1Config.ClickDelay end, function(v) FastM1Config.ClickDelay = v end, 0.01, 0.5, 0.01)
-    g:toggle("Bypass Animación", function() return FastM1Config.BypassAnimations end, function(v) FastM1Config.BypassAnimations = v end)
-end
-
 if AFarmConfig then
     local g = group(pCombat, "Auto Farm Players", function() return AFarmConfig.Enabled end, function(v) AFarmConfig.Enabled = v end)
     g:slider("Rango", function() return AFarmConfig.Range end, function(v) AFarmConfig.Range = v end, 50, 2000, 50)
@@ -363,12 +357,24 @@ if DiamondConfig then
     g:toggle("Teletransportarse", function() return DiamondConfig.Teleport end, function(v) DiamondConfig.Teleport = v end)
 end
 
+if HitboxConfig then
+    local g = group(pCombat, "Hitbox Expander (Selectivo)", function() return HitboxConfig.Enabled end, function(v) HitboxConfig.Enabled = v end)
+    
+    g:slider("Tamaño Hitbox", function() return HitboxConfig.Size end, function(v) HitboxConfig.Size = v end, 10, 100, 5)
+    g:toggle("Mostrar caja 3D", function() return HitboxConfig.ShowVisual end, function(v) HitboxConfig.ShowVisual = v end)
+    g:toggle("Ignorar Amigos", function() return HitboxConfig.IgnoreFriends end, function(v) HitboxConfig.IgnoreFriends = v end)
+    
+    -- Selectores de parte del cuerpo
+    g:toggle("Expandir Torso", function() return HitboxConfig.TargetPart == "Torso" end, function(v) HitboxConfig.TargetPart = v and "Torso" or "HumanoidRootPart" end)
+    g:toggle("Expandir Cabeza", function() return HitboxConfig.TargetPart == "Head" end, function(v) HitboxConfig.TargetPart = v and "Head" or "HumanoidRootPart" end)
+    g:toggle("Expandir Cuerpo Completo", function() return HitboxConfig.TargetPart == "All" end, function(v) HitboxConfig.TargetPart = v and "All" or "HumanoidRootPart" end)
+end
+
 -- SILENT AIM (Si está disponible)
 if SAConfig then
     local g = group(pCombat, "Silent Aim", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
     g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 800, 10)
     g:slider("Distancia", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 2000, 10)
-    g:toggle("Hitbox Expander", function() return SAConfig.HitboxExpand end, function(v) SAConfig.HitboxExpand = v end)
 end
 
 -- CONTENIDO: RENDIMIENTO
@@ -486,4 +492,4 @@ for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
 local hide = TweenService:Create(loadScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
 hide:Play(); task.wait(0.3); loading:Destroy()
 frame.Visible = true; tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
-print("[Froggy Hub] Panel v6.0 cargado con éxito para: " .. GameDisplayName)
+print("[Froggy Hub] Panel v6.1 cargado con éxito para: " .. GameDisplayName)
