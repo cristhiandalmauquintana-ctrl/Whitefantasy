@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v3.4: Temas + FOV + 360
+--// Main.lua - Froggy Hub (loader + panel) | UI v3.5: Final Edition
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -23,7 +23,7 @@ local LocalPlayer = Players.LocalPlayer
 
 if env.__BF_PANEL_CLEANUP then pcall(env.__BF_PANEL_CLEANUP) end
 
---// TABLA DE COLORES DINÁMICA
+--// TABLA DE COLORES (Se modifica con los Temas)
 local C = {
     Bg = Color3.fromRGB(16, 16, 22),
     Header = Color3.fromRGB(22, 22, 30),
@@ -413,16 +413,22 @@ if CamConfig then
     g:toggle("Mostrar círculo FOV", function() return CamConfig.ShowFOV end, function(v) CamConfig.ShowFOV = v end)
 else table.insert(missing, "Camlock") end
 
+-- 🔥 SILENT AIM (SOLO FRUTAS/HABILIDADES) 🔥
 if SAConfig then
-    local g = group(pCombat, "Silent Aim", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
-    g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 600, 10)
-    g:slider("Distancia máxima", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 100, 5)
+    local g = group(pCombat, "Silent Aim (Solo Frutas)", function() return SAConfig.Enabled end, function(v) SAConfig.Enabled = v end)
+    g:slider("Radio FOV", function() return SAConfig.FOV end, function(v) SAConfig.FOV = v end, 50, 800, 10)
+    
+    -- Distancia limitada a 400 studs para evitar kicks
+    g:slider("Distancia máxima (Studs)", function() return SAConfig.MaxDistance end, function(v) SAConfig.MaxDistance = v end, 10, 400, 10)
+    
     g:toggle("Modo 360° (Ignorar FOV)", function() return SAConfig.Aim360 end, function(v) SAConfig.Aim360 = v end)
     g:toggle("Mostrar círculo FOV", function() return SAConfig.ShowFOV end, function(v) SAConfig.ShowFOV = v end)
     g:toggle("Atacar NPCs", function() return SAConfig.AttackNPCs end, function(v) SAConfig.AttackNPCs = v end)
     g:toggle("Team check", function() return SAConfig.TeamCheck end, function(v) SAConfig.TeamCheck = v end)
     g:toggle("Ignorar amigos", function() return SAConfig.IgnoreFriends end, function(v) SAConfig.IgnoreFriends = v end)
-else table.insert(missing, "Silent Aim") end
+else 
+    table.insert(missing, "Silent Aim") 
+end
 
 -- CONTENIDO: RENDIMIENTO
 if PotConfig then
@@ -620,4 +626,4 @@ loading:Destroy()
 frame.Visible = true
 tween(panelScale, 0.3, { Scale = PanelConfig.Scale })
 
-print("[Froggy Hub] Panel v3.4 cargado con éxito.")
+print("[Froggy Hub] Panel v3.5 cargado con éxito. ¡Listo para dominar!")
