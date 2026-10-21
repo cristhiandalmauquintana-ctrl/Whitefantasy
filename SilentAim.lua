@@ -1,5 +1,5 @@
---// Froggy Hub - Silent Aim v4 (Método Raycast - Anti-Crash)
---// Engancha Workspace:Raycast usando getrawmetatable + newcclosure.
+--// Froggy Hub - Silent Aim v5 (Multi-hook + Debug)
+--// Engancha Raycast, FindPartOnRay, GetPartBoundsInBox, GetPartsInPart, GetPartBoundsInRadius
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -19,13 +19,12 @@ local Config = {
     IgnoreFriends = false,
     AttackNPCs = false,
     TargetPart = nil,
+    Debug = false,  -- Imprime en consola qué métodos se llaman al atacar
 }
 env.BF_SA_CONFIG = Config
 
 local connections = {}
 local friendCache = {}
-
--- Caches para evitar recursión
 local cameraRef = Workspace.CurrentCamera
 pcall(function()
     Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
@@ -48,7 +47,7 @@ local function isAllowed(p)
     return true
 end
 
--- Loop de selección de objetivo (sin hooks, seguro)
+-- Loop de selección (sin hooks)
 local updateTimer = 0
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     updateTimer = updateTimer + dt
@@ -68,11 +67,10 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         if not onScreen or pos.Z <= 0 then return end
         local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
         if d >= bestDist then return end
-        local inRange = true
         if myRoot and Config.MaxDistance > 0 then
-            inRange = (part.Position - myRoot.Position).Magnitude <= Config.MaxDistance
+            if (part.Position - myRoot.Position).Magnitude > Config.MaxDistance then return end
         end
-        if inRange then bestPart, bestDist = part, d end
+        bestPart, bestDist = part, d
     end
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -100,11 +98,11 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     Config.TargetPart = bestPart
 end))
 
--- ==========================================================
--- HOOK SEGURO: Raycast usando getrawmetatable + newcclosure
--- ==========================================================
+-- ==========================================
+-- HOOK MULTI-MÉTODO
+-- ==========================================
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] SilentAim v4: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v5: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
@@ -112,46 +110,126 @@ local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
 
+-- Contador de métodos (para debug)
+local methodCount = {}
+
+local function debugLog(msg)
+    if Config.Debug then
+        print("[SA-Debug] " .. msg)
+    end
+end
+
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    local args = {...}
 
-    -- Interceptar Raycast cuando está activo y hay un objetivo
-    if Config.Enabled and method == "Raycast" and self == Workspace and Config.TargetPart then
+    -- Debug: contar métodos usados
+    if Config.Debug and (self == Workspace or tostring(self):find("Mouse")) then
+        methodCount[method] = (methodCount[method] or 0) + 1
+    end
+
+    if Config.Enabled and Config.TargetPart and Config.TargetPart.Parent then
         local targetPart = Config.TargetPart
-        if targetPart and targetPart.Parent then
-            -- Cálculo de predicción
-            local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
-            if lead.Magnitude > 40 then lead = lead.Unit * 40 end
-            local aimPos = targetPart.Position + lead
+        local lead = targetPart.AssemblyLinearVelocity * Config.Prediction
+        if lead.Magnitude > 40 then lead = lead.Unit * 40 end
+        local aimPos = targetPart.Position + lead
 
-            -- El Raycast original usa (origin, direction, params)
-            -- Solo modificamos la dirección si apunta cerca del objetivo
+        -- 1. Raycast
+        if method == "Raycast" and self == Workspace then
+            local args = {...}
             local origin = args[1]
-            local originalDir = args[2]
-            if typeof(origin) == "Vector3" and typeof(originalDir) == "Vector3" then
-                -- Redirigir el rayo hacia el objetivo
-                args[2] = (aimPos - origin).Unit * originalDir.Magnitude
+            if typeof(origin) == "Vector3" then
+                local dir = aimPos - origin
+                if dir.Magnitude > 0.1 then
+                    args[2] = dir.Unit * math.max(dir.Magnitude, 500)
+                    debugLog("Raycast redirigido (" .. math.floor(dir.Magnitude) .. " studs)")
+                    return oldNamecall(self, unpack(args))
+                end
+            end
+        end
+
+        -- 2. FindPartOnRay (legacy)
+        if (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == Workspace then
+            local args = {...}
+            local ray = args[1]
+            if typeof(ray) == "Ray" then
+                local dir = aimPos - ray.Origin
+                if dir.Magnitude > 0.1 then
+                    args[1] = Ray.new(ray.Origin, dir.Unit * 500)
+                    debugLog(method .. " redirigido")
+                    return oldNamecall(self, unpack(args))
+                end
+            end
+        end
+
+        -- 3. GetPartBoundsInBox / GetPartBoundsInRadius / GetPartsInPart (melee hitboxes)
+        if (method == "GetPartBoundsInBox" or method == "GetPartBoundsInRadius" or method == "GetPartsInPart") and self == Workspace then
+            local args = {...}
+            local cframe = args[1]
+            if typeof(cframe) == "CFrame" then
+                local dir = aimPos - cframe.Position
+                if dir.Magnitude > 0.1 then
+                    args[1] = cframe + dir
+                    debugLog(method .. " movido a " .. math.floor(dir.Magnitude) .. " studs")
+                    return oldNamecall(self, unpack(args))
+                end
+            end
+        end
+
+        -- 4. ScreenPointToRay (algunos juegos lo usan para skills)
+        if method == "ScreenPointToRay" and self == cameraRef then
+            local args = {...}
+            local ok, ray = pcall(oldNamecall, self, unpack(args))
+            if ok and typeof(ray) == "Ray" then
+                local dir = aimPos - ray.Origin
+                if dir.Magnitude > 0.1 then
+                    debugLog("ScreenPointToRay redirigido")
+                    return Ray.new(ray.Origin, dir.Unit * 500)
+                end
+            end
+        end
+
+        -- 5. ViewportPointToRay (similar al anterior)
+        if method == "ViewportPointToRay" and self == cameraRef then
+            local args = {...}
+            local ok, ray = pcall(oldNamecall, self, unpack(args))
+            if ok and typeof(ray) == "Ray" then
+                local dir = aimPos - ray.Origin
+                if dir.Magnitude > 0.1 then
+                    debugLog("ViewportPointToRay redirigido")
+                    return Ray.new(ray.Origin, dir.Unit * 500)
+                end
             end
         end
     end
 
-    return oldNamecall(self, unpack(args))
+    return oldNamecall(self, ...)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim v4 instalado (Método Raycast).")
+print("[Froggy Hub] SilentAim v5 instalado (multi-método).")
+
+-- Función para ver qué métodos se llamaron (útil para debug)
+env.BF_SA_METHODS = function()
+    if next(methodCount) == nil then
+        return "Ningún método detectado. Activa Debug y ataca para ver."
+    end
+    local list = {}
+    for k, v in pairs(methodCount) do
+        table.insert(list, k .. ": " .. v)
+    end
+    return table.concat(list, "\n")
+end
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
     Config.TargetPart = nil
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
-    -- Restaurar el namecall original
     pcall(function()
         setreadonly(mt, false)
         mt.__namecall = oldNamecall
         setreadonly(mt, true)
     end)
     env.BF_SA_CONFIG = nil
+    env.BF_SA_METHODS = nil
     env.__BF_SA_CLEANUP = nil
 end
