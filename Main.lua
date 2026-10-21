@@ -7,6 +7,7 @@ local ESP_FILES = { "Esp.lua", "esp.lua" }              -- prueba ambos nombres 
 local MOVE_FILES = { "Movement.lua", "movement.lua" }   -- speed / super jump / dash
 local CAM_FILES = { "Camlock.lua", "camlock.lua" }      -- camlock / aim assist
 local POT_FILES = { "Potato.lua", "potato.lua" }        -- gráficos patata
+local TP_FILES = { "Teleport.lua", "teleport.lua" }     -- teleport al enemigo más cercano
 local LOGO_FILES = { "logo.png", "Logo.png" }           -- logo del repositorio
 local HUB_NAME = "Froggy Hub"
 
@@ -63,6 +64,7 @@ local function cleanup()
     if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
     if env.__BF_CAM_CLEANUP then pcall(env.__BF_CAM_CLEANUP) end
     if env.__BF_POTATO_CLEANUP then pcall(env.__BF_POTATO_CLEANUP) end
+    if env.__BF_TP_CLEANUP then pcall(env.__BF_TP_CLEANUP) end
     gui:Destroy()
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -259,6 +261,26 @@ if camSource then
     end
 else
     warn("Froggy Hub: no se pudo descargar Camlock.lua")
+end
+
+--// Teleport: si falla, el panel igual abre
+setProgress(0.9, "Descargando teleport...")
+local TpConfig = nil
+local tpSource = downloadModule(TP_FILES)
+if tpSource then
+    local tpChunk, tpErr = loadstring(tpSource)
+    if type(tpChunk) == "function" then
+        local okTp, tpRunErr = pcall(tpChunk)
+        if okTp then
+            TpConfig = env.BF_TP_CONFIG
+        else
+            warn("Froggy Hub: error al iniciar Teleport.lua: " .. tostring(tpRunErr))
+        end
+    else
+        warn("Froggy Hub: error de sintaxis en Teleport.lua: " .. tostring(tpErr))
+    end
+else
+    warn("Froggy Hub: no se pudo descargar Teleport.lua")
 end
 
 --// Gráficos patata: si falla, el panel igual abre
@@ -713,7 +735,27 @@ else
 end
 soon("Fly")
 soon("Noclip")
-soon("Teleport")
+if TpConfig then
+    toggle("Teleport (botón TP)",
+        function() return TpConfig.Enabled end,
+        function(v) TpConfig.Enabled = v end)
+    slider("  Cooldown (seg)",
+        function() return TpConfig.Cooldown end,
+        function(v) TpConfig.Cooldown = v end,
+        1, 60, 1)
+    slider("  Distancia detrás del enemigo",
+        function() return TpConfig.Offset end,
+        function(v) TpConfig.Offset = v end,
+        2, 15, 1)
+    toggle("  Team check",
+        function() return TpConfig.TeamCheck end,
+        function(v) TpConfig.TeamCheck = v end)
+    toggle("  Ignorar amigos",
+        function() return TpConfig.IgnoreFriends end,
+        function(v) TpConfig.IgnoreFriends = v end)
+else
+    soon("Teleport")
+end
 
 section("Combate")
 if CamConfig then
@@ -783,7 +825,7 @@ hint.Font = Enum.Font.Gotham
 hint.TextSize = 11
 hint.TextWrapped = true
 hint.TextColor3 = C.Dim
-hint.Text = "RightShift = ESP  |  V o botón DASH = dash  |  C o botón LOCK = camlock  |  Arrastra la barra superior para mover  |  RightControl = abrir/minimizar"
+hint.Text = "RightShift = ESP  |  V o botón DASH = dash  |  C o botón LOCK = camlock  |  T o botón TP = teleport  |  Arrastra la barra superior para mover  |  RightControl = abrir/minimizar"
 hint.Parent = body
 
 --// Posición: el panel SIEMPRE queda completo dentro de la pantalla
