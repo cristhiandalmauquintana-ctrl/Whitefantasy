@@ -1,5 +1,4 @@
---// Froggy Hub - ESP Premium para Elemental Magic Arena
---// Cajas grandes, Tracers y elementos.
+--// Froggy Hub - ESP Elemental (Sincronizado con Hitbox Expander)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -20,7 +19,6 @@ local Config = {
 local Objects = {}
 local Connections = {}
 
--- Función para obtener el elemento
 local function getElement(player)
     local ok, elem = pcall(function() return player:GetAttribute("Element") end)
     if ok and elem then return elem end
@@ -62,7 +60,6 @@ local function createESP(player)
     infoLabel.TextStrokeTransparency = 0.2
     infoLabel.Parent = billboard
 
-    -- Caja 2D Premium
     local box = Instance.new("Frame")
     box.AnchorPoint = Vector2.new(0.5, 0.5)
     box.BackgroundTransparency = 1
@@ -76,7 +73,6 @@ local function createESP(player)
     boxStroke.Color = Color3.fromRGB(255, 50, 50)
     boxStroke.Parent = box
 
-    -- Barra de Vida
     local barBg = Instance.new("Frame")
     barBg.AnchorPoint = Vector2.new(0.5, 0.5)
     barBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -95,7 +91,6 @@ local function createESP(player)
     barFill.Parent = barBg
     Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
 
-    -- Tracer
     local tracer = Instance.new("Frame")
     tracer.AnchorPoint = Vector2.new(0.5, 0.5)
     tracer.BorderSizePixel = 0
@@ -129,6 +124,12 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
+    -- 🔥 SINCRONIZACIÓN CON EL HITBOX EXPANDER 🔥
+    local hitboxConfig = env.BF_HITBOX_CONFIG
+    local isHitboxActive = hitboxConfig and hitboxConfig.Enabled
+    local hitboxSize = isHitboxActive and hitboxConfig.Size or 0
+    local hitboxPart = isHitboxActive and hitboxConfig.TargetPart or "HumanoidRootPart"
+
     for player, data in pairs(Objects) do
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -144,7 +145,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
             local elemName = getElement(player)
             local elemColor = Color3.fromRGB(255, 255, 255)
             
-            -- Colores por elemento
             if elemName == "Fire" then elemColor = Color3.fromRGB(255, 100, 50) end
             if elemName == "Water" then elemColor = Color3.fromRGB(50, 150, 255) end
             if elemName == "Dragon" then elemColor = Color3.fromRGB(255, 0, 0) end
@@ -156,8 +156,39 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
             data.BoxStroke.Color = elemColor
             data.Tracer.BackgroundColor3 = elemColor
 
-            local top = Camera:WorldToViewportPoint(root.Position + Vector3.new(0, 3, 0))
-            local bottom = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3.2, 0))
+            -- Calcular tamaño de la caja (Normal vs Hitbox Expandida)
+            local topPos, bottomPos
+            if isHitboxActive then
+                -- Si el hitbox está activo, calculamos el bounding box usando el tamaño del hitbox
+                if hitboxPart == "Torso" then
+                    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+                    if torso then
+                        topPos = torso.Position + Vector3.new(0, hitboxSize/2, 0)
+                        bottomPos = torso.Position - Vector3.new(0, hitboxSize/2, 0)
+                    end
+                elseif hitboxPart == "Head" then
+                    local head = char:FindFirstChild("Head")
+                    if head then
+                        topPos = head.Position + Vector3.new(0, hitboxSize/2, 0)
+                        bottomPos = head.Position - Vector3.new(0, hitboxSize/2, 0)
+                    end
+                elseif hitboxPart == "All" then
+                    topPos = root.Position + Vector3.new(0, hitboxSize, 0)
+                    bottomPos = root.Position - Vector3.new(0, hitboxSize, 0)
+                else
+                    topPos = root.Position + Vector3.new(0, hitboxSize/2, 0)
+                    bottomPos = root.Position - Vector3.new(0, hitboxSize/2, 0)
+                end
+            end
+
+            -- Si no es hitbox o no encontramos la parte, usamos el tamaño normal
+            if not topPos then
+                topPos = root.Position + Vector3.new(0, 3, 0)
+                bottomPos = root.Position - Vector3.new(0, 3.2, 0)
+            end
+
+            local top = Camera:WorldToViewportPoint(topPos)
+            local bottom = Camera:WorldToViewportPoint(bottomPos)
 
             if top.Z > 0 and bottom.Z > 0 then
                 local height = math.abs(bottom.Y - top.Y)
@@ -175,7 +206,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
                 data.BarFill.BackgroundColor3 = Color3.fromRGB(255 * (1 - ratio), 255 * ratio, 0)
                 data.BarBg.Visible = true
 
-                -- Tracer desde abajo de la pantalla
                 local viewport = Camera.ViewportSize
                 local fromX, fromY = viewport.X / 2, viewport.Y
                 local dx, dy = cx - fromX, bottom.Y - fromY
