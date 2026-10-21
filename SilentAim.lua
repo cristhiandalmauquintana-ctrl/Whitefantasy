@@ -1,5 +1,5 @@
---// Froggy Hub - Silent Aim v12 (Universal: Remotes + Raycast + Hitbox)
---// Ataque para Frutas, Armas, Pistolas y Estilos de Pelea.
+--// Froggy Hub - Silent Aim v13 (Safe NPC + Physics Protection)
+--// Evita el crasheo de física al expandir hitboxes de múltiples NPCs
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14,8 +14,8 @@ local Config = {
     FOV = 400,
     ShowFOV = true,
     Aim360 = true,
-    MaxDistance = 350,       -- Distancia general
-    M1Distance = 35,         -- Distancia para Espadas/Puños (Evita Kicks)
+    MaxDistance = 350,
+    M1Distance = 35,
     Prediction = 0.15,
     HitboxExpand = true,
     AimPart = "HumanoidRootPart",
@@ -90,18 +90,33 @@ local function isAllowed(p)
     return true
 end
 
--- HITBOX EXPANDER (Para que los M1 conecten)
-local expandedHitboxes = {}
-local function expandHitbox(part)
-    if not Config.HitboxExpand or expandedHitboxes[part] then return end
-    expandedHitboxes[part] = part.Size
-    part.Size = Vector3.new(15, 15, 15) -- Hitbox gigante invisible
-end
-local function resetHitboxes()
-    for part, originalSize in pairs(expandedHitboxes) do
-        if part and part.Parent then pcall(function() part.Size = originalSize end) end
+-- HITBOX EXPANDER SEGURO (Solo 1 objetivo a la vez)
+local lastTargetPart = nil
+local originalSize = nil
+
+local function resetHitbox()
+    if lastTargetPart and lastTargetPart.Parent and originalSize then
+        pcall(function() lastTargetPart.Size = originalSize end)
     end
-    expandedHitboxes = {}
+    lastTargetPart = nil
+    originalSize = nil
+end
+
+local function safeExpandHitbox(part)
+    if not Config.HitboxExpand then
+        resetHitbox()
+        return
+    end
+    if lastTargetPart == part then return end -- Ya está expandido
+    
+    resetHitbox() -- Restaurar el anterior antes de expandir el nuevo
+    if not part or not part.Parent then return end
+
+    lastTargetPart = part
+    originalSize = part.Size
+    pcall(function()
+        part.Size = Vector3.new(8, 8, 8) -- Tamaño seguro anti-crash
+    end)
 end
 
 local updateTimer = 0
@@ -112,7 +127,12 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     updateTimer = updateTimer + dt
     if updateTimer < 0.05 then return end
     updateTimer = 0
-    if not Config.Enabled then Config.TargetPart = nil resetHitboxes() return end
+    
+    if not Config.Enabled then 
+        Config.TargetPart = nil 
+        resetHitbox() 
+        return 
+    end
 
     local cam = cameraRef
     if not cam or not myRoot then return end
@@ -151,7 +171,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         local folder = Workspace:FindFirstChild("Enemies")
         if folder then
             for _, npc in ipairs(folder:GetChildren()) do
-                if not Players:GetPlayerFromCharacter(npc) then
+                if npc:IsA("Model") and not Players:GetPlayerFromCharacter(npc) then
                     local hum = npc:FindFirstChildOfClass("Humanoid")
                     local part = npc:FindFirstChild(Config.AimPart) or npc:FindFirstChild("HumanoidRootPart")
                     try(part, hum)
@@ -159,12 +179,17 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
             end
         end
     end
+
     Config.TargetPart = bestPart
-    if bestPart then expandHitbox(bestPart) end
+    if bestPart then
+        safeExpandHitbox(bestPart)
+    else
+        resetHitbox()
+    end
 end))
 
 if not getrawmetatable or not newcclosure then
-    warn("[Froggy Hub] v12: Tu executor no soporta getrawmetatable/newcclosure.")
+    warn("[Froggy Hub] v13: Tu executor no soporta getrawmetatable/newcclosure.")
     return
 end
 
@@ -194,11 +219,6 @@ mt.__namecall = newcclosure(function(self, ...)
                 local origin = myHead and myHead.Position or myRoot.Position
                 args[i] = (aimPos - origin).Unit
                 if Config.Debug then print("[SA] Remote Vector -> Target") end
-            elseif typeof(arg) == "Instance" and arg:FindFirstChild("Humanoid") and arg ~= myChar then
-                -- Si el juego manda al Humanoid del enemigo, lo forzamos
-                if Config.TargetPart.Parent == arg then
-                    args[i] = arg
-                end
             end
         end
         return oldNamecall(self, unpack(args))
@@ -228,11 +248,11 @@ mt.__index = newcclosure(function(self, key)
 end)
 
 setreadonly(mt, true)
-print("[Froggy Hub] SilentAim v12 (Universal) instalado.")
+print("[Froggy Hub] SilentAim v13 (Safe NPC) instalado. Adiós crasheos.")
 
 env.__BF_SA_CLEANUP = function()
     Config.Enabled = false
-    resetHitboxes()
+    resetHitbox()
     fovGui:Destroy()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     pcall(function()
