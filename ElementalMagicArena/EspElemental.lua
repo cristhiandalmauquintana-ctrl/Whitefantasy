@@ -1,106 +1,68 @@
---// Froggy Hub - ESP para Elemental Magic Arena
---// Muestra Jugador, Vida, Elemento y Rareza. También resalta Diamantes y el Orbe del Vacío.
+--// Froggy Hub - ESP Premium para Elemental Magic Arena
+--// Cajas grandes, Tracers y elementos.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
 
---// Configuración (Se puede exponer al Main.lua si se desea)
 local Config = {
     Enabled = true,
     ShowBox = true,
     ShowName = true,
     ShowHealth = true,
     ShowElement = true,
-    ShowDiamonds = true,
-    ShowVoidOrb = true,
+    ShowTracers = true,
     MaxDistance = 2000,
-    ColorByRarity = true,
 }
 
---// Lista de Elementos y su Rareza (Basado en la Wiki del juego)
-local ElementRarity = {
-    -- Comunes / Starters
-    ["Fire"] = {Rarity = "Starter", Color = Color3.fromRGB(255, 100, 100)},
-    ["Water"] = {Rarity = "Starter", Color = Color3.fromRGB(100, 150, 255)},
-    ["Earth"] = {Rarity = "Starter", Color = Color3.fromRGB(150, 100, 50)},
-    ["Air"] = {Rarity = "Starter", Color = Color3.fromRGB(200, 200, 200)},
-    -- Comunes
-    ["Lightning"] = {Rarity = "Common", Color = Color3.fromRGB(255, 255, 100)},
-    ["Ice"] = {Rarity = "Common", Color = Color3.fromRGB(150, 255, 255)},
-    ["Nature"] = {Rarity = "Common", Color = Color3.fromRGB(100, 255, 100)},
-    -- Raros
-    ["Shadow"] = {Rarity = "Rare", Color = Color3.fromRGB(100, 0, 150)},
-    ["Light"] = {Rarity = "Rare", Color = Color3.fromRGB(255, 255, 200)},
-    ["Plasma"] = {Rarity = "Rare", Color = Color3.fromRGB(255, 0, 255)}, -- 1 en 7,899
-    -- Épicos
-    ["Void"] = {Rarity = "Epic", Color = Color3.fromRGB(50, 0, 100)},
-    ["Chaos"] = {Rarity = "Epic", Color = Color3.fromRGB(200, 0, 0)},
-    ["Necromancy"] = {Rarity = "Epic", Color = Color3.fromRGB(80, 80, 80)},
-    -- Legendarios
-    ["Time"] = {Rarity = "Legendary", Color = Color3.fromRGB(255, 215, 0)},
-    ["Astral"] = {Rarity = "Legendary", Color = Color3.fromRGB(200, 200, 255)},
-    ["Dragon"] = {Rarity = "Legendary", Color = Color3.fromRGB(255, 50, 50)}, -- 1 en 10,800
-    -- Otros
-    ["Default"] = {Rarity = "Unknown", Color = Color3.fromRGB(255, 255, 255)},
-}
+local Objects = {}
+local Connections = {}
 
---// Almacén de objetos visuales
-local Objects = {} -- [Player] = {Billboard, Box, Stroke, BarBg, BarFill}
-local DiamondObjects = {} -- [Instance] = {Billboard, Box}
-local VoidOrbObject = nil
-
---// Función para obtener el elemento del jugador
-local function getPlayerElement(player)
-    -- 1. Intentar leer un atributo del jugador (común en juegos de Roblox)
-    local ok, element = pcall(function() return player:GetAttribute("Element") end)
-    if ok and element then return element end
-
-    -- 2. Buscar un objeto llamado "Element" dentro del personaje
+-- Función para obtener el elemento
+local function getElement(player)
+    local ok, elem = pcall(function() return player:GetAttribute("Element") end)
+    if ok and elem then return elem end
     local char = player.Character
     if char then
-        local elemObj = char:FindFirstChild("Element")
-        if elemObj then
-            if elemObj:IsA("StringValue") then return elemObj.Value end
-            if elemObj:IsA("ObjectValue") and elemObj.Value then return elemObj.Value.Name end
-        end
+        local eObj = char:FindFirstChild("Element")
+        if eObj and eObj:IsA("StringValue") then return eObj.Value end
     end
     return "Default"
 end
 
---// Función para crear la interfaz de un jugador
-local function createPlayerESP(player)
+local function createESP(player)
     if player == LocalPlayer or Objects[player] then return end
 
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "ElemESP_" .. player.Name
     billboard.AlwaysOnTop = true
-    billboard.Size = UDim2.fromOffset(200, 50)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Size = UDim2.fromOffset(250, 60)
+    billboard.StudsOffset = Vector3.new(0, 3.5, 0)
     billboard.Enabled = false
     billboard.Parent = game:GetService("CoreGui")
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.BackgroundTransparency = 1
     nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextSize = 14
+    nameLabel.Font = Enum.Font.GothamBlack
+    nameLabel.TextSize = 16
     nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextStrokeTransparency = 0.3
+    nameLabel.TextStrokeTransparency = 0.2
     nameLabel.Parent = billboard
 
     local infoLabel = Instance.new("TextLabel")
     infoLabel.BackgroundTransparency = 1
     infoLabel.Position = UDim2.new(0, 0, 0.4, 0)
     infoLabel.Size = UDim2.new(1, 0, 0.4, 0)
-    infoLabel.Font = Enum.Font.Gotham
-    infoLabel.TextSize = 12
+    infoLabel.Font = Enum.Font.GothamBold
+    infoLabel.TextSize = 13
     infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    infoLabel.TextStrokeTransparency = 0.3
+    infoLabel.TextStrokeTransparency = 0.2
     infoLabel.Parent = billboard
 
-    -- Caja 2D
+    -- Caja 2D Premium
     local box = Instance.new("Frame")
     box.AnchorPoint = Vector2.new(0.5, 0.5)
     box.BackgroundTransparency = 1
@@ -109,18 +71,20 @@ local function createPlayerESP(player)
     box.Parent = game:GetService("CoreGui")
 
     local boxStroke = Instance.new("UIStroke")
-    boxStroke.Thickness = 1.5
+    boxStroke.Thickness = 2
     boxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    boxStroke.Color = Color3.fromRGB(255, 50, 50)
     boxStroke.Parent = box
 
     -- Barra de Vida
     local barBg = Instance.new("Frame")
     barBg.AnchorPoint = Vector2.new(0.5, 0.5)
     barBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    barBg.BackgroundTransparency = 0.35
+    barBg.BackgroundTransparency = 0.2
     barBg.BorderSizePixel = 0
     barBg.Visible = false
     barBg.Parent = game:GetService("CoreGui")
+    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
 
     local barFill = Instance.new("Frame")
     barFill.AnchorPoint = Vector2.new(0, 1)
@@ -129,6 +93,15 @@ local function createPlayerESP(player)
     barFill.BorderSizePixel = 0
     barFill.BackgroundColor3 = Color3.fromRGB(60, 255, 60)
     barFill.Parent = barBg
+    Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
+
+    -- Tracer
+    local tracer = Instance.new("Frame")
+    tracer.AnchorPoint = Vector2.new(0.5, 0.5)
+    tracer.BorderSizePixel = 0
+    tracer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    tracer.Visible = false
+    tracer.Parent = game:GetService("CoreGui")
 
     Objects[player] = {
         Billboard = billboard,
@@ -138,152 +111,101 @@ local function createPlayerESP(player)
         BoxStroke = boxStroke,
         BarBg = barBg,
         BarFill = barFill,
+        Tracer = tracer
     }
 end
 
---// Función para crear ESP de objetos (Diamantes / Orbe)
-local function createItemESP(item, isOrb)
-    if not item or not item:IsA("BasePart") then return end
-    if DiamondObjects[item] or (isOrb and VoidOrbObject) then return end
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ItemESP"
-    billboard.AlwaysOnTop = true
-    billboard.Size = UDim2.fromOffset(100, 30)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.Enabled = false
-    billboard.Parent = game:GetService("CoreGui")
-
-    local label = Instance.new("TextLabel")
-    label.BackgroundTransparency = 1
-    label.Size = UDim2.fromScale(1, 1)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 12
-    label.TextColor3 = isOrb and Color3.fromRGB(200, 0, 255) or Color3.fromRGB(0, 255, 255)
-    label.TextStrokeTransparency = 0.3
-    label.Text = isOrb and "🔮 ORBE DEL VACÍO" or "💎 Diamante"
-    label.Parent = billboard
-
-    local data = {Billboard = billboard}
-    if isOrb then
-        VoidOrbObject = data
-    else
-        DiamondObjects[item] = data
-    end
-end
-
---// Loop de Actualización
-RunService.RenderStepped:Connect(function()
+table.insert(Connections, RunService.RenderStepped:Connect(function()
     if not Config.Enabled then
         for _, data in pairs(Objects) do
             data.Billboard.Enabled = false
             data.Box.Visible = false
             data.BarBg.Visible = false
+            data.Tracer.Visible = false
         end
-        for _, data in pairs(DiamondObjects) do data.Billboard.Enabled = false end
-        if VoidOrbObject then VoidOrbObject.Billboard.Enabled = false end
         return
     end
 
-    local camera = Workspace.CurrentCamera
-    if not camera then return end
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
 
-    -- 1. Actualizar Jugadores
     for player, data in pairs(Objects) do
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChildOfClass("Humanoid")
 
         local visible = root and hum and hum.Health > 0
-        if visible and myRoot then
-            local dist = (root.Position - myRoot.Position).Magnitude
-            if dist > Config.MaxDistance then visible = false end
+        if visible and (root.Position - myRoot.Position).Magnitude > Config.MaxDistance then
+            visible = false
         end
 
         data.Billboard.Enabled = visible
         if visible then
-            local elementName = getPlayerElement(player)
-            local elemData = ElementRarity[elementName] or ElementRarity["Default"]
+            local elemName = getElement(player)
+            local elemColor = Color3.fromRGB(255, 255, 255)
+            
+            -- Colores por elemento
+            if elemName == "Fire" then elemColor = Color3.fromRGB(255, 100, 50) end
+            if elemName == "Water" then elemColor = Color3.fromRGB(50, 150, 255) end
+            if elemName == "Dragon" then elemColor = Color3.fromRGB(255, 0, 0) end
+            if elemName == "Void" then elemColor = Color3.fromRGB(150, 0, 255) end
 
-            -- Actualizar Texto
             data.NameLabel.Text = player.Name
-            data.InfoLabel.Text = string.format("[%s] %s", elemData.Rarity, elementName)
-            
-            if Config.ColorByRarity then
-                data.NameLabel.TextColor3 = elemData.Color
-                data.BoxStroke.Color = elemData.Color
-            end
+            data.InfoLabel.Text = "[" .. elemName .. "]"
+            data.NameLabel.TextColor3 = elemColor
+            data.BoxStroke.Color = elemColor
+            data.Tracer.BackgroundColor3 = elemColor
 
-            -- Posición en pantalla
-            local top = camera:WorldToViewportPoint(root.Position + Vector3.new(0, 3, 0))
-            local bottom = camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-            
+            local top = Camera:WorldToViewportPoint(root.Position + Vector3.new(0, 3, 0))
+            local bottom = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3.2, 0))
+
             if top.Z > 0 and bottom.Z > 0 then
                 local height = math.abs(bottom.Y - top.Y)
-                local width = height * 0.55
-                local cx = (top.X + bottom.X) / 2
-                local cy = (top.Y + bottom.Y) / 2
+                local width = height * 0.6
+                local cx, cy = (top.X + bottom.X) / 2, (top.Y + bottom.Y) / 2
 
-                if Config.ShowBox then
-                    data.Box.Size = UDim2.fromOffset(width, height)
-                    data.Box.Position = UDim2.fromOffset(cx, cy)
-                    data.Box.Visible = true
-                else
-                    data.Box.Visible = false
-                end
+                data.Box.Size = UDim2.fromOffset(width, height)
+                data.Box.Position = UDim2.fromOffset(cx, cy)
+                data.Box.Visible = true
 
-                if Config.ShowHealth then
-                    local ratio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                    data.BarBg.Size = UDim2.fromOffset(4, height)
-                    data.BarBg.Position = UDim2.fromOffset(cx - width / 2 - 6, cy)
-                    data.BarFill.Size = UDim2.fromScale(1, ratio)
-                    data.BarFill.BackgroundColor3 = Color3.fromRGB(255 * (1 - ratio), 255 * ratio, 0)
-                    data.BarBg.Visible = true
-                else
-                    data.BarBg.Visible = false
-                end
+                local ratio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                data.BarBg.Size = UDim2.fromOffset(5, height)
+                data.BarBg.Position = UDim2.fromOffset(cx - width / 2 - 8, cy)
+                data.BarFill.Size = UDim2.fromScale(1, ratio)
+                data.BarFill.BackgroundColor3 = Color3.fromRGB(255 * (1 - ratio), 255 * ratio, 0)
+                data.BarBg.Visible = true
+
+                -- Tracer desde abajo de la pantalla
+                local viewport = Camera.ViewportSize
+                local fromX, fromY = viewport.X / 2, viewport.Y
+                local dx, dy = cx - fromX, bottom.Y - fromY
+                local length = math.sqrt(dx * dx + dy * dy)
+                
+                data.Tracer.Size = UDim2.fromOffset(length, 1.5)
+                data.Tracer.Position = UDim2.fromOffset(fromX + dx / 2, fromY + dy / 2)
+                data.Tracer.Rotation = math.deg(math.atan2(dy, dx))
+                data.Tracer.Visible = Config.ShowTracers
             else
                 data.Box.Visible = false
                 data.BarBg.Visible = false
+                data.Tracer.Visible = false
             end
         end
     end
+end))
 
-    -- 2. Actualizar Diamantes y Orbe
-    if Config.ShowDiamonds then
-        for _, item in ipairs(Workspace:GetChildren()) do
-            if item:IsA("BasePart") and (string.find(item.Name, "Diamond") or string.find(item.Name, "Gem")) then
-                if not DiamondObjects[item] then createItemESP(item, false) end
-            end
-        end
-        for item, data in pairs(DiamondObjects) do
-            if not item or not item.Parent then
-                data.Billboard:Destroy()
-                DiamondObjects[item] = nil
-            else
-                data.Billboard.Adornee = item
-                data.Billboard.Enabled = true
-            end
-        end
+for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
+Players.PlayerAdded:Connect(createESP)
+
+env.__BF_ESP_CLEANUP = function()
+    for _, c in ipairs(Connections) do c:Disconnect() end
+    for p, data in pairs(Objects) do
+        data.Billboard:Destroy()
+        data.Box:Destroy()
+        data.BarBg:Destroy()
+        data.Tracer:Destroy()
     end
-
-    if Config.ShowVoidOrb then
-        local orb = Workspace:FindFirstChild("VoidOrb") or Workspace:FindFirstChild("Void Orb")
-        if orb and orb:IsA("BasePart") then
-            if not VoidOrbObject then createItemESP(orb, true) end
-            if VoidOrbObject then
-                VoidOrbObject.Billboard.Adornee = orb
-                VoidOrbObject.Billboard.Enabled = true
-            end
-        else
-            if VoidOrbObject then VoidOrbObject.Billboard.Enabled = false end
-        end
-    end
-end)
-
---// Gestión de Jugadores
-for _, player in ipairs(Players:GetPlayers()) do createPlayerESP(player) end
-Players.PlayerAdded:Connect(createPlayerESP)
-
-print("[Froggy Hub] ESP para Elemental Magic Arena cargado.")
+    env.BF_ESP_CONFIG = nil
+    env.__BF_ESP_CLEANUP = nil
+end
+env.BF_ESP_CONFIG = Config
