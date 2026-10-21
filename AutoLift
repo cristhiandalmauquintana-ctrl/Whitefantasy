@@ -1,0 +1,141 @@
+--// Froggy Hub - Elevación automática con poca vida
+--// Cuando tu vida baja del porcentaje elegido, subes y te quedas flotando a la altura elegida.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local env = (getgenv and getgenv()) or _G
+if env.__BF_LIFT_CLEANUP then
+    pcall(env.__BF_LIFT_CLEANUP)
+end
+
+local Config = {
+    Enabled = false,
+    Threshold = 30,        -- % de vida a la que se activa
+    Height = 1000,         -- studs que subes sobre tu posición
+    RiseSpeed = 250,       -- velocidad de subida (studs/s)
+    AutoDescend = true,    -- bajar solo cuando recuperes vida
+    RecoverPercent = 60,   -- % de vida para bajar solo (si AutoDescend está activo)
+}
+env.BF_LIFT_CONFIG = Config
+
+local function getParent()
+    if gethui then
+        local ok, ui = pcall(gethui)
+        if ok and ui then return ui end
+    end
+    local ok, core = pcall(function() return game:GetService("CoreGui") end)
+    if ok and core then return core end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+--==================== Botón BAJAR (solo visible mientras flotas) ====================
+local gui = Instance.new("ScreenGui")
+gui.Name = "FroggyLift"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 57
+gui.Parent = getParent()
+
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.fromOffset(64, 64)
+btn.AnchorPoint = Vector2.new(1, 1)
+btn.Position = UDim2.new(1, -390, 1, -110)
+btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+btn.BackgroundTransparency = 0.15
+btn.BorderSizePixel = 0
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 13
+btn.TextColor3 = Color3.fromRGB(240, 240, 245)
+btn.Text = "BAJAR"
+btn.Visible = false
+btn.Parent = gui
+Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+local stroke = Instance.new("UIStroke", btn)
+stroke.Color = Color3.fromRGB(70, 200, 255)
+stroke.Thickness = 2
+
+--==================== Lógica ====================
+local connections = {}
+local lifting = false
+local armed = true       -- se rearma cuando tu vida vuelve a estar por encima del umbral
+local targetY = 0
+
+local function getParts()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if hum and root and hum.Health > 0 then
+        return hum, root
+    end
+end
+
+local function stopLift()
+    lifting = false
+    btn.Visible = false
+end
+
+local function startLift(hum, root)
+    lifting = true
+    armed = false
+    targetY = root.Position.Y + Config.Height
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Freefall) end)
+end
+
+table.insert(connections, btn.Activated:Connect(stopLift))
+
+table.insert(connections, RunService.Heartbeat:Connect(function()
+    local hum, root = getParts()
+    if not hum then
+        -- muerto o respawneando: reiniciar
+        lifting = false
+        armed = true
+        btn.Visible = false
+        return
+    end
+
+    if not Config.Enabled then
+        if lifting then stopLift() end
+        return
+    end
+
+    local pct = 100
+    if hum.MaxHealth > 0 then
+        pct = hum.Health / hum.MaxHealth * 100
+    end
+
+    if not lifting then
+        if pct > Config.Threshold then armed = true end
+        if armed and pct <= Config.Threshold then
+            startLift(hum, root)
+        end
+    else
+        local recover = math.max(Config.RecoverPercent, Config.Threshold + 5)
+        if Config.AutoDescend and pct >= recover then
+            stopLift()
+            return
+        end
+
+        -- subir suave hasta la altura objetivo y mantenerse ahí (cancela la gravedad)
+        local vel = root.AssemblyLinearVelocity
+        local vy = math.clamp((targetY - root.Position.Y) * 4, -30, Config.RiseSpeed)
+        root.AssemblyLinearVelocity = Vector3.new(vel.X, vy, vel.Z)
+    end
+
+    btn.Visible = lifting
+end))
+
+table.insert(connections, LocalPlayer.CharacterAdded:Connect(function()
+    lifting = false
+    armed = true
+    btn.Visible = false
+end))
+
+env.__BF_LIFT_CLEANUP = function()
+    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
+    gui:Destroy()
+    env.BF_LIFT_CONFIG = nil
+    env.__BF_LIFT_CLEANUP = nil
+end
