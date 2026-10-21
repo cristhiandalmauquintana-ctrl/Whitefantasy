@@ -790,7 +790,7 @@ if LiftConfig then
     slider("  Altura (studs)",
         function() return LiftConfig.Height end,
         function(v) LiftConfig.Height = v end,
-        50, 3000, 50)
+        50, 30000, 50)
     toggle("  Bajar solo al recuperar vida",
         function() return LiftConfig.AutoDescend end,
         function(v) LiftConfig.AutoDescend = v end)
