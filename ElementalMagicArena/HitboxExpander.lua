@@ -1,9 +1,6 @@
---// Froggy Hub - Hitbox Expander V4 (Full Body Aggressive)
---// Expande todas las partes del cuerpo, desactiva colisiones y fuerza la detección de golpes.
-
+--// Froggy Hub - Hitbox Expander V5 (Live Force - Full Body)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -11,7 +8,7 @@ if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    Size = 35,             -- 35 es una locura, cubre todo el cuerpo
+    Size = 35,             
     Transparency = 0.7,
     Color = Color3.fromRGB(255, 0, 0),
     IgnoreFriends = true,
@@ -28,31 +25,30 @@ local function isFriend(player)
 end
 
 local function expandPart(part)
-    if expandedParts[part] then return end
+    -- Si no está en la tabla, guardamos sus propiedades originales
+    if not expandedParts[part] then
+        expandedParts[part] = {
+            Size = part.Size,
+            CanCollide = part.CanCollide,
+            CanTouch = part.CanTouch,
+            CanQuery = part.CanQuery,
+            Massless = part.Massless,
+            Transparency = part.Transparency,
+            Color = part.Color
+        }
+    end
     
-    -- Guardamos las propiedades originales
-    expandedParts[part] = {
-        Size = part.Size,
-        CanCollide = part.CanCollide,
-        CanTouch = part.CanTouch,
-        Massless = part.Massless,
-        Transparency = part.Transparency,
-        Color = part.Color
-    }
-    
+    -- 🔥 LA CLAVE: Forzamos la aplicación constantemente
     pcall(function()
-        -- Hacemos la parte gigante
-        part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
+        -- Si el servidor lo reseteó, lo volvemos a agrandar
+        if part.Size ~= Vector3.new(Config.Size, Config.Size, Config.Size) then
+            part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
+        end
         
-        -- PROPIEDADES ANTI-CRASH Y ANTI-FÍSICA
         part.CanCollide = false 
         part.Massless = true
-        
-        -- 🔥 LA CLAVE: Forzamos a que los golpes y rayos detecten esta parte
         part.CanQuery = true 
         part.CanTouch = true
-        
-        -- VISUALES:
         part.Transparency = Config.Transparency
         part.Color = Config.Color
     end)
@@ -67,6 +63,7 @@ local function restorePart(part)
             part.Size = data.Size
             part.CanCollide = data.CanCollide
             part.CanTouch = data.CanTouch
+            part.CanQuery = data.CanQuery
             part.Massless = data.Massless
             part.Transparency = data.Transparency
             part.Color = data.Color
@@ -78,7 +75,7 @@ end
 
 local function processCharacter(char)
     if not char then return end
-    -- Escaneamos TODO el personaje (Cabeza, Torso, Brazos, Piernas, Accesorios)
+    -- Escaneamos todo el cuerpo
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             expandPart(part)
@@ -101,17 +98,34 @@ local function restoreAll()
     end
 end
 
+-- 🛠️ Escuchar cuando un jugador nuevo entra o respawnea
+local function onPlayerAdded(player)
+    if player == LocalPlayer then return end
+    player.CharacterAdded:Connect(function(char)
+        task.wait(0.5) -- Dar tiempo a que las partes carguen
+        if Config.Enabled then
+            local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if myRoot and root and (root.Position - myRoot.Position).Magnitude <= 1000 then
+                processCharacter(char)
+            end
+        end
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
+table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
+
 table.insert(connections, RunService.Heartbeat:Connect(function()
-    if not Config.Enabled then
-        restoreAll()
-        return
+    if not Config.Enabled then 
+        if next(expandedParts) then restoreAll() end
+        return 
     end
 
     local myChar = LocalPlayer.Character
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- Escanear jugadores
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -126,22 +140,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
                 end
             else
                 restoreCharacter(player.Character)
-            end
-        end
-    end
-
-    -- Escanear NPCs
-    local enemiesFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("NPCs")
-    if enemiesFolder then
-        for _, npc in ipairs(enemiesFolder:GetChildren()) do
-            local hum = npc:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                local root = npc:FindFirstChild("HumanoidRootPart")
-                if root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                    processCharacter(npc)
-                else
-                    restoreCharacter(npc)
-                end
             end
         end
     end
