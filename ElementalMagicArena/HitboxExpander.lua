@@ -1,4 +1,5 @@
---// Froggy Hub - Hitbox Expander V3 (Selectivo + Hitbox Visual 3D)
+--// Froggy Hub - Hitbox Expander V4 (Full Body Aggressive)
+--// Expande todas las partes del cuerpo, desactiva colisiones y fuerza la detección de golpes.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,9 +11,9 @@ if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    Size = 25,               -- Tamaño de la hitbox
-    TargetPart = "HumanoidRootPart", -- Opciones: "HumanoidRootPart", "Head", "Torso", "All"
-    ShowVisual = true,       -- Muestra la caja 3D roja
+    Size = 35,             -- 35 es una locura, cubre todo el cuerpo
+    Transparency = 0.7,
+    Color = Color3.fromRGB(255, 0, 0),
     IgnoreFriends = true,
 }
 
@@ -26,51 +27,34 @@ local function isFriend(player)
     return ok and result
 end
 
--- Función para encontrar la parte específica
-local function getPartToExpand(char)
-    if Config.TargetPart == "All" then return char end -- Retorna el personaje entero
-    if Config.TargetPart == "Head" then return char:FindFirstChild("Head") end
-    if Config.TargetPart == "Torso" then
-        return char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("HumanoidRootPart")
-    end
-    return char:FindFirstChild("HumanoidRootPart") -- Por defecto
-end
-
 local function expandPart(part)
-    if not part or expandedParts[part] then return end
+    if expandedParts[part] then return end
     
+    -- Guardamos las propiedades originales
     expandedParts[part] = {
         Size = part.Size,
         CanCollide = part.CanCollide,
         CanTouch = part.CanTouch,
         Massless = part.Massless,
         Transparency = part.Transparency,
-        Color = part.Color,
-        Adornment = nil
+        Color = part.Color
     }
     
     pcall(function()
+        -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
+        
+        -- PROPIEDADES ANTI-CRASH Y ANTI-FÍSICA
         part.CanCollide = false 
-        part.CanTouch = false 
         part.Massless = true
         
-        -- Hacemos la parte original invisible para que no se vea feo
-        part.Transparency = 1 
+        -- 🔥 LA CLAVE: Forzamos a que los golpes y rayos detecten esta parte
+        part.CanQuery = true 
+        part.CanTouch = true
         
-        -- CREAMOS LA CAJA 3D VISUAL (La hitbox real)
-        if Config.ShowVisual then
-            local box = Instance.new("BoxHandleAdornment")
-            box.Name = "FroggyHitbox"
-            box.Adornee = part
-            box.AlwaysOnTop = true
-            box.ZIndex = 5
-            box.Size = part.Size
-            box.Transparency = 0.5
-            box.Color3 = Color3.fromRGB(255, 50, 50)
-            box.Parent = part
-            expandedParts[part].Adornment = box
-        end
+        -- VISUALES:
+        part.Transparency = Config.Transparency
+        part.Color = Config.Color
     end)
 end
 
@@ -86,10 +70,6 @@ local function restorePart(part)
             part.Massless = data.Massless
             part.Transparency = data.Transparency
             part.Color = data.Color
-            
-            if data.Adornment then
-                data.Adornment:Destroy()
-            end
         end
     end)
     
@@ -98,21 +78,20 @@ end
 
 local function processCharacter(char)
     if not char then return end
-    
-    if Config.TargetPart == "All" then
-        for _, part in ipairs(char:GetChildren()) do
-            if part:IsA("BasePart") then expandPart(part) end
+    -- Escaneamos TODO el personaje (Cabeza, Torso, Brazos, Piernas, Accesorios)
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            expandPart(part)
         end
-    else
-        local part = getPartToExpand(char)
-        if part then expandPart(part) end
     end
 end
 
 local function restoreCharacter(char)
     if not char then return end
-    for _, part in ipairs(char:GetChildren()) do
-        if part:IsA("BasePart") then restorePart(part) end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            restorePart(part)
+        end
     end
 end
 
@@ -132,19 +111,18 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- Jugadores
+    -- Escanear jugadores
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                local root = player.Character:FindFirstChild("HumanoidRootPart")
-                if root then
-                    local dist = (root.Position - myRoot.Position).Magnitude
-                    if dist <= 1000 and not (Config.IgnoreFriends and isFriend(player)) then
-                        processCharacter(player.Character)
-                    else
-                        restoreCharacter(player.Character)
-                    end
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            
+            if hum and hum.Health > 0 and root then
+                local dist = (root.Position - myRoot.Position).Magnitude
+                if dist <= 1000 and not (Config.IgnoreFriends and isFriend(player)) then
+                    processCharacter(player.Character)
+                else
+                    restoreCharacter(player.Character)
                 end
             else
                 restoreCharacter(player.Character)
@@ -152,7 +130,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- NPCs
+    -- Escanear NPCs
     local enemiesFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("NPCs")
     if enemiesFolder then
         for _, npc in ipairs(enemiesFolder:GetChildren()) do
@@ -169,7 +147,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     end
 end))
 
--- Limpieza de partes
+-- Limpieza
 table.insert(connections, RunService.Stepped:Connect(function()
     for part, _ in pairs(expandedParts) do
         if not part or not part.Parent then
