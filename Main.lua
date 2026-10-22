@@ -84,7 +84,6 @@ local function tween(o, t, props, style, dir)
 end
 local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
 
--- ✦ ESTILO NAVE: todo con esquinas rectas (sin redondeo)
 local function corner(o, r) return nil end
 
 local function stroke(o, key, thickness)
@@ -106,7 +105,6 @@ local function addGradient(parent, fn, rotation)
     table.insert(gradients, { g = g, fn = fn }); return g
 end
 
--- Esquinas tipo HUD (corchetes angulares)
 local ALL_CORNERS = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } }
 local function brackets(parent, key, len, th, inset, corners, z)
     inset = inset or 0
@@ -121,7 +119,6 @@ local function brackets(parent, key, len, th, inset, corners, z)
     end
 end
 
--- Partículas: estrellas (diamantes) + estelas de velocidad
 local function makeParticle(parent, i, w, h)
     local streak = (i % 5 == 0)
     local s = math.random(3, 6)
@@ -148,7 +145,6 @@ local function stepParticle(p, dt, t, w, h)
     end
 end
 
--- Línea de escaneo
 local function makeScan(parent, height, z)
     local scan = new("Frame", { Size = UDim2.new(1, 0, 0, height), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = z or 0, Visible = false }, parent)
     local band = new("Frame", { Size = UDim2.new(1, 0, 1, 0), BorderSizePixel = 0, ZIndex = z or 0 }, scan)
@@ -192,7 +188,7 @@ end
 env.__BF_PANEL_CLEANUP = cleanup
 
 -- ==========================================
--- 🚀 SELECTOR DE JUEGO (estilo nave)
+-- 🚀 SELECTOR DE JUEGO
 -- ==========================================
 local CurrentGameFolder = "Universal"
 local GameDisplayName = "Universal"
@@ -255,7 +251,7 @@ local HUB_NAME = "Froggy Hub | " .. GameDisplayName
 local HUB_VERSION = "v9.0"
 
 -- ==========================================
--- 🛸 PANTALLA DE CARGA (estilo nave)
+-- 🛸 PANTALLA DE CARGA
 -- ==========================================
 local LW, LH = 300, 262
 local loading = new("Frame", { Size = UDim2.fromOffset(LW, LH), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 998 }, gui)
@@ -474,7 +470,7 @@ local glowGrad = addGradient(glow, glowSeq, 0)
 
 local function makeOrb(key)
     local o = new("Frame", { Size = UDim2.fromOffset(170, 170), BackgroundTransparency = 0.9, BorderSizePixel = 0, ZIndex = 0 }, bgLayer)
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = o -- nebulosas suaves
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = o
     bind(o, "BackgroundColor3", key); return o
 end
 local orb1, orb2 = makeOrb("Accent"), makeOrb("Accent2")
@@ -503,7 +499,6 @@ local subtitle = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2
 addGradient(subtitle, accentSeq, 0)
 bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(1, -120, 0.5, -7), Size = UDim2.fromOffset(40, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right, Text = HUB_VERSION }, header), "TextColor3", "Dim")
 
--- Decoración de header: /// y LED de estado
 for i = 1, 3 do
     local s = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -158 + i * 7, 0.5, 0), Size = UDim2.fromOffset(3, 16), Rotation = 25, BorderSizePixel = 0, BackgroundTransparency = 0.7 - i * 0.2 }, header)
     bind(s, "BackgroundColor3", "Accent")
@@ -578,7 +573,6 @@ end
 local pESP = createPage("ESP", 1); local pMove = createPage("Movimiento", 2); local pCombat = createPage("Combate", 3)
 local pPerf = createPage("Rendimiento", 4); local pAjustes = createPage("Ajustes", 5); local pMisc = createPage("Misc", 6)
 
--- Tarjeta futurista: marco + esquinas diagonales; devuelve el contenedor interno
 local function cardFrame(page)
     local outer = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = CARD_T, BorderSizePixel = 0 }, page)
     bind(outer, "BackgroundColor3", "Row"); stroke(outer, "Stroke")
@@ -975,20 +969,41 @@ end
 selectTab("ESP")
 print("[Froggy Hub] Panel " .. HUB_VERSION .. " cargado con éxito para: " .. GameDisplayName)
 
--- 🐸 MENSAJE ENVIADO POR EL PERSONAJE
+-- 🐸 MENSAJE ENVIADO POR EL PERSONAJE (SISTEMA DE REINTENTOS)
 local function sendPlayerChat()
     local msg = "FroggyHub On Top! Hecho por Froggy / kinnnnj8"
     task.spawn(function()
-        task.wait(3)
-        local sent = false
-        pcall(function()
-            if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-                local channels = TextChatService:FindFirstChild("TextChannels")
-                local general = channels and channels:FindFirstChild("RBXGeneral")
-                if general then general:SendAsync(msg) sent = true end
+        -- Intentamos enviar el mensaje hasta 10 veces (cada 2 segundos)
+        for i = 1, 10 do
+            task.wait(2)
+            local success = false
+
+            -- 1. Intentar con el NUEVO sistema de chat (TextChatService)
+            pcall(function()
+                if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+                    local channels = TextChatService:FindFirstChild("TextChannels")
+                    local general = channels and channels:FindFirstChild("RBXGeneral")
+                    if general then
+                        general:SendAsync(msg)
+                        success = true
+                    end
+                end
+            end)
+
+            -- 2. Si falló, intentar con el sistema VIEJO (StarterGui)
+            if not success then
+                pcall(function()
+                    StarterGui:SetCore("ChatSendMessage", msg)
+                    success = true
+                end)
             end
-        end)
-        if not sent then pcall(function() StarterGui:SetCore("ChatSendMessage", msg) end) end
+
+            -- Si el mensaje se envió con éxito, rompemos el bucle y dejamos de intentar
+            if success then
+                print("[Froggy Hub] Mensaje enviado al chat con éxito (Intento " .. i .. ")")
+                break
+            end
+        end
     end)
 end
 sendPlayerChat()
