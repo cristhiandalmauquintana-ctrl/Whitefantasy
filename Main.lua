@@ -1,15 +1,35 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v7.9: Player Chat Message
+--// Main.lua - Froggy Hub (loader + panel) | UI v8.0: Duel Mode Auto-Detect
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
 
-local SUPPORTED_GAMES = {
+-- 🛠️ FIX: Agregamos el GameId (no el PlaceId) de Elemental Magic Arena si lo conocemos,
+-- pero el fallback por nombre atrapará el duelo de todas formas.
+local SUPPORTED_PLACES = {
     [2753915549] = "BloxFruits", [4442272183] = "BloxFruits", [7449423635] = "BloxFruits",
     [7243409883] = "ElementalMagicArena",
 }
 
-local CurrentGameFolder = SUPPORTED_GAMES[game.PlaceId] or "Universal"
+-- 🛠️ FIX: Función de detección robusta
+local function detectGameFolder()
+    -- 1. Intentar por PlaceId (Juego principal)
+    local byPlace = SUPPORTED_PLACES[game.PlaceId]
+    if byPlace then return byPlace end
+
+    -- 2. Fallback por Nombre (Atrapa el modo duelo y sub-places)
+    local name = string.lower(game.Name)
+    if name:find("elemental") or name:find("magic") or name:find("arena") then
+        return "ElementalMagicArena"
+    end
+    if name:find("blox fruit") then
+        return "BloxFruits"
+    end
+
+    return "Universal"
+end
+
+local CurrentGameFolder = detectGameFolder()
 local GameDisplayName = (CurrentGameFolder == "BloxFruits" and "Blox Fruits") or (CurrentGameFolder == "ElementalMagicArena" and "Elemental Magic Arena") or "Universal"
 
 -- Rutas base
@@ -36,7 +56,7 @@ local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v7.9"
+local HUB_VERSION = "v8.0"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
