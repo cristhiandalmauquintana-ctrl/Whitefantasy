@@ -1,4 +1,4 @@
---// Froggy Hub - Hitbox Expander V6 (Anti-Crash)
+--// Froggy Hub - Hitbox Expander V4 (Full Body Aggressive - RESTAURADO)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,8 +10,8 @@ if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    Size = 20,             -- 20 es el límite seguro para el motor de físicas
-    Transparency = 0.8,
+    Size = 35,             -- 35 es el tamaño perfecto que tenías
+    Transparency = 0.7,
     Color = Color3.fromRGB(255, 0, 0),
     IgnoreFriends = true,
 }
@@ -28,7 +28,6 @@ end
 local function expandPart(part)
     if expandedParts[part] then return end
     expandedParts[part] = { Size = part.Size, CanCollide = part.CanCollide, Massless = part.Massless, Transparency = part.Transparency, Color = part.Color }
-    
     pcall(function()
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         part.CanCollide = false 
@@ -55,27 +54,28 @@ end
 
 local function processCharacter(char)
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if root then expandPart(root) end
+    -- EXPANDIMOS TODO EL CUERPO
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            expandPart(part)
+        end
+    end
 end
 
 local function restoreCharacter(char)
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if root then restorePart(root) end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            restorePart(part)
+        end
+    end
 end
 
 local function restoreAll()
     for part, _ in pairs(expandedParts) do restorePart(part) end
 end
 
--- Bucle optimizado (10 veces por segundo) para no saturar el motor de físicas
-local timer = 0
-table.insert(connections, RunService.Heartbeat:Connect(function(dt)
-    timer = timer + dt
-    if timer < 0.1 then return end
-    timer = 0
-
+table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then restoreAll() return end
 
     local myChar = LocalPlayer.Character
@@ -84,8 +84,8 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
-            local root = player.Character:FindFirstChild("HumanoidRootPart")
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
             if hum and hum.Health > 0 and root then
                 if (root.Position - myRoot.Position).Magnitude <= 1000 and not (Config.IgnoreFriends and isFriend(player)) then
                     processCharacter(player.Character)
