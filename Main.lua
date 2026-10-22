@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v10.3: Starship + Anti-Duplicados
+--// Main.lua - Froggy Hub (loader + panel) | UI v10.4: Starship + Anti-Freeze
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -163,7 +163,15 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- 🛠️ LIMPIEZA INICIAL
+-- 🛠️ CANDADO ANTI-DUPLICADOS (Sin bucles infinitos)
+if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
+    if _G.__FroggyHub_Loading then
+        warn("[Froggy] ⚠️ Ya hay un menú de selección abierto.")
+        return
+    end
+    _G.__FroggyHub_Loading = true
+end
+
 local parentUI = getParent()
 for _, obj in ipairs(parentUI:GetChildren()) do
     if obj.Name:match("^FroggyHub_") then obj:Destroy() end
@@ -172,19 +180,6 @@ end
 local gui = new("ScreenGui", { Name = "FroggyHub_" .. tostring(math.random(1000, 9999)), ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, parentUI)
 local connections = {}
 local tweens = {}
-
--- 🛠️ ANTÍDOTO CONTRA SCRIPTS VIEJOS O DOBLE EJECUCIÓN
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        local p = getParent()
-        for _, obj in ipairs(p:GetChildren()) do
-            if obj.Name:match("^FroggyHub_") and obj ~= gui then
-                obj:Destroy()
-            end
-        end
-    end
-end)
 
 local function cleanup()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
@@ -227,7 +222,7 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
     local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
     addGradient(pTop, accentSeq, 0)
     bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
-    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v10.3" }, promptGui)
+    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v10.4" }, promptGui)
     
     local selectionMade = false
     local function finishSelection(folder, display)
@@ -239,6 +234,7 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
         GameDisplayName = display
         if CurrentGameFolder == "BloxFruits" then BASE_URL = ROOT_URL else BASE_URL = ROOT_URL .. CurrentGameFolder .. "/" end
         promptGui:Destroy()
+        _G.__FroggyHub_Loading = false -- Liberamos el candado
     end
 
     local function makeChoice(y, text, onPick)
@@ -273,7 +269,7 @@ end
 -- ==========================================
 
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v10.3"
+local HUB_VERSION = "v10.4"
 
 -- ==========================================
 -- 🛸 PANTALLA DE CARGA
@@ -389,7 +385,9 @@ local function fetchLogo()
     end
     local urlsToTry = { BASE_URL .. "logo.png?v=" .. os.time(), ROOT_URL .. "logo.png?v=" .. os.time() }
     for _, url in ipairs(urlsToTry) do
+        task.wait(0.1) -- 🛠️ Previene congelamiento en móvil
         local ok, data = pcall(function() return game:HttpGet(url, true) end)
+        task.wait(0.1)
         if ok and type(data) == "string" and #data > 8 and data:sub(2, 4) == "PNG" then
             local path = "FroggyHub_logo.png"
             if pcall(writefile, path, data) then
@@ -404,11 +402,15 @@ end
 
 local function downloadModule(names)
     for _, name in ipairs(names) do
+        task.wait(0.1) -- 🛠️ Previene congelamiento en móvil
         local ok, res = pcall(function() return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true) end)
+        task.wait(0.1)
         if ok and type(res) == "string" and #res > 0 and res:sub(1, 3) ~= "404" then return res end
         
         if BASE_URL ~= ROOT_URL then
+            task.wait(0.1)
             local okRoot, resRoot = pcall(function() return game:HttpGet(ROOT_URL .. name .. "?v=" .. os.time(), true) end)
+            task.wait(0.1)
             if okRoot and type(resRoot) == "string" and #resRoot > 0 and resRoot:sub(1, 3) ~= "404" then return resRoot end
         end
     end
