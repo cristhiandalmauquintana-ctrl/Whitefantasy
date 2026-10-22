@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v7.6: Logo Fix + Hitbox Hardcoded 35
+--// Main.lua - Froggy Hub (loader + panel) | UI v7.7: Chat Announcement + Logo Fix + Hitbox 35
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -36,7 +36,7 @@ local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v7.6"
+local HUB_VERSION = "v7.7"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -44,6 +44,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 
 if env.__BF_PANEL_CLEANUP then pcall(env.__BF_PANEL_CLEANUP) end
@@ -546,7 +547,6 @@ do
             function() return HitboxConfig.Enabled end,
             function(v) 
                 HitboxConfig.Enabled = v 
-                -- Aseguramos que cuando se prenda, el tamaño sea 35
                 if v then HitboxConfig.Size = 35 end
             end)
             
@@ -772,3 +772,19 @@ hide:Play(); task.wait(0.3); loading:Destroy()
 frame.Visible = true; tween(panelScale, 0.35, { Scale = PanelConfig.Scale }, Enum.EasingStyle.Back)
 selectTab("ESP")
 print("[Froggy Hub] Panel " .. HUB_VERSION .. " cargado con éxito para: " .. GameDisplayName)
+
+-- 🐸 ANUNCIO EN EL CHAT
+local function sendChatAnnouncement()
+    local success, err = pcall(function()
+        StarterGui:SetCore("ChatMakeSystemMessage", {
+            Text = "🐸 [Froggy Hub] FroggyHub On Top! 🚀 Hecho por Froggy / kinnnnj8 🔥",
+            Color = Color3.fromRGB(110, 220, 90),
+            Font = Enum.Font.GothamBold,
+        })
+    end)
+    if not success then
+        warn("[Froggy Hub] No se pudo enviar el mensaje al chat: " .. tostring(err))
+    end
+end
+
+task.delay(1, sendChatAnnouncement)
