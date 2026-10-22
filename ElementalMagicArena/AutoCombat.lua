@@ -1,4 +1,4 @@
---// Froggy Hub - Auto Combat V4 (Seguro y Fluido)
+--// Froggy Hub - Auto Combat V5 (Súper Rápido y Estable)
 
 local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
@@ -10,7 +10,7 @@ if env.__BF_COMBAT_CLEANUP then pcall(env.__BF_COMBAT_CLEANUP) end
 local Config = {
     Enabled = false,
     AutoM1 = true,
-    M1Delay = 0.08,       -- 0.08 es el punto dulce para no crashear
+    M1Delay = 0.05,       -- 0.05 = 20 clics por segundo (Rapidísimo, pero el juego lo aguanta)
     AutoSkills = true,
     SkillDelay = 1.5,
     SkillKeys = {"Z", "X", "C", "V"}
@@ -23,9 +23,7 @@ local skillIndex = 1
 local connection
 
 local function pressKey(key)
-    if type(keypress) == "function" then
-        pcall(keypress, key)
-    end
+    if type(keypress) == "function" then pcall(keypress, key) end
 end
 
 connection = RunService.Heartbeat:Connect(function()
@@ -36,16 +34,15 @@ connection = RunService.Heartbeat:Connect(function()
 
     local now = os.clock()
 
-    -- 1. Hacer M1 (Clic Seguro)
     if Config.AutoM1 and (now - lastClick >= Config.M1Delay) then
         lastClick = now
         pcall(function()
+            -- Clic izquierdo estándar (No usa tool:Activate, no rompe la física)
             VirtualUser:CaptureController()
             VirtualUser:ClickButton1(Vector2.new(0, 0))
         end)
     end
 
-    -- 2. Lanzar Habilidades
     if Config.AutoSkills and (now - lastSkill >= Config.SkillDelay) then
         lastSkill = now
         local keyName = Config.SkillKeys[skillIndex]
