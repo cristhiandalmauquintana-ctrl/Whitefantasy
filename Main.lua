@@ -182,6 +182,7 @@ local function cleanup()
     if env.__BF_AFARM_CLEANUP then pcall(env.__BF_AFARM_CLEANUP) end
     if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
     if env.__BF_COMBAT_CLEANUP then pcall(env.__BF_COMBAT_CLEANUP) end
+    if env.__BF_CHAT_CLEANUP then pcall(env.__BF_CHAT_CLEANUP) end -- 🛠️ Limpieza del chat
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -352,6 +353,7 @@ local DIAMOND_FILES = { "AutoDiamonds.lua" }
 local AFARM_FILES = { "AutoFarmPlayers.lua" }
 local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
+local CHAT_FILES = { "ChatMessage.lua" } -- 🛠️ NUEVO
 local LOGO_FILES = { "logo.png" }
 
 local function fetchLogo()
@@ -391,7 +393,7 @@ local function loadOptional(names, label, configKey)
     local ok, runErr = pcall(chunk)
     if not ok then warn("[Froggy] ❌ " .. (label or "?") .. ": error de ejecución → " .. tostring(runErr)); return nil end
     local cfg = env[configKey] or _G[configKey]
-    if not cfg then warn("[Froggy] ❌ " .. (label or "?") .. ": el módulo no expuso " .. configKey); return nil end
+    if not cfg then return true end -- para scripts sin config
     return cfg
 end
 
@@ -443,6 +445,9 @@ setProgress(0.82, "Utilidades extra...")
 local TpConfig = loadOptional(TP_FILES, "Teleport.lua", "BF_TP_CONFIG")
 local LiftConfig = loadOptional(LIFT_FILES, "AutoLift.lua", "BF_LIFT_CONFIG")
 local PotConfig = loadOptional(POT_FILES, "Potato.lua", "BF_POTATO")
+
+-- 🛠️ Cargar el mensaje del chat silenciosamente
+loadOptional(CHAT_FILES, "ChatMessage.lua", "BF_CHAT_CONFIG")
 
 setProgress(1, "Sistemas en linea. Listo")
 task.wait(0.7)
@@ -968,42 +973,3 @@ if PanelConfig.Animations then
 end
 selectTab("ESP")
 print("[Froggy Hub] Panel " .. HUB_VERSION .. " cargado con éxito para: " .. GameDisplayName)
-
--- 🐸 MENSAJE ENVIADO POR EL PERSONAJE (SISTEMA DE REINTENTOS)
-local function sendPlayerChat()
-    local msg = "FroggyHub On Top! Hecho por Froggy / kinnnnj8"
-    task.spawn(function()
-        -- Intentamos enviar el mensaje hasta 10 veces (cada 2 segundos)
-        for i = 1, 10 do
-            task.wait(2)
-            local success = false
-
-            -- 1. Intentar con el NUEVO sistema de chat (TextChatService)
-            pcall(function()
-                if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-                    local channels = TextChatService:FindFirstChild("TextChannels")
-                    local general = channels and channels:FindFirstChild("RBXGeneral")
-                    if general then
-                        general:SendAsync(msg)
-                        success = true
-                    end
-                end
-            end)
-
-            -- 2. Si falló, intentar con el sistema VIEJO (StarterGui)
-            if not success then
-                pcall(function()
-                    StarterGui:SetCore("ChatSendMessage", msg)
-                    success = true
-                end)
-            end
-
-            -- Si el mensaje se envió con éxito, rompemos el bucle y dejamos de intentar
-            if success then
-                print("[Froggy Hub] Mensaje enviado al chat con éxito (Intento " .. i .. ")")
-                break
-            end
-        end
-    end)
-end
-sendPlayerChat()
