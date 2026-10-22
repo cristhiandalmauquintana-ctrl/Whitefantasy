@@ -1,4 +1,5 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v6.4: Version Tag
+
+--// Main.lua - Froggy Hub (loader + panel) | UI v6.6: Auto Combat Bypass
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -25,9 +26,10 @@ local LIFT_FILES = { "AutoLift.lua" }
 local DIAMOND_FILES = { "AutoDiamonds.lua" }
 local AFARM_FILES = { "AutoFarmPlayers.lua" }
 local HITBOX_FILES = { "HitboxExpander.lua" }
+local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v6.4"
+local HUB_VERSION = "v6.6"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -74,6 +76,7 @@ local function cleanup()
     if env.__BF_DIAMOND_CLEANUP then pcall(env.__BF_DIAMOND_CLEANUP) end
     if env.__BF_AFARM_CLEANUP then pcall(env.__BF_AFARM_CLEANUP) end
     if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
+    if env.__BF_COMBAT_CLEANUP then pcall(env.__BF_COMBAT_CLEANUP) end
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -141,14 +144,20 @@ local MoveConfig = loadOptional(MOVE_FILES, "Movement.lua", "BF_MOVE_CONFIG")
 local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
 local DodgeConfig = loadOptional(DODGE_FILES, "AutoDodge.lua", "BF_DODGE_CONFIG")
 
-local DiamondConfig, AFarmConfig, HitboxConfig = nil, nil, nil
+local DiamondConfig, AFarmConfig, HitboxConfig, CombatConfig = nil, nil, nil, nil
 if CurrentGameFolder == "ElementalMagicArena" then
     DiamondConfig = loadOptional(DIAMOND_FILES, "AutoDiamonds.lua", "BF_DIAMOND_CONFIG")
     AFarmConfig = loadOptional(AFARM_FILES, "AutoFarmPlayers.lua", "BF_AFARM_CONFIG")
     HitboxConfig = loadOptional(HITBOX_FILES, "HitboxExpander.lua", "BF_HITBOX_CONFIG")
+    CombatConfig = loadOptional(COMBAT_FILES, "AutoCombat.lua", "BF_COMBAT_CONFIG")
+    
     if not HitboxConfig then 
         HitboxConfig = { Enabled = false, Size = 25, TargetPart = "Torso", ShowVisual = true, IgnoreFriends = true }
         env.BF_HITBOX_CONFIG = HitboxConfig
+    end
+    if not CombatConfig then
+        CombatConfig = { Enabled = false, AutoM1 = true, M1Delay = 0.03, BypassAnim = true, AutoSkills = true, SkillDelay = 1.0, SkillKeys = {"Z", "X", "C", "V"} }
+        env.BF_COMBAT_CONFIG = CombatConfig
     end
 end
 
@@ -179,17 +188,7 @@ if logoAsset then new("ImageLabel", { Position = UDim2.fromOffset(10, 7), Size =
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(titleX, 5), Size = UDim2.new(1, -(titleX + 90), 0, 22), Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Text, Text = HUB_NAME }, header)
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(titleX, 26), Size = UDim2.new(1, -(titleX + 90), 0, 14), Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Accent, Text = "Panel de control" }, header)
 
--- 🔥 INDICADOR DE VERSIÓN EN LA ESQUINA 🔥
-new("TextLabel", {
-    BackgroundTransparency = 1,
-    Position = UDim2.new(1, -120, 0.5, -7),
-    Size = UDim2.fromOffset(40, 14),
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = C.Dim,
-    TextXAlignment = Enum.TextXAlignment.Right,
-    Text = HUB_VERSION,
-}, header)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(1, -120, 0.5, -7), Size = UDim2.fromOffset(40, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Dim, TextXAlignment = Enum.TextXAlignment.Right, Text = HUB_VERSION }, header)
 
 local function headerButton(text, xOffset)
     local b = new("TextButton", { Size = UDim2.fromOffset(30, 30), Position = UDim2.new(1, xOffset, 0.5, -15), BackgroundColor3 = C.Row, BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = C.Text, Text = text, AutoButtonColor = false }, header)
@@ -315,7 +314,6 @@ end
 if MoveConfig then
     local s = group(pMove, "Speed", function() return MoveConfig.SpeedEnabled end, function(v) MoveConfig.SpeedEnabled = v end)
     s:slider("Velocidad extra", function() return MoveConfig.Speed end, function(v) MoveConfig.Speed = v end, 5, 200, 5)
-
     local j = group(pMove, "Super Jump", function() return MoveConfig.JumpEnabled end, function(v) MoveConfig.JumpEnabled = v end)
     j:slider("Fuerza de salto", function() return MoveConfig.JumpPower end, function(v) MoveConfig.JumpPower = v end, 50, 300, 10)
 end
@@ -326,6 +324,15 @@ if TpConfig then
 end
 
 -- CONTENIDO: COMBATE
+if CombatConfig then
+    local g = group(pCombat, "Auto Combat (M1 + Skills)", function() return CombatConfig.Enabled end, function(v) CombatConfig.Enabled = v end)
+    g:toggle("Auto M1 (Clics)", function() return CombatConfig.AutoM1 end, function(v) CombatConfig.AutoM1 = v end)
+    g:slider("Velocidad de Clic", function() return CombatConfig.M1Delay end, function(v) CombatConfig.M1Delay = v end, 0.01, 0.5, 0.01)
+    g:toggle("Bypass de Animación", function() return CombatConfig.BypassAnim end, function(v) CombatConfig.BypassAnim = v end)
+    g:toggle("Auto Skills (Z-X-C-V)", function() return CombatConfig.AutoSkills end, function(v) CombatConfig.AutoSkills = v end)
+    g:slider("Delay entre Skills", function() return CombatConfig.SkillDelay end, function(v) CombatConfig.SkillDelay = v end, 0.5, 5, 0.1)
+end
+
 if CamConfig then
     local g = group(pCombat, "Camlock", function() return CamConfig.Enabled end, function(v) CamConfig.Enabled = v end)
     g:slider("Radio FOV", function() return CamConfig.FOV end, function(v) CamConfig.FOV = v end, 50, 600, 10)
@@ -404,7 +411,6 @@ end
 
 selectTab("ESP")
 
--- 🔥 ARRASTRE Y MINIMIZACIÓN 🔥
 local function clampPanel(x, y) local sz = screenSize(); local scale = PanelConfig.Scale or 1; return math.clamp(x, 0, math.max(0, sz.X - WIDTH * scale)), math.clamp(y, 0, math.max(0, sz.Y - HEIGHT * scale)) end
 local function setPanelPos(x, y) x, y = clampPanel(x, y); frame.Position = UDim2.fromOffset(x, y) end
 
