@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v7.8: Chat Fix + Hitbox 35
+--// Main.lua - Froggy Hub (loader + panel) | UI v7.9: Player Chat Message
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -36,7 +36,7 @@ local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v7.8"
+local HUB_VERSION = "v7.9"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -774,43 +774,34 @@ frame.Visible = true; tween(panelScale, 0.35, { Scale = PanelConfig.Scale }, Enu
 selectTab("ESP")
 print("[Froggy Hub] Panel " .. HUB_VERSION .. " cargado con éxito para: " .. GameDisplayName)
 
--- 🐸 ANUNCIO EN EL CHAT (SISTEMA NUEVO Y VIEJO CON REINTENTOS)
-local function sendChatAnnouncement()
-    local text = "🐸 [Froggy Hub] FroggyHub On Top! 🚀 Hecho por Froggy / kinnnnj8 🔥"
-    local colorHex = "#6EDC5A" -- Verde Froggy
-    local colorRgb = Color3.fromRGB(110, 220, 90)
-
+-- 🐸 MENSAJE ENVIADO POR EL PERSONAJE
+local function sendPlayerChat()
+    local msg = "FroggyHub On Top! Hecho por Froggy / kinnnnj8"
+    
     task.spawn(function()
-        for i = 1, 10 do
-            local success = false
+        task.wait(2) -- Esperamos 2 segundos para que el juego cargue el chat
 
-            -- 1. Intentar con el NUEVO sistema de chat (TextChatService)
-            local ok1, err1 = pcall(function()
-                if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-                    TextChatService:DisplaySystemMessage("<font color='" .. colorHex .. "'>" .. text .. "</font>")
-                    success = true
+        local sent = false
+
+        -- 1. Intentar con el NUEVO sistema de chat (TextChatService)
+        pcall(function()
+            if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+                local channels = TextChatService:FindFirstChild("TextChannels")
+                local general = channels and channels:FindFirstChild("RBXGeneral")
+                if general then
+                    general:SendAsync(msg)
+                    sent = true
                 end
-            end)
-
-            -- 2. Intentar con el sistema VIEJO (StarterGui)
-            if not success then
-                local ok2, err2 = pcall(function()
-                    StarterGui:SetCore("ChatMakeSystemMessage", {
-                        Text = text,
-                        Color = colorRgb,
-                        Font = Enum.Font.GothamBold,
-                    })
-                    success = true
-                end)
             end
+        end)
 
-            -- Si funcionó, dejamos de intentar
-            if success then break end
-
-            -- Si falló, esperamos 1 segundo y lo volvemos a intentar
-            task.wait(1)
+        -- 2. Si falló o es chat viejo, usar StarterGui (ChatSendMessage)
+        if not sent then
+            pcall(function()
+                StarterGui:SetCore("ChatSendMessage", msg)
+            end)
         end
     end)
 end
 
-task.delay(2, sendChatAnnouncement) -- Le damos 2 segundos de margen para que cargue el chat del juego
+sendPlayerChat()
