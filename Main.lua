@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v10.2: Starship + Bugfix Selector
+--// Main.lua - Froggy Hub (loader + panel) | UI v10.3: Starship + Anti-Duplicados
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -163,17 +163,28 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- 🛠️ LIMPIEZA DE EJECUCIONES ANTERIORES
+-- 🛠️ LIMPIEZA INICIAL
 local parentUI = getParent()
 for _, obj in ipairs(parentUI:GetChildren()) do
-    if obj.Name:match("^FroggyHub_") then
-        obj:Destroy()
-    end
+    if obj.Name:match("^FroggyHub_") then obj:Destroy() end
 end
 
 local gui = new("ScreenGui", { Name = "FroggyHub_" .. tostring(math.random(1000, 9999)), ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, parentUI)
 local connections = {}
 local tweens = {}
+
+-- 🛠️ ANTÍDOTO CONTRA SCRIPTS VIEJOS O DOBLE EJECUCIÓN
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        local p = getParent()
+        for _, obj in ipairs(p:GetChildren()) do
+            if obj.Name:match("^FroggyHub_") and obj ~= gui then
+                obj:Destroy()
+            end
+        end
+    end
+end)
 
 local function cleanup()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
@@ -216,14 +227,14 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
     local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
     addGradient(pTop, accentSeq, 0)
     bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
-    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v10.2" }, promptGui) -- 🛠️ TAG DE VERSIÓN VISIBLE
+    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v10.3" }, promptGui)
     
     local selectionMade = false
     local function finishSelection(folder, display)
         if selectionMade then return end
         selectionMade = true
         env.BF_SELECTED_GAME = folder
-        _G.BF_SELECTED_GAME = folder -- Guardar en ambos por si las dudas
+        _G.BF_SELECTED_GAME = folder
         CurrentGameFolder = folder
         GameDisplayName = display
         if CurrentGameFolder == "BloxFruits" then BASE_URL = ROOT_URL else BASE_URL = ROOT_URL .. CurrentGameFolder .. "/" end
@@ -262,7 +273,7 @@ end
 -- ==========================================
 
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v10.2"
+local HUB_VERSION = "v10.3"
 
 -- ==========================================
 -- 🛸 PANTALLA DE CARGA
