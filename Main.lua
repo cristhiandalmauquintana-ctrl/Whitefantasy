@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v9.0: Starship Edition
+--// Main.lua - Froggy Hub (loader + panel) | UI v10.0: Starship + God Mode
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -182,7 +182,8 @@ local function cleanup()
     if env.__BF_AFARM_CLEANUP then pcall(env.__BF_AFARM_CLEANUP) end
     if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
     if env.__BF_COMBAT_CLEANUP then pcall(env.__BF_COMBAT_CLEANUP) end
-    if env.__BF_CHAT_CLEANUP then pcall(env.__BF_CHAT_CLEANUP) end -- 🛠️ Limpieza del chat
+    if env.__BF_CHAT_CLEANUP then pcall(env.__BF_CHAT_CLEANUP) end
+    if env.__BF_GOD_CLEANUP then pcall(env.__BF_GOD_CLEANUP) end
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
 end
@@ -249,7 +250,7 @@ repeat task.wait() until selectionMade
 -- ==========================================
 
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v9.2"
+local HUB_VERSION = "v10.0"
 
 -- ==========================================
 -- 🛸 PANTALLA DE CARGA
@@ -353,7 +354,8 @@ local DIAMOND_FILES = { "AutoDiamonds.lua" }
 local AFARM_FILES = { "AutoFarmPlayers.lua" }
 local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
-local CHAT_FILES = { "ChatMessage.lua" } -- 🛠️ NUEVO
+local GODMODE_FILES = { "GodMode.lua" }
+local CHAT_FILES = { "ChatMessage.lua" }
 local LOGO_FILES = { "logo.png" }
 
 local function fetchLogo()
@@ -377,10 +379,16 @@ local function fetchLogo()
     return nil
 end
 
+-- 🛠️ FALLBACK: Busca en la carpeta del juego, si falla busca en la raíz
 local function downloadModule(names)
     for _, name in ipairs(names) do
         local ok, res = pcall(function() return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true) end)
         if ok and type(res) == "string" and #res > 0 and res:sub(1, 3) ~= "404" then return res end
+        
+        if BASE_URL ~= ROOT_URL then
+            local okRoot, resRoot = pcall(function() return game:HttpGet(ROOT_URL .. name .. "?v=" .. os.time(), true) end)
+            if okRoot and type(resRoot) == "string" and #resRoot > 0 and resRoot:sub(1, 3) ~= "404" then return resRoot end
+        end
     end
     return nil
 end
@@ -393,7 +401,7 @@ local function loadOptional(names, label, configKey)
     local ok, runErr = pcall(chunk)
     if not ok then warn("[Froggy] ❌ " .. (label or "?") .. ": error de ejecución → " .. tostring(runErr)); return nil end
     local cfg = env[configKey] or _G[configKey]
-    if not cfg then return true end -- para scripts sin config
+    if not cfg then return true end
     return cfg
 end
 
@@ -421,7 +429,7 @@ local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
 local DodgeConfig = loadOptional(DODGE_FILES, "AutoDodge.lua", "BF_DODGE_CONFIG")
 
 setProgress(0.62, "Sistemas de combate...")
-local DiamondConfig, AFarmConfig, HitboxConfig, CombatConfig = nil, nil, nil, nil
+local DiamondConfig, AFarmConfig, HitboxConfig, CombatConfig, GodConfig = nil, nil, nil, nil, nil
 local HitboxLoadFailed = false
 
 if CurrentGameFolder == "ElementalMagicArena" then
@@ -434,6 +442,7 @@ if CurrentGameFolder == "ElementalMagicArena" then
         env.BF_HITBOX_CONFIG = HitboxConfig
     end
     CombatConfig = loadOptional(COMBAT_FILES, "AutoCombat.lua", "BF_COMBAT_CONFIG")
+    GodConfig = loadOptional(GODMODE_FILES, "GodMode.lua", "BF_GODMODE_CONFIG")
 end
 
 local SAConfig = nil
@@ -446,7 +455,7 @@ local TpConfig = loadOptional(TP_FILES, "Teleport.lua", "BF_TP_CONFIG")
 local LiftConfig = loadOptional(LIFT_FILES, "AutoLift.lua", "BF_LIFT_CONFIG")
 local PotConfig = loadOptional(POT_FILES, "Potato.lua", "BF_POTATO")
 
--- 🛠️ Cargar el mensaje del chat silenciosamente
+-- 🛠️ Cargar el mensaje del chat (con el nuevo sistema Fallback)
 loadOptional(CHAT_FILES, "ChatMessage.lua", "BF_CHAT_CONFIG")
 
 setProgress(1, "Sistemas en linea. Listo")
@@ -717,7 +726,7 @@ do
         if CombatConfig then
             local g = group(pCombat, "Auto Combat", function() return CombatConfig.Enabled end, function(v) CombatConfig.Enabled = v end)
             g:toggle("Auto M1 (Clics)", function() return CombatConfig.AutoM1 end, function(v) CombatConfig.AutoM1 = v end)
-            g:slider("Velocidad de M1", function() return CombatConfig.M1Delay end, function(v) CombatConfig.M1Delay = v end, 0.01, 0.5, 0.01)
+            g:slider("Velocidad de M1", function() return CombatConfig.M1Delay end, function(v) CombatConfig.M1Delay = v end, 0.1, 0.5, 0.01)
             g:toggle("Auto Skills (Z-X-C-V)", function() return CombatConfig.AutoSkills end, function(v) CombatConfig.AutoSkills = v end)
             g:slider("Delay de Skills", function() return CombatConfig.SkillDelay end, function(v) CombatConfig.SkillDelay = v end, 0.5, 5.0, 0.1)
         else
@@ -745,6 +754,19 @@ do
             Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
             Text = "Tamaño fijo al máximo: 35 studs (Toda la hitbox)", TextColor3 = C.Dim
         }, g.sub), "TextColor3", "Dim")
+
+        -- 🛠️ NUEVO: GOD MODE
+        if GodConfig then
+            local gg = group(pCombat, "God Mode (Inmortal)",
+                function() return GodConfig.Enabled end,
+                function(v) GodConfig.Enabled = v end)
+            gg:toggle("Anti-Caída (Void)", function() return GodConfig.AntiVoid end, function(v) GodConfig.AntiVoid = v end)
+            gg:toggle("Bloqueo de Vida", function() return GodConfig.HealthLock end, function(v) GodConfig.HealthLock = v end)
+            gg:toggle("Ghost Mode (Hitbox 0)", function() return GodConfig.GhostMode end, function(v) GodConfig.GhostMode = v end)
+        else
+            local godCard = card(pCombat, "God Mode")
+            soon(godCard, "GodMode.lua no cargado")
+        end
     end
 end
 
