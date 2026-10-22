@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v8.1: Manual Game Selector
+--// Main.lua - Froggy Hub (loader + panel) | UI v8.2: Manual Game Selector + Bubble Logo Fix
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -16,7 +16,7 @@ local LocalPlayer = Players.LocalPlayer
 
 if env.__BF_PANEL_CLEANUP then pcall(env.__BF_PANEL_CLEANUP) end
 
--- TEMAS Y PALETA (Necesarios para el menú de selección)
+-- TEMAS Y PALETA
 local THEMES = {
     { Name = "Froggy", Accent = Color3.fromRGB(110, 220, 90),  Accent2 = Color3.fromRGB(40, 170, 130),  Bg = Color3.fromRGB(16, 16, 22) },
     { Name = "Cyber",  Accent = Color3.fromRGB(255, 50, 150),  Accent2 = Color3.fromRGB(120, 80, 255),  Bg = Color3.fromRGB(20, 10, 30) },
@@ -120,7 +120,7 @@ end
 env.__BF_PANEL_CLEANUP = cleanup
 
 -- ==========================================
--- 🛠️ SELECTOR MANUAL DE JUEGO (FIX DUELO)
+-- 🛠️ SELECTOR MANUAL DE JUEGO
 -- ==========================================
 local CurrentGameFolder = "Universal"
 local GameDisplayName = "Universal"
@@ -166,7 +166,7 @@ repeat task.wait() until selectionMade
 -- ==========================================
 
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v8.1"
+local HUB_VERSION = "v8.2"
 
 -- PANTALLA DE CARGA
 local loading = new("Frame", { Size = UDim2.fromOffset(260, 220), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0, ZIndex = 998 }, gui)
@@ -178,6 +178,7 @@ local loadPulse = TweenService:Create(loadStroke, TweenInfo.new(0.9, Enum.Easing
 loadPulse:Play(); table.insert(tweens, loadPulse)
 local loadLogo = new("ImageLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 62), Size = UDim2.fromOffset(84, 84), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, ImageTransparency = 1 }, loading)
 local loadTitle = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 114), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = Color3.new(1, 1, 1), Text = "FROGGY HUB" }, loading)
+addGradient(loadTitle, accentSeq, 0)
 local loadGame = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 136), Size = UDim2.new(1, 0, 0, 16), Font = Enum.Font.Gotham, TextSize = 12, Text = "Juego: " .. GameDisplayName }, loading)
 bind(loadGame, "TextColor3", "Text")
 local loadStatus = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 160), Size = UDim2.new(1, -20, 0, 18), Font = Enum.Font.Gotham, TextSize = 12, Text = "Iniciando..." }, loading)
@@ -204,9 +205,13 @@ local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 
+-- 🛠️ FIX LOGO: Con logs de error si falla la descarga
 local function fetchLogo()
     local getAsset = getcustomasset or getsynasset
-    if type(writefile) ~= "function" or type(getAsset) ~= "function" then return nil end
+    if type(writefile) ~= "function" or type(getAsset) ~= "function" then 
+        warn("[Froggy] ⚠️ Tu executor no soporta 'getcustomasset'. El logo no se mostrará en la burbuja.")
+        return nil 
+    end
     local urlsToTry = { BASE_URL .. "logo.png?v=" .. os.time(), ROOT_URL .. "logo.png?v=" .. os.time() }
     for _, url in ipairs(urlsToTry) do
         local ok, data = pcall(function() return game:HttpGet(url, true) end)
@@ -218,6 +223,7 @@ local function fetchLogo()
             end
         end
     end
+    warn("[Froggy] ⚠️ No se encontró logo.png en GitHub o falló la conversión. Se usará la 'F' por defecto.")
     return nil
 end
 
@@ -441,15 +447,59 @@ end
 selectTab("ESP", true)
 applyPanelStyle()
 
+-- ==========================================
+-- 🛠️ BURBUJA (FIX LOGO)
+-- ==========================================
+local BUBBLE = 52
+local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BorderSizePixel = 0, AutoButtonColor = false, Text = "", Visible = false, ZIndex = 2 }, gui)
+bind(bubble, "BackgroundColor3", "Header"); corner(bubble, 99)
+local bubbleStroke = stroke(bubble, "Accent", 2)
+local bubbleScale = Instance.new("UIScale", bubble)
+local bubblePulse = TweenService:Create(bubbleStroke, TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Thickness = 4 })
+bubblePulse:Play(); table.insert(tweens, bubblePulse)
+
+-- 🛠️ EL LOGO SE PONE EN ZINDEX 3 PARA QUE SIEMPRE ESTÉ ARRIBA DE LA BURBUJA
+if logoAsset then 
+    new("ImageLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, -10, 1, -10), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Image = logoAsset, Active = false, ZIndex = 3 }, bubble)
+else 
+    bind(new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 22, Text = "F", Active = false, ZIndex = 3 }, bubble), "TextColor3", "Accent") 
+end
+
+bubble.MouseEnter:Connect(function() tween(bubbleScale, 0.12, { Scale = 1.12 }, Enum.EasingStyle.Back) end)
+bubble.MouseLeave:Connect(function() tween(bubbleScale, 0.12, { Scale = 1 }) end)
+
+local function setBubblePos(x, y) local sz = screenSize(); bubble.Position = UDim2.fromOffset(math.clamp(x, 0, math.max(0, sz.X - BUBBLE)), math.clamp(y, 0, math.max(0, sz.Y - BUBBLE))) end
+local minimizing = false
+local function restorePanel()
+    bubble.Visible = false; frame.Visible = true
+    setPanelPos(bubble.Position.X.Offset - 8, bubble.Position.Y.Offset - 8)
+    panelScale.Scale = 0.4; tween(panelScale, 0.3, { Scale = PanelConfig.Scale }, Enum.EasingStyle.Back)
+end
+local function minimizePanel()
+    if minimizing or not frame.Visible then return end
+    minimizing = true
+    setBubblePos(frame.Position.X.Offset + 8, frame.Position.Y.Offset + 8)
+    tween(panelScale, 0.18, { Scale = 0.4 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+    task.delay(PanelConfig.Animations and 0.18 or 0, function()
+        frame.Visible = false; bubble.Visible = true
+        bubbleScale.Scale = 0; tween(bubbleScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+        minimizing = false
+    end)
+end
+
+makeDraggable(bubble, function() return Vector2.new(bubble.Position.X.Offset, bubble.Position.Y.Offset) end, setBubblePos, restorePanel)
+minBtn.Activated:Connect(minimizePanel)
+
 -- Arrastre básico
-local function makeDraggable(handle, getPos, setPos)
+local function makeDraggable(handle, getPos, setPos, onTap)
     local active, startMouse, startPos, moved
     table.insert(connections, handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             active = input; startMouse = input.Position; startPos = getPos(); moved = false
             local conn; conn = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
-                    if active == input then active = nil; conn:Disconnect() end
+                    if active == input then active = nil; if not moved and onTap then onTap() end end
+                    conn:Disconnect()
                 end
             end)
         end
