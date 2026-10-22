@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v7.1: Sidebar Edition
+--// Main.lua - Froggy Hub (loader + panel) | UI v7.3: Auto Combat Removed
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -25,10 +25,9 @@ local LIFT_FILES = { "AutoLift.lua" }
 local DIAMOND_FILES = { "AutoDiamonds.lua" }
 local AFARM_FILES = { "AutoFarmPlayers.lua" }
 local HITBOX_FILES = { "HitboxExpander.lua" }
-local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v7.1"
+local HUB_VERSION = "v7.3"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -40,9 +39,7 @@ local LocalPlayer = Players.LocalPlayer
 
 if env.__BF_PANEL_CLEANUP then pcall(env.__BF_PANEL_CLEANUP) end
 
---========================================================
 -- TEMAS
---========================================================
 local THEMES = {
     { Name = "Froggy", Accent = Color3.fromRGB(110, 220, 90),  Accent2 = Color3.fromRGB(40, 170, 130),  Bg = Color3.fromRGB(16, 16, 22) },
     { Name = "Cyber",  Accent = Color3.fromRGB(255, 50, 150),  Accent2 = Color3.fromRGB(120, 80, 255),  Bg = Color3.fromRGB(20, 10, 30) },
@@ -59,9 +56,7 @@ local THEMES = {
 }
 local function themeByName(name) for _, t in ipairs(THEMES) do if t.Name == name then return t end end return THEMES[1] end
 
---========================================================
 -- AJUSTES GUARDADOS
---========================================================
 local SETTINGS_FILE = "FroggyHub_settings.json"
 local Saved = {}
 if type(isfile) == "function" and type(readfile) == "function" then
@@ -92,9 +87,7 @@ local function saveSettings()
     pcall(function() writefile(SETTINGS_FILE, HttpService:JSONEncode(Saved)) end)
 end
 
---========================================================
--- PALETA + BINDINGS (permiten cambiar de tema en vivo)
---========================================================
+-- PALETA + BINDINGS
 local C = { Danger = Color3.fromRGB(210, 70, 70), Text = Color3.fromRGB(240, 240, 245), Dim = Color3.fromRGB(150, 150, 165), AccentText = Color3.fromRGB(12, 14, 12) }
 local function setPalette(theme)
     local bg, white = theme.Bg, Color3.new(1, 1, 1)
@@ -105,27 +98,19 @@ end
 setPalette(themeByName(PanelConfig.Theme))
 
 local binds, gradients, refreshers = {}, {}, {}
-
 local function bind(o, prop, key) table.insert(binds, { o = o, p = prop, k = key }); o[prop] = C[key]; return o end
-
 local function tween(o, t, props, style, dir)
     if PanelConfig.Animations == false then t = 0 end
-    if t <= 0 then
-        for k, v in pairs(props) do pcall(function() o[k] = v end) end
-        return nil
-    end
+    if t <= 0 then for k, v in pairs(props) do pcall(function() o[k] = v end) end return nil end
     local tw = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), props)
-    tw:Play()
-    return tw
+    tw:Play(); return tw
 end
-
 local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
 local function corner(o, r) local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r); c.Parent = o; return c end
 local function stroke(o, key, thickness)
     local s = Instance.new("UIStroke"); s.Thickness = thickness or 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Parent = o
     bind(s, "Color", key or "Stroke"); return s
 end
-
 local function accentSeq() return ColorSequence.new(C.Accent, C.Accent2) end
 local function glowSeq() return ColorSequence.new({ ColorSequenceKeypoint.new(0, C.Accent), ColorSequenceKeypoint.new(0.5, C.Bg), ColorSequenceKeypoint.new(1, C.Accent2) }) end
 local function lineSeq()
@@ -162,15 +147,12 @@ local function cleanup()
     if env.__BF_DIAMOND_CLEANUP then pcall(env.__BF_DIAMOND_CLEANUP) end
     if env.__BF_AFARM_CLEANUP then pcall(env.__BF_AFARM_CLEANUP) end
     if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
-    if env.__BF_COMBAT_CLEANUP then pcall(env.__BF_COMBAT_CLEANUP) end
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
 end
 env.__BF_PANEL_CLEANUP = cleanup
 
---========================================================
 -- PANTALLA DE CARGA
---========================================================
 local loading = new("Frame", { Size = UDim2.fromOffset(260, 220), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0 }, gui)
 bind(loading, "BackgroundColor3", "Bg"); corner(loading, 14)
 local loadStroke = stroke(loading, "Accent", 2)
@@ -178,7 +160,6 @@ local loadScale = Instance.new("UIScale", loading); loadScale.Scale = 0.6
 tween(loadScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 local loadPulse = TweenService:Create(loadStroke, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Transparency = 0.75 })
 loadPulse:Play(); table.insert(tweens, loadPulse)
-
 local loadLogo = new("ImageLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 62), Size = UDim2.fromOffset(84, 84), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, ImageTransparency = 1 }, loading)
 local loadTitle = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 114), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = Color3.new(1, 1, 1), Text = "FROGGY HUB" }, loading)
 addGradient(loadTitle, accentSeq, 0)
@@ -224,9 +205,7 @@ if logoAsset then
     loadLogo.Image = logoAsset; tween(loadLogo, 0.3, { ImageTransparency = 0 })
 end
 
---========================================================
 -- CARGA DE MODULOS
---========================================================
 setProgress(0.3, "Cargando Interfaz Base...")
 local Config = nil
 if CurrentGameFolder == "ElementalMagicArena" then
@@ -242,21 +221,11 @@ local MoveConfig = loadOptional(MOVE_FILES, "Movement.lua", "BF_MOVE_CONFIG")
 local CamConfig = loadOptional(CAM_FILES, "Camlock.lua", "BF_CAM_CONFIG")
 local DodgeConfig = loadOptional(DODGE_FILES, "AutoDodge.lua", "BF_DODGE_CONFIG")
 
-local DiamondConfig, AFarmConfig, HitboxConfig, CombatConfig = nil, nil, nil, nil
+local DiamondConfig, AFarmConfig, HitboxConfig = nil, nil, nil
 if CurrentGameFolder == "ElementalMagicArena" then
     DiamondConfig = loadOptional(DIAMOND_FILES, "AutoDiamonds.lua", "BF_DIAMOND_CONFIG")
     AFarmConfig = loadOptional(AFARM_FILES, "AutoFarmPlayers.lua", "BF_AFARM_CONFIG")
     HitboxConfig = loadOptional(HITBOX_FILES, "HitboxExpander.lua", "BF_HITBOX_CONFIG")
-    CombatConfig = loadOptional(COMBAT_FILES, "AutoCombat.lua", "BF_COMBAT_CONFIG")
-
-    if not HitboxConfig then
-        HitboxConfig = { Enabled = false, Size = 25, TargetPart = "Torso", ShowVisual = true, IgnoreFriends = true }
-        env.BF_HITBOX_CONFIG = HitboxConfig
-    end
-    if not CombatConfig then
-        CombatConfig = { Enabled = false, AutoM1 = true, M1Delay = 0.03, BypassAnim = true, AutoSkills = true, SkillDelay = 1.0, SkillKeys = {"Z", "X", "C", "V"} }
-        env.BF_COMBAT_CONFIG = CombatConfig
-    end
 end
 
 local SAConfig = nil
@@ -270,9 +239,7 @@ local PotConfig = loadOptional(POT_FILES, "Potato.lua", "BF_POTATO")
 
 setProgress(1, "Listo"); task.wait(0.5)
 
---========================================================
 -- PANEL PRINCIPAL
---========================================================
 local function screenSize() local sz = gui.AbsoluteSize; if sz.X < 50 then local cam = workspace.CurrentCamera; sz = cam and cam.ViewportSize or Vector2.new(800, 600) end; return sz end
 local S0 = screenSize()
 local WIDTH = math.min(540, S0.X - 24); local HEIGHT = math.min(340, S0.Y - 20)
@@ -283,9 +250,7 @@ local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = 
 bind(frame, "BackgroundColor3", "Bg"); corner(frame, 18); stroke(frame, "Stroke")
 local panelScale = Instance.new("UIScale", frame); panelScale.Scale = 0.8
 
--- Fondo animado: gradiente giratorio + orbes + particulas
-local bgLayer = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 0 }, frame)
-corner(bgLayer, 18)
+local bgLayer = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 0 }, frame); corner(bgLayer, 18)
 local glow = new("Frame", { Size = UDim2.fromScale(1.6, 1.6), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.85, BorderSizePixel = 0, ZIndex = 0 }, bgLayer)
 local glowGrad = addGradient(glow, glowSeq, 0)
 
@@ -310,7 +275,6 @@ local function updateBgVisibility()
 end
 updateBgVisibility()
 
--- Cabecera
 local header = new("Frame", { Size = UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency = HEADER_T, BorderSizePixel = 0, Active = true }, frame)
 bind(header, "BackgroundColor3", "Header")
 local titleX = 14
@@ -332,7 +296,6 @@ local function headerButton(text, xOffset, hoverKey)
 end
 local closeBtn = headerButton("X", -40, "Danger"); local minBtn = headerButton("-", -76)
 
--- Barra lateral vertical (pestanas)
 local tabBar = new("ScrollingFrame", { Position = UDim2.fromOffset(0, HEADER_H + 2), Size = UDim2.new(0, SIDE_W, 1, -(HEADER_H + 2)), BackgroundTransparency = HEADER_T, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y }, frame)
 bind(tabBar, "BackgroundColor3", "Header"); corner(tabBar, 14)
 new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, tabBar)
@@ -340,7 +303,6 @@ new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), 
 local sideDivider = new("Frame", { Position = UDim2.new(0, SIDE_W, 0, HEADER_H + 2), Size = UDim2.new(0, 1, 1, -(HEADER_H + 2)), BorderSizePixel = 0 }, frame)
 bind(sideDivider, "BackgroundColor3", "Stroke")
 
--- Linea de acento con brillo en movimiento
 local accentLine = new("Frame", { Position = UDim2.fromOffset(0, HEADER_H), Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, frame)
 local lineGrad = addGradient(accentLine, lineSeq, 0)
 
@@ -509,20 +471,16 @@ if MoveConfig then
     local j = group(pMove, "Super Jump", function() return MoveConfig.JumpEnabled end, function(v) MoveConfig.JumpEnabled = v end)
     j:slider("Fuerza de salto", function() return MoveConfig.JumpPower end, function(v) MoveConfig.JumpPower = v end, 50, 300, 10)
 end
-
 if TpConfig then
     local t = group(pMove, "Teleport (botón TP)", function() return TpConfig.Enabled end, function(v) TpConfig.Enabled = v end)
     t:slider("Cooldown (seg)", function() return TpConfig.Cooldown end, function(v) TpConfig.Cooldown = v end, 1, 60, 1)
 end
 
--- CONTENIDO: COMBATE
-if CombatConfig then
-    local g = group(pCombat, "Auto Combat (M1 + Skills)", function() return CombatConfig.Enabled end, function(v) CombatConfig.Enabled = v end)
-    g:toggle("Auto M1 (Clics)", function() return CombatConfig.AutoM1 end, function(v) CombatConfig.AutoM1 = v end)
-    g:slider("Velocidad de Clic", function() return CombatConfig.M1Delay end, function(v) CombatConfig.M1Delay = v end, 0.01, 0.5, 0.01)
-    g:toggle("Bypass de Animación", function() return CombatConfig.BypassAnim end, function(v) CombatConfig.BypassAnim = v end)
-    g:toggle("Auto Skills (Z-X-C-V)", function() return CombatConfig.AutoSkills end, function(v) CombatConfig.AutoSkills = v end)
-    g:slider("Delay entre Skills", function() return CombatConfig.SkillDelay end, function(v) CombatConfig.SkillDelay = v end, 0.5, 5, 0.1)
+-- CONTENIDO: COMBATE (Auto Combat eliminado temporalmente)
+do
+    local combatCard = card(pCombat, "Auto Combat / Auto Click")
+    soon(combatCard, "Auto M1 (Clics Automáticos)")
+    soon(combatCard, "Auto Skills (Z-X-C-V)")
 end
 
 if CamConfig then
@@ -532,11 +490,8 @@ if CamConfig then
 end
 
 if HitboxConfig then
-    local g = group(pCombat, "Hitbox Expander (Selectivo)", function() return HitboxConfig.Enabled end, function(v) HitboxConfig.Enabled = v end)
+    local g = group(pCombat, "Hitbox Expander (Modo Dios)", function() return HitboxConfig.Enabled end, function(v) HitboxConfig.Enabled = v end)
     g:slider("Tamaño Hitbox", function() return HitboxConfig.Size end, function(v) HitboxConfig.Size = v end, 10, 100, 5)
-    g:toggle("Mostrar caja 3D", function() return HitboxConfig.ShowVisual end, function(v) HitboxConfig.ShowVisual = v end)
-    g:toggle("Expandir Torso", function() return HitboxConfig.TargetPart == "Torso" end, function(v) HitboxConfig.TargetPart = v and "Torso" or "HumanoidRootPart"; for _, r in ipairs(refreshers) do r() end end)
-    g:toggle("Expandir Cabeza", function() return HitboxConfig.TargetPart == "Head" end, function(v) HitboxConfig.TargetPart = v and "Head" or "HumanoidRootPart"; for _, r in ipairs(refreshers) do r() end end)
 end
 
 -- CONTENIDO: RENDIMIENTO
@@ -546,9 +501,7 @@ if PotConfig then
     g:toggle("Quitar texturas", function() return PotConfig.NoTextures end, function(v) PotConfig.NoTextures = v end)
 end
 
---========================================================
 -- ESTILO DEL PANEL + CAMBIO DE TEMA
---========================================================
 local function applyPanelStyle()
     local scale = PanelConfig.Scale or 1; local trans = PanelConfig.Transparency or 0
     tween(panelScale, 0.2, { Scale = scale }); tween(frame, 0.25, { BackgroundTransparency = trans })
@@ -566,19 +519,15 @@ local refreshThemeTiles = function() end
 local function applyTheme(theme)
     PanelConfig.Theme = theme.Name
     setPalette(theme)
-    for _, b in ipairs(binds) do
-        if b.o and b.o.Parent then tween(b.o, 0.35, { [b.p] = C[b.k] }) end
-    end
+    for _, b in ipairs(binds) do if b.o and b.o.Parent then tween(b.o, 0.35, { [b.p] = C[b.k] }) end end
     for _, g in ipairs(gradients) do pcall(function() g.g.Color = g.fn() end) end
     for _, r in ipairs(refreshers) do pcall(r) end
     if currentTab then selectTab(currentTab, true) end
-    refreshThemeTiles()
-    saveSettings()
+    refreshThemeTiles(); saveSettings()
 end
 
--- CONTENIDO: AJUSTES
+-- AJUSTES
 do
-    -- Temas (cuadricula con vista previa)
     local themeCard = card(pAjustes, "Temas de color")
     local grid = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, themeCard)
     new("UIGridLayout", { CellSize = UDim2.new(1 / 4, -6, 0, 50), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal }, grid)
@@ -607,7 +556,6 @@ do
     end
     refreshThemeTiles()
 
-    -- Apariencia
     local ap = card(pAjustes, "Apariencia del panel")
     local presetRow = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1 }, ap)
     new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, presetRow)
@@ -625,18 +573,15 @@ do
     slider(ap, "Escala del panel", function() return PanelConfig.Scale end, function(v) PanelConfig.Scale = v; PanelConfig.Mode = "Personalizado"; applyPanelStyle(); refreshPresets(); saveSettings() end, 0.65, 1.4, 0.05)
     slider(ap, "Transparencia", function() return PanelConfig.Transparency end, function(v) PanelConfig.Transparency = v; PanelConfig.Mode = "Personalizado"; applyPanelStyle(); refreshPresets(); saveSettings() end, 0, 0.85, 0.05)
 
-    -- Efectos
     local fx = card(pAjustes, "Efectos y animaciones")
     switchRow(fx, "Fondo animado", function() return PanelConfig.AnimBg end, function(v) PanelConfig.AnimBg = v; updateBgVisibility(); saveSettings() end)
     slider(fx, "Cantidad de partículas", function() return PanelConfig.Particles end, function(v) PanelConfig.Particles = math.floor(v); updateBgVisibility(); saveSettings() end, 0, MAX_P, 2)
     switchRow(fx, "Animaciones de interfaz", function() return PanelConfig.Animations end, function(v) PanelConfig.Animations = v; saveSettings() end)
 
-    -- Informacion y reinicio
     local info = card(pAjustes, "Información")
     infoRow(info, "Versión", HUB_VERSION)
     infoRow(info, "Juego", GameDisplayName)
     infoRow(info, "Mostrar / ocultar", "Ctrl Der.")
-    infoRow(info, "Tema actual", "-")
     actionButton(info, "Restablecer ajustes", function()
         PanelConfig.Mode = "Normal"; PanelConfig.Scale = 1; PanelConfig.Transparency = 0
         PanelConfig.AnimBg = true; PanelConfig.Particles = 16; PanelConfig.Animations = true
@@ -645,7 +590,6 @@ do
     end, true)
 end
 
--- CONTENIDO: MISC
 do
     local sc = card(pMisc, "Próximamente")
     for _, name in ipairs({ "Fly", "Noclip", "Fruit Finder", "Server Hop", "Anti-AFK" }) do soon(sc, name) end
@@ -655,9 +599,7 @@ end
 selectTab("ESP", true)
 applyPanelStyle()
 
---========================================================
 -- ARRASTRE, BURBUJA Y ATAJOS
---========================================================
 local function clampPanel(x, y) local sz = screenSize(); local scale = PanelConfig.Scale or 1; return math.clamp(x, 0, math.max(0, sz.X - WIDTH * scale)), math.clamp(y, 0, math.max(0, sz.Y - HEIGHT * scale)) end
 local function setPanelPos(x, y) x, y = clampPanel(x, y); frame.Position = UDim2.fromOffset(x, y) end
 
@@ -731,7 +673,6 @@ closeBtn.Activated:Connect(function()
     task.delay(PanelConfig.Animations and 0.22 or 0, cleanup)
 end)
 
--- Bucle de animacion del fondo
 local t0 = os.clock()
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     if not frame.Visible or not PanelConfig.AnimBg then return end
