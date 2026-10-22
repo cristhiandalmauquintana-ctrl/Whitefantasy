@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v7.4: Auto Combat & Hitbox Restored
+--// Main.lua - Froggy Hub (loader + panel) | UI v7.6: Logo Fix + Hitbox Hardcoded 35
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -12,12 +12,13 @@ local SUPPORTED_GAMES = {
 local CurrentGameFolder = SUPPORTED_GAMES[game.PlaceId] or "Universal"
 local GameDisplayName = (CurrentGameFolder == "BloxFruits" and "Blox Fruits") or (CurrentGameFolder == "ElementalMagicArena" and "Elemental Magic Arena") or "Universal"
 
--- 🛠️ FIX 1: Rutas correctas. Blox Fruits está suelto en la raíz, ElemMagic en su carpeta.
+-- Rutas base
+local ROOT_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
 local BASE_URL
 if CurrentGameFolder == "BloxFruits" then
-    BASE_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
+    BASE_URL = ROOT_URL
 else
-    BASE_URL = ("https://raw.githubusercontent.com/%s/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH, CurrentGameFolder)
+    BASE_URL = ROOT_URL .. CurrentGameFolder .. "/"
 end
 
 local ESP_FILES = { "Esp.lua" }
@@ -32,10 +33,10 @@ local LIFT_FILES = { "AutoLift.lua" }
 local DIAMOND_FILES = { "AutoDiamonds.lua" }
 local AFARM_FILES = { "AutoFarmPlayers.lua" }
 local HITBOX_FILES = { "HitboxExpander.lua" }
-local COMBAT_FILES = { "AutoCombat.lua" } -- 🛠️ Restaurado
+local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v7.4"
+local HUB_VERSION = "v7.6"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -182,18 +183,30 @@ local barFill = new("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = 
 corner(barFill, 99); addGradient(barFill, accentSeq, 0)
 
 local function setProgress(fraction, text) tween(barFill, 0.35, { Size = UDim2.fromScale(fraction, 1) }); if text then loadStatus.Text = text end end
+
+-- Logo (Busca en la carpeta y en la raíz)
 local function fetchLogo()
     local getAsset = getcustomasset or getsynasset
     if type(writefile) ~= "function" or type(getAsset) ~= "function" then return nil end
-    for _, name in ipairs(LOGO_FILES) do
-        local ok, data = pcall(function() return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true) end)
+    
+    local urlsToTry = {
+        BASE_URL .. "logo.png?v=" .. os.time(),
+        ROOT_URL .. "logo.png?v=" .. os.time()
+    }
+    
+    for _, url in ipairs(urlsToTry) do
+        local ok, data = pcall(function() return game:HttpGet(url, true) end)
         if ok and type(data) == "string" and #data > 8 and data:sub(2, 4) == "PNG" then
             local path = "FroggyHub_logo.png"
-            if pcall(writefile, path, data) then local okAsset, asset = pcall(getAsset, path); if okAsset and asset and asset ~= "" then return asset end end
+            if pcall(writefile, path, data) then 
+                local okAsset, asset = pcall(getAsset, path)
+                if okAsset and asset and asset ~= "" then return asset end 
+            end
         end
     end
     return nil
 end
+
 local function downloadModule(names)
     for _, name in ipairs(names) do
         local ok, res = pcall(function() return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true) end)
@@ -202,7 +215,6 @@ local function downloadModule(names)
     return nil
 end
 
--- 🛠️ FIX 2: Loader a prueba de fallos y lectura de env corregida
 local function loadOptional(names, label, configKey)
     local src = downloadModule(names)
     if not src then warn("[Froggy] ❌ " .. (label or "?") .. ": descarga falló (404)"); return nil end
@@ -227,10 +239,10 @@ setProgress(0.3, "Cargando Interfaz Base...")
 local Config = nil
 if CurrentGameFolder == "ElementalMagicArena" then
     local source = downloadModule(ELEM_ESP_FILES)
-    if source then local fn = loadstring(source); if fn then pcall(fn); Config = env.BF_ESP_CONFIG end end
+    if source then local fn = loadstring(source); if fn then pcall(fn); Config = env.BF_ESP_CONFIG or _G.BF_ESP_CONFIG end end
 else
     local source = downloadModule(ESP_FILES)
-    if source then local fn = loadstring(source); if fn then pcall(fn); Config = env.BF_ESP_CONFIG end end
+    if source then local fn = loadstring(source); if fn then pcall(fn); Config = env.BF_ESP_CONFIG or _G.BF_ESP_CONFIG end end
 end
 if not Config then Config = { Enabled = false, ToggleKey = Enum.KeyCode.RightShift } end
 
@@ -245,7 +257,6 @@ if CurrentGameFolder == "ElementalMagicArena" then
     DiamondConfig = loadOptional(DIAMOND_FILES, "AutoDiamonds.lua", "BF_DIAMOND_CONFIG")
     AFarmConfig = loadOptional(AFARM_FILES, "AutoFarmPlayers.lua", "BF_AFARM_CONFIG")
     
-    -- HITBOX EXPANDER (Stub para que la UI no desaparezca)
     HitboxConfig = loadOptional(HITBOX_FILES, "HitboxExpander.lua", "BF_HITBOX_CONFIG")
     if not HitboxConfig then
         HitboxLoadFailed = true
@@ -253,7 +264,6 @@ if CurrentGameFolder == "ElementalMagicArena" then
         env.BF_HITBOX_CONFIG = HitboxConfig
     end
 
-    -- AUTO COMBAT (Restaurado)
     CombatConfig = loadOptional(COMBAT_FILES, "AutoCombat.lua", "BF_COMBAT_CONFIG")
 end
 
@@ -505,9 +515,8 @@ if TpConfig then
     t:slider("Cooldown (seg)", function() return TpConfig.Cooldown end, function(v) TpConfig.Cooldown = v end, 1, 60, 1)
 end
 
--- CONTENIDO: COMBATE 🛠️ RESTAURADO COMPLETO
+-- CONTENIDO: COMBATE
 do
-    -- 1. AUTO COMBAT
     if CurrentGameFolder == "ElementalMagicArena" then
         if CombatConfig then
             local g = group(pCombat, "Auto Combat", function() return CombatConfig.Enabled end, function(v) CombatConfig.Enabled = v end)
@@ -520,7 +529,6 @@ do
             soon(combatCard, "AutoCombat.lua no cargado")
         end
 
-        -- 2. HITBOX EXPANDER
         if HitboxLoadFailed then
             local warnCard = card(pCombat, "⚠️ Hitbox Expander no cargado")
             bind(new("TextLabel", {
@@ -531,12 +539,25 @@ do
             }, warnCard), "TextColor3", "Danger")
         end
         
-        local g = group(pCombat, "Hitbox Expander (Modo Dios)",
+        -- Forzamos el tamaño a 35 Studs (Cuerpo entero) para que nunca haya slider
+        HitboxConfig.Size = 35
+
+        local g = group(pCombat, "Hitbox Expander (Cuerpo Entero)",
             function() return HitboxConfig.Enabled end,
-            function(v) HitboxConfig.Enabled = v end)
-        g:slider("Tamaño Hitbox", function() return HitboxConfig.Size end, function(v) HitboxConfig.Size = v end, 10, 100, 5)
-        g:slider("Transparencia", function() return HitboxConfig.Transparency or 0.7 end, function(v) HitboxConfig.Transparency = v end, 0, 1, 0.05)
+            function(v) 
+                HitboxConfig.Enabled = v 
+                -- Aseguramos que cuando se prenda, el tamaño sea 35
+                if v then HitboxConfig.Size = 35 end
+            end)
+            
         g:toggle("Ignorar amigos", function() return HitboxConfig.IgnoreFriends ~= false end, function(v) HitboxConfig.IgnoreFriends = v end)
+        
+        -- Texto informativo para reemplazar el slider
+        bind(new("TextLabel", { 
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 20), 
+            Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, 
+            Text = "Tamaño fijo al máximo: 35 studs (Toda la hitbox)", TextColor3 = C.Dim 
+        }, g.sub), "TextColor3", "Dim")
     end
 end
 
