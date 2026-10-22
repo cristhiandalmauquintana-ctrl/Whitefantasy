@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v7.0: Animated Edition
+--// Main.lua - Froggy Hub (loader + panel) | UI v7.1: Sidebar Edition
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -28,7 +28,7 @@ local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v7.0"
+local HUB_VERSION = "v7.1"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -275,17 +275,17 @@ setProgress(1, "Listo"); task.wait(0.5)
 --========================================================
 local function screenSize() local sz = gui.AbsoluteSize; if sz.X < 50 then local cam = workspace.CurrentCamera; sz = cam and cam.ViewportSize or Vector2.new(800, 600) end; return sz end
 local S0 = screenSize()
-local WIDTH = math.min(340, S0.X - 24); local HEIGHT = math.min(480, S0.Y - 20)
-local HEADER_H = 46; local TAB_H = 40
+local WIDTH = math.min(540, S0.X - 24); local HEIGHT = math.min(340, S0.Y - 20)
+local HEADER_H = 46; local SIDE_W = 118
 local HEADER_T, CARD_T = 0.3, 0.2
 
 local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromOffset(math.floor((S0.X - WIDTH) / 2), math.floor((S0.Y - HEIGHT) / 2)), BorderSizePixel = 0, ClipsDescendants = true, Active = true, Visible = false }, gui)
-bind(frame, "BackgroundColor3", "Bg"); corner(frame, 14); stroke(frame, "Stroke")
+bind(frame, "BackgroundColor3", "Bg"); corner(frame, 18); stroke(frame, "Stroke")
 local panelScale = Instance.new("UIScale", frame); panelScale.Scale = 0.8
 
 -- Fondo animado: gradiente giratorio + orbes + particulas
 local bgLayer = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 0 }, frame)
-corner(bgLayer, 14)
+corner(bgLayer, 18)
 local glow = new("Frame", { Size = UDim2.fromScale(1.6, 1.6), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.85, BorderSizePixel = 0, ZIndex = 0 }, bgLayer)
 local glowGrad = addGradient(glow, glowSeq, 0)
 
@@ -332,16 +332,19 @@ local function headerButton(text, xOffset, hoverKey)
 end
 local closeBtn = headerButton("X", -40, "Danger"); local minBtn = headerButton("-", -76)
 
-local tabBar = new("ScrollingFrame", { Position = UDim2.fromOffset(0, HEADER_H), Size = UDim2.new(1, 0, 0, TAB_H), BackgroundTransparency = HEADER_T, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X }, frame)
-bind(tabBar, "BackgroundColor3", "Header")
-new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center }, tabBar)
-new("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }, tabBar)
+-- Barra lateral vertical (pestanas)
+local tabBar = new("ScrollingFrame", { Position = UDim2.fromOffset(0, HEADER_H + 2), Size = UDim2.new(0, SIDE_W, 1, -(HEADER_H + 2)), BackgroundTransparency = HEADER_T, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y }, frame)
+bind(tabBar, "BackgroundColor3", "Header"); corner(tabBar, 14)
+new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, tabBar)
+new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10) }, tabBar)
+local sideDivider = new("Frame", { Position = UDim2.new(0, SIDE_W, 0, HEADER_H + 2), Size = UDim2.new(0, 1, 1, -(HEADER_H + 2)), BorderSizePixel = 0 }, frame)
+bind(sideDivider, "BackgroundColor3", "Stroke")
 
 -- Linea de acento con brillo en movimiento
-local accentLine = new("Frame", { Position = UDim2.fromOffset(0, HEADER_H + TAB_H), Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, frame)
+local accentLine = new("Frame", { Position = UDim2.fromOffset(0, HEADER_H), Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, frame)
 local lineGrad = addGradient(accentLine, lineSeq, 0)
 
-local BODY_Y = HEADER_H + TAB_H + 2; local pages, tabButtons = {}, {}; local order = 0
+local BODY_Y = HEADER_H + 2; local pages, tabButtons = {}, {}; local order = 0
 local function nextOrder() order = order + 1 return order end
 local currentTab = nil
 
@@ -352,8 +355,8 @@ local function selectTab(name, instant)
         page.Visible = on
         tween(tabButtons[n], 0.2, { BackgroundColor3 = on and C.Accent or C.Row, TextColor3 = on and C.AccentText or C.Dim })
         if on and not instant then
-            page.Position = UDim2.fromOffset(26, BODY_Y + 8)
-            tween(page, 0.3, { Position = UDim2.fromOffset(8, BODY_Y + 8) }, Enum.EasingStyle.Back)
+            page.Position = UDim2.fromOffset(SIDE_W + 26, BODY_Y + 8)
+            tween(page, 0.3, { Position = UDim2.fromOffset(SIDE_W + 8, BODY_Y + 8) }, Enum.EasingStyle.Back)
             local i = 0
             for _, ch in ipairs(page:GetChildren()) do
                 if ch:IsA("Frame") then
@@ -366,14 +369,14 @@ local function selectTab(name, instant)
 end
 
 local function createPage(name, index)
-    local page = new("ScrollingFrame", { Position = UDim2.fromOffset(8, BODY_Y + 8), Size = UDim2.new(1, -16, 1, -(BODY_Y + 14)), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, Visible = false }, frame)
+    local page = new("ScrollingFrame", { Position = UDim2.fromOffset(SIDE_W + 8, BODY_Y + 8), Size = UDim2.new(1, -(SIDE_W + 16), 1, -(BODY_Y + 14)), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, Visible = false }, frame)
     bind(page, "ScrollBarImageColor3", "Accent")
     new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, page)
     new("UIPadding", { PaddingBottom = UDim.new(0, 8), PaddingRight = UDim.new(0, 6) }, page)
     pages[name] = page
-    local b = new("TextButton", { LayoutOrder = index, Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 12, Text = name, AutoButtonColor = false }, tabBar)
+    local b = new("TextButton", { LayoutOrder = index, Size = UDim2.new(1, 0, 0, 34), BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Text = name, AutoButtonColor = false }, tabBar)
     b.BackgroundColor3 = C.Row; b.TextColor3 = C.Dim
-    corner(b, 13); new("UIPadding", { PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14) }, b)
+    corner(b, 9); new("UIPadding", { PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 8) }, b)
     b.Activated:Connect(function() if currentTab ~= name then selectTab(name) end end)
     b.MouseEnter:Connect(function() if currentTab ~= name then tween(b, 0.12, { BackgroundColor3 = C.Stroke, TextColor3 = C.Text }) end end)
     b.MouseLeave:Connect(function() if currentTab ~= name then tween(b, 0.12, { BackgroundColor3 = C.Row, TextColor3 = C.Dim }) end end)
@@ -578,7 +581,7 @@ do
     -- Temas (cuadricula con vista previa)
     local themeCard = card(pAjustes, "Temas de color")
     local grid = new("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, themeCard)
-    new("UIGridLayout", { CellSize = UDim2.new(1 / 3, -6, 0, 50), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal }, grid)
+    new("UIGridLayout", { CellSize = UDim2.new(1 / 4, -6, 0, 50), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal }, grid)
     local tiles = {}
     for i, t in ipairs(THEMES) do
         local tile = new("TextButton", { LayoutOrder = i, BackgroundColor3 = t.Bg, BorderSizePixel = 0, Text = "", AutoButtonColor = false }, grid)
@@ -715,7 +718,7 @@ makeDraggable(bubble, function() return Vector2.new(bubble.Position.X.Offset, bu
 minBtn.Activated:Connect(minimizePanel)
 
 table.insert(connections, gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-    local sz = screenSize(); WIDTH = math.min(340, sz.X - 24); HEIGHT = math.min(480, sz.Y - 20)
+    local sz = screenSize(); WIDTH = math.min(540, sz.X - 24); HEIGHT = math.min(340, sz.Y - 20)
     frame.Size = UDim2.fromOffset(WIDTH, HEIGHT); setPanelPos(frame.Position.X.Offset, frame.Position.Y.Offset); setBubblePos(bubble.Position.X.Offset, bubble.Position.Y.Offset)
 end))
 
