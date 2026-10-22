@@ -249,7 +249,7 @@ repeat task.wait() until selectionMade
 -- ==========================================
 
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v9.1"
+local HUB_VERSION = "v9.2"
 
 -- ==========================================
 -- 🛸 PANTALLA DE CARGA
