@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v10.0: Starship + God Mode
+--// Main.lua - Froggy Hub (loader + panel) | UI v10.1: Starship + Bugfix Selector
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -163,7 +163,15 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local gui = new("ScreenGui", { Name = "FroggyHub_" .. tostring(math.random(1000, 9999)), ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, getParent())
+-- 🛠️ LIMPIEZA DE EJECUCIONES ANTERIORES
+local parentUI = getParent()
+for _, obj in ipairs(parentUI:GetChildren()) do
+    if obj.Name:match("^FroggyHub_") then
+        obj:Destroy()
+    end
+end
+
+local gui = new("ScreenGui", { Name = "FroggyHub_" .. tostring(math.random(1000, 9999)), ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, parentUI)
 local connections = {}
 local tweens = {}
 
@@ -190,67 +198,72 @@ end
 env.__BF_PANEL_CLEANUP = cleanup
 
 -- ==========================================
--- 🚀 SELECTOR DE JUEGO
+-- 🚀 SELECTOR DE JUEGO (CON MEMORIA)
 -- ==========================================
-local CurrentGameFolder = "Universal"
-local GameDisplayName = "Universal"
+local CurrentGameFolder = env.BF_SELECTED_GAME or "Universal"
+local GameDisplayName = (CurrentGameFolder == "BloxFruits" and "Blox Fruits") or (CurrentGameFolder == "ElementalMagicArena" and "Elemental Magic Arena") or "Universal"
 local ROOT_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
 local BASE_URL = ROOT_URL
+if CurrentGameFolder == "ElementalMagicArena" then BASE_URL = ROOT_URL .. "ElementalMagicArena/" end
 
-local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 999 }, gui)
-bind(promptGui, "BackgroundColor3", "Bg"); stroke(promptGui, "Accent", 2)
-brackets(promptGui, "Accent", 14, 2, 4)
-local promptScale = Instance.new("UIScale", promptGui); promptScale.Scale = 0.6
-tween(promptScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+-- Si no hay juego guardado, mostramos el selector
+if not env.BF_SELECTED_GAME then
+    local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 999 }, gui)
+    bind(promptGui, "BackgroundColor3", "Bg"); stroke(promptGui, "Accent", 2)
+    brackets(promptGui, "Accent", 14, 2, 4)
+    local promptScale = Instance.new("UIScale", promptGui); promptScale.Scale = 0.6
+    tween(promptScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 
-local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
-addGradient(pTop, accentSeq, 0)
-bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
-local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.new(1, 1, 1), Text = "// SELECCIONA TU DESTINO //" }, promptGui)
-addGradient(pSub, accentSeq, 0)
+    local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
+    addGradient(pTop, accentSeq, 0)
+    bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
+    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.new(1, 1, 1), Text = "// SELECCIONA TU DESTINO //" }, promptGui)
+    addGradient(pSub, accentSeq, 0)
 
-local selectionMade = false
-local function finishSelection(folder, display)
-    if selectionMade then return end
-    selectionMade = true
-    CurrentGameFolder = folder
-    GameDisplayName = display
-    if CurrentGameFolder == "BloxFruits" then BASE_URL = ROOT_URL else BASE_URL = ROOT_URL .. CurrentGameFolder .. "/" end
-    promptGui:Destroy()
+    local selectionMade = false
+    local function finishSelection(folder, display)
+        if selectionMade then return end
+        selectionMade = true
+        env.BF_SELECTED_GAME = folder -- 🛠️ Guardar en memoria
+        CurrentGameFolder = folder
+        GameDisplayName = display
+        if CurrentGameFolder == "BloxFruits" then BASE_URL = ROOT_URL else BASE_URL = ROOT_URL .. CurrentGameFolder .. "/" end
+        promptGui:Destroy()
+    end
+
+    local function makeChoice(y, text, onPick)
+        local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 2 }, promptGui)
+        bind(b, "BackgroundColor3", "Row")
+        local st = stroke(b, "Stroke", 1)
+        local bar = new("Frame", { Size = UDim2.new(0, 3, 1, 0), BorderSizePixel = 0, ZIndex = 3 }, b)
+        bind(bar, "BackgroundColor3", "Accent")
+        local lbl = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(20, 0), Size = UDim2.new(1, -50, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Text = text, ZIndex = 3 }, b)
+        bind(lbl, "TextColor3", "Text")
+        local arrow = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -18, 0.5, 0), Size = UDim2.fromOffset(8, 8), Rotation = 45, BorderSizePixel = 0, ZIndex = 3 }, b)
+        bind(arrow, "BackgroundColor3", "Accent2")
+        local bs = Instance.new("UIScale", b)
+        b.MouseEnter:Connect(function()
+            tween(st, 0.15, { Color = C.Accent }); tween(bar, 0.2, { Size = UDim2.new(0, 8, 1, 0) }, Enum.EasingStyle.Back)
+            tween(arrow, 0.2, { Position = UDim2.new(1, -12, 0.5, 0), Rotation = 135 }, Enum.EasingStyle.Back)
+        end)
+        b.MouseLeave:Connect(function()
+            tween(st, 0.15, { Color = C.Stroke }); tween(bar, 0.2, { Size = UDim2.new(0, 3, 1, 0) })
+            tween(arrow, 0.2, { Position = UDim2.new(1, -18, 0.5, 0), Rotation = 45 })
+        end)
+        b.MouseButton1Down:Connect(function() tween(bs, 0.08, { Scale = 0.96 }) end)
+        b.Activated:Connect(onPick)
+        return b
+    end
+    makeChoice(78, "Elemental Magic Arena", function() finishSelection("ElementalMagicArena", "Elemental Magic Arena") end)
+    makeChoice(134, "Blox Fruits", function() finishSelection("BloxFruits", "Blox Fruits") end)
+    bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 1, -28), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.Gotham, TextSize = 10, Text = "FROGGY HUB  //  SISTEMAS EN ESPERA" }, promptGui), "TextColor3", "Dim")
+
+    repeat task.wait() until selectionMade
 end
-
-local function makeChoice(y, text, onPick)
-    local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 2 }, promptGui)
-    bind(b, "BackgroundColor3", "Row")
-    local st = stroke(b, "Stroke", 1)
-    local bar = new("Frame", { Size = UDim2.new(0, 3, 1, 0), BorderSizePixel = 0, ZIndex = 3 }, b)
-    bind(bar, "BackgroundColor3", "Accent")
-    local lbl = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(20, 0), Size = UDim2.new(1, -50, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Text = text, ZIndex = 3 }, b)
-    bind(lbl, "TextColor3", "Text")
-    local arrow = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -18, 0.5, 0), Size = UDim2.fromOffset(8, 8), Rotation = 45, BorderSizePixel = 0, ZIndex = 3 }, b)
-    bind(arrow, "BackgroundColor3", "Accent2")
-    local bs = Instance.new("UIScale", b)
-    b.MouseEnter:Connect(function()
-        tween(st, 0.15, { Color = C.Accent }); tween(bar, 0.2, { Size = UDim2.new(0, 8, 1, 0) }, Enum.EasingStyle.Back)
-        tween(arrow, 0.2, { Position = UDim2.new(1, -12, 0.5, 0), Rotation = 135 }, Enum.EasingStyle.Back)
-    end)
-    b.MouseLeave:Connect(function()
-        tween(st, 0.15, { Color = C.Stroke }); tween(bar, 0.2, { Size = UDim2.new(0, 3, 1, 0) })
-        tween(arrow, 0.2, { Position = UDim2.new(1, -18, 0.5, 0), Rotation = 45 })
-    end)
-    b.MouseButton1Down:Connect(function() tween(bs, 0.08, { Scale = 0.96 }) end)
-    b.Activated:Connect(onPick)
-    return b
-end
-makeChoice(78, "Elemental Magic Arena", function() finishSelection("ElementalMagicArena", "Elemental Magic Arena") end)
-makeChoice(134, "Blox Fruits", function() finishSelection("BloxFruits", "Blox Fruits") end)
-bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 1, -28), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.Gotham, TextSize = 10, Text = "FROGGY HUB  //  SISTEMAS EN ESPERA" }, promptGui), "TextColor3", "Dim")
-
-repeat task.wait() until selectionMade
 -- ==========================================
 
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v10.0"
+local HUB_VERSION = "v10.1"
 
 -- ==========================================
 -- 🛸 PANTALLA DE CARGA
@@ -379,7 +392,6 @@ local function fetchLogo()
     return nil
 end
 
--- 🛠️ FALLBACK: Busca en la carpeta del juego, si falla busca en la raíz
 local function downloadModule(names)
     for _, name in ipairs(names) do
         local ok, res = pcall(function() return game:HttpGet(BASE_URL .. name .. "?v=" .. os.time(), true) end)
@@ -455,7 +467,6 @@ local TpConfig = loadOptional(TP_FILES, "Teleport.lua", "BF_TP_CONFIG")
 local LiftConfig = loadOptional(LIFT_FILES, "AutoLift.lua", "BF_LIFT_CONFIG")
 local PotConfig = loadOptional(POT_FILES, "Potato.lua", "BF_POTATO")
 
--- 🛠️ Cargar el mensaje del chat (con el nuevo sistema Fallback)
 loadOptional(CHAT_FILES, "ChatMessage.lua", "BF_CHAT_CONFIG")
 
 setProgress(1, "Sistemas en linea. Listo")
