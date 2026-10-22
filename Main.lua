@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v10.1: Starship + Bugfix Selector
+--// Main.lua - Froggy Hub (loader + panel) | UI v10.2: Starship + Bugfix Selector
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -200,14 +200,13 @@ env.__BF_PANEL_CLEANUP = cleanup
 -- ==========================================
 -- 🚀 SELECTOR DE JUEGO (CON MEMORIA)
 -- ==========================================
-local CurrentGameFolder = env.BF_SELECTED_GAME or "Universal"
+local CurrentGameFolder = env.BF_SELECTED_GAME or _G.BF_SELECTED_GAME or "Universal"
 local GameDisplayName = (CurrentGameFolder == "BloxFruits" and "Blox Fruits") or (CurrentGameFolder == "ElementalMagicArena" and "Elemental Magic Arena") or "Universal"
 local ROOT_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
 local BASE_URL = ROOT_URL
 if CurrentGameFolder == "ElementalMagicArena" then BASE_URL = ROOT_URL .. "ElementalMagicArena/" end
 
--- Si no hay juego guardado, mostramos el selector
-if not env.BF_SELECTED_GAME then
+if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
     local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 999 }, gui)
     bind(promptGui, "BackgroundColor3", "Bg"); stroke(promptGui, "Accent", 2)
     brackets(promptGui, "Accent", 14, 2, 4)
@@ -217,14 +216,14 @@ if not env.BF_SELECTED_GAME then
     local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
     addGradient(pTop, accentSeq, 0)
     bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
-    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.new(1, 1, 1), Text = "// SELECCIONA TU DESTINO //" }, promptGui)
-    addGradient(pSub, accentSeq, 0)
-
+    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v10.2" }, promptGui) -- 🛠️ TAG DE VERSIÓN VISIBLE
+    
     local selectionMade = false
     local function finishSelection(folder, display)
         if selectionMade then return end
         selectionMade = true
-        env.BF_SELECTED_GAME = folder -- 🛠️ Guardar en memoria
+        env.BF_SELECTED_GAME = folder
+        _G.BF_SELECTED_GAME = folder -- Guardar en ambos por si las dudas
         CurrentGameFolder = folder
         GameDisplayName = display
         if CurrentGameFolder == "BloxFruits" then BASE_URL = ROOT_URL else BASE_URL = ROOT_URL .. CurrentGameFolder .. "/" end
@@ -263,7 +262,7 @@ end
 -- ==========================================
 
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v10.1"
+local HUB_VERSION = "v10.2"
 
 -- ==========================================
 -- 🛸 PANTALLA DE CARGA
