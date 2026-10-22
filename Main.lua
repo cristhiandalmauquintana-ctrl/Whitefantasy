@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v7.7: Chat Announcement + Logo Fix + Hitbox 35
+--// Main.lua - Froggy Hub (loader + panel) | UI v7.8: Chat Fix + Hitbox 35
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -36,7 +36,7 @@ local HITBOX_FILES = { "HitboxExpander.lua" }
 local COMBAT_FILES = { "AutoCombat.lua" }
 local LOGO_FILES = { "logo.png" }
 local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-local HUB_VERSION = "v7.7"
+local HUB_VERSION = "v7.8"
 
 local env = (getgenv and getgenv()) or _G
 local Players = game:GetService("Players")
@@ -45,6 +45,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
+local TextChatService = game:GetService("TextChatService")
 local LocalPlayer = Players.LocalPlayer
 
 if env.__BF_PANEL_CLEANUP then pcall(env.__BF_PANEL_CLEANUP) end
@@ -773,18 +774,43 @@ frame.Visible = true; tween(panelScale, 0.35, { Scale = PanelConfig.Scale }, Enu
 selectTab("ESP")
 print("[Froggy Hub] Panel " .. HUB_VERSION .. " cargado con éxito para: " .. GameDisplayName)
 
--- 🐸 ANUNCIO EN EL CHAT
+-- 🐸 ANUNCIO EN EL CHAT (SISTEMA NUEVO Y VIEJO CON REINTENTOS)
 local function sendChatAnnouncement()
-    local success, err = pcall(function()
-        StarterGui:SetCore("ChatMakeSystemMessage", {
-            Text = "🐸 [Froggy Hub] FroggyHub On Top! 🚀 Hecho por Froggy / kinnnnj8 🔥",
-            Color = Color3.fromRGB(110, 220, 90),
-            Font = Enum.Font.GothamBold,
-        })
+    local text = "🐸 [Froggy Hub] FroggyHub On Top! 🚀 Hecho por Froggy / kinnnnj8 🔥"
+    local colorHex = "#6EDC5A" -- Verde Froggy
+    local colorRgb = Color3.fromRGB(110, 220, 90)
+
+    task.spawn(function()
+        for i = 1, 10 do
+            local success = false
+
+            -- 1. Intentar con el NUEVO sistema de chat (TextChatService)
+            local ok1, err1 = pcall(function()
+                if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+                    TextChatService:DisplaySystemMessage("<font color='" .. colorHex .. "'>" .. text .. "</font>")
+                    success = true
+                end
+            end)
+
+            -- 2. Intentar con el sistema VIEJO (StarterGui)
+            if not success then
+                local ok2, err2 = pcall(function()
+                    StarterGui:SetCore("ChatMakeSystemMessage", {
+                        Text = text,
+                        Color = colorRgb,
+                        Font = Enum.Font.GothamBold,
+                    })
+                    success = true
+                end)
+            end
+
+            -- Si funcionó, dejamos de intentar
+            if success then break end
+
+            -- Si falló, esperamos 1 segundo y lo volvemos a intentar
+            task.wait(1)
+        end
     end)
-    if not success then
-        warn("[Froggy Hub] No se pudo enviar el mensaje al chat: " .. tostring(err))
-    end
 end
 
-task.delay(1, sendChatAnnouncement)
+task.delay(2, sendChatAnnouncement) -- Le damos 2 segundos de margen para que cargue el chat del juego
