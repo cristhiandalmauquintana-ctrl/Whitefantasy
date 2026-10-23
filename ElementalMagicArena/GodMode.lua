@@ -1,15 +1,13 @@
---// Main.lua - Froggy Hub | UI v16.0 (GitHub Ready - Dual Game Support)
+--// Main.lua - Froggy Hub | UI v16.1 (Fixed + No GodMode)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 
--- Limpieza en PlayerGui (Evita crasheos en Delta)
 local parentGui = LocalPlayer:WaitForChild("PlayerGui")
 for _, obj in ipairs(parentGui:GetChildren()) do
     if obj.Name:match("^FroggyHub_") then obj:Destroy() end
@@ -22,24 +20,9 @@ gui.IgnoreGuiInset = true
 gui.DisplayOrder = 100
 gui.Parent = parentGui
 
--- Paleta de Colores
-local C = { 
-    Danger = Color3.fromRGB(210, 70, 70), 
-    Text = Color3.fromRGB(240, 240, 245), 
-    Dim = Color3.fromRGB(150, 150, 165), 
-    Bg = Color3.fromRGB(16, 16, 22), 
-    Accent = Color3.fromRGB(110, 220, 90),
-    Row = Color3.fromRGB(30, 30, 40),
-    Off = Color3.fromRGB(50, 50, 60)
-}
+local C = { Danger = Color3.fromRGB(210, 70, 70), Text = Color3.fromRGB(240, 240, 245), Dim = Color3.fromRGB(150, 150, 165), Bg = Color3.fromRGB(16, 16, 22), Accent = Color3.fromRGB(110, 220, 90), Row = Color3.fromRGB(30, 30, 40), Off = Color3.fromRGB(50, 50, 60) }
 
--- Utilidades
-local function new(class, props, parent) 
-    local o = Instance.new(class)
-    for k, v in pairs(props) do o[k] = v end
-    if parent then o.Parent = parent end
-    return o 
-end
+local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
 
 local function makeDraggable(handle, target)
     local active, startMouse, startPos, moved
@@ -63,9 +46,10 @@ local function makeDraggable(handle, target)
     end)
 end
 
--- ==========================================
+-- 🛠️ DECLARAMOS LA FUNCIÓN ARRIBA PARA QUE EL BOTÓN LA ENCUENTRE
+local loadHub
+
 -- 1. SELECTOR DE JUEGO
--- ==========================================
 local prompt = new("Frame", { Size = UDim2.fromOffset(300, 200), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
 new("UICorner", { CornerRadius = UDim.new(0, 8) }, prompt)
 new("UIStroke", { Color = C.Accent, Thickness = 2 }, prompt)
@@ -77,23 +61,21 @@ local function makeChoice(y, text, folder, display)
     new("UIStroke", { Color = C.Off }, btn)
     btn.Activated:Connect(function()
         prompt:Destroy()
-        loadHub(folder, display)
+        if loadHub then loadHub(folder, display) end
     end)
 end
 makeChoice(60, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic Arena")
 makeChoice(120, "Blox Fruits", "BloxFruits", "Blox Fruits")
 
--- ==========================================
--- 2. CARGA DE MÓDULOS
--- ==========================================
-function loadHub(folder, displayName)
+-- 2. CARGA DE MÓDULOS (Sin GodMode)
+loadHub = function(folder, displayName)
     local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
     local BASE = (folder == "BloxFruits") and ROOT or (ROOT .. folder .. "/")
     
     local loading = new("Frame", { Size = UDim2.fromOffset(250, 100), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg }, gui)
     new("UICorner", { CornerRadius = UDim.new(0, 8) }, loading)
     new("UIStroke", { Color = C.Accent, Thickness = 1.5 }, loading)
-    new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Font = Enum.Font.GothamBold, TextSize = 16, Text = "Cargando " .. displayName .. "...", TextColor3 = C.Accent }, loading)
+    local loadText = new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, Text = "Cargando...", TextColor3 = C.Accent }, loading)
     
     task.spawn(function()
         local function download(names, key)
@@ -101,36 +83,44 @@ function loadHub(folder, displayName)
                 local ok, res = pcall(game.HttpGet, game, BASE .. n .. "?v=" .. os.time())
                 if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
                     local fnOk, fn = pcall(loadstring, res)
-                    if fnOk and type(fn) == "function" then pcall(fn) end
+                    if fnOk and type(fn) == "function" then 
+                        pcall(fn) 
+                    end
                 end
             end
             task.wait(0.1)
             return env[key] or _G[key]
         end
 
+        loadText.Text = "Cargando ESP..."
         local EspC = download({folder == "BloxFruits" and "Esp.lua" or "EspElemental.lua"}, "BF_ESP_CONFIG")
+        
+        loadText.Text = "Cargando Movimiento..."
         local MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+        
+        loadText.Text = "Cargando Hitbox..."
         local HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
+        
+        loadText.Text = "Cargando Combate..."
         local CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
+        
+        loadText.Text = "Cargando Camlock..."
         local CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
         
         loading:Destroy()
-        pcall(function() buildUI(displayName, EspC, MoveC, HitC, CombC, CamC) end)
+        buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
     end)
 end
 
--- ==========================================
--- 3. INTERFAZ PRINCIPAL (Bloques Fijos)
--- ==========================================
+-- 3. INTERFAZ PRINCIPAL
 function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
-    local WIDTH, HEIGHT = 350, 400
+    local WIDTH, HEIGHT = 350, 420
     local viewport = workspace.CurrentCamera.ViewportSize
     local startX = (viewport.X - WIDTH) / 2
     local startY = (viewport.Y - HEIGHT) / 2
     
     local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromOffset(startX, startY), BackgroundColor3 = C.Bg, BorderSizePixel = 1, BorderColor3 = C.Accent }, gui)
     
-    -- Header
     local header = new("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = C.Row }, frame)
     new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -80, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Text = "Froggy | " .. displayName, TextColor3 = C.Text }, header)
     
@@ -139,10 +129,14 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
     local btnClose = new("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -32, 0.5, -13), BackgroundColor3 = C.Danger, Text = "X", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14 }, header)
     new("UICorner", { CornerRadius = UDim.new(0, 4) }, btnClose)
 
-    -- Body
-    local body = new("ScrollingFrame", { Position = UDim2.fromOffset(0, 45), Size = UDim2.new(1, 0, 1, -45), BackgroundTransparency = 1, ScrollBarThickness = 2, CanvasSize = UDim2.new(0, 0, 0, 800) }, frame)
+    local body = new("ScrollingFrame", { Position = UDim2.fromOffset(0, 45), Size = UDim2.new(1, 0, 1, -45), BackgroundTransparency = 1, ScrollBarThickness = 2, CanvasSize = UDim2.new(0, 0, 0, 1000) }, frame)
     local y = 5
     
+    local function addTitle(text)
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = string.upper(text), TextColor3 = C.Accent }, body)
+        y = y + 22
+    end
+
     local function addToggle(text, cfg, key)
         if not cfg then return end
         local row = new("Frame", { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.fromOffset(10, y), BackgroundColor3 = C.Row }, body)
@@ -189,42 +183,12 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
         y = y + 50
     end
 
-    -- Secciones
-    if EspC then 
-        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "ESP", TextColor3 = C.Accent }, body)
-        y = y + 20
-        addToggle("Activar ESP", EspC, "Enabled") 
-        addToggle("Cajas 2D", EspC, "Boxes") 
-    end
+    if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
+    if MoveC then addTitle("Movimiento"); addToggle("Speed", MoveC, "SpeedEnabled"); addSlider("Velocidad", MoveC, "Speed", 16, 200); addToggle("Super Jump", MoveC, "JumpEnabled"); addSlider("Salto", MoveC, "JumpPower", 50, 300) end
+    if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
+    if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled") end
+    if CamC then addTitle("Camlock"); addToggle("Activar", CamC, "Enabled") end
 
-    if MoveC then 
-        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "MOVIMIENTO", TextColor3 = C.Accent }, body)
-        y = y + 20
-        addToggle("Speed", MoveC, "SpeedEnabled") 
-        addSlider("Velocidad", MoveC, "Speed", 16, 200) 
-        addToggle("Super Jump", MoveC, "JumpEnabled") 
-        addSlider("Salto", MoveC, "JumpPower", 50, 300) 
-    end
-
-    if HitC then 
-        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "HITBOX", TextColor3 = C.Accent }, body)
-        y = y + 20
-        addToggle("Hitbox 35 Studs", HitC, "Enabled") 
-    end
-
-    if CombC then 
-        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "AUTO COMBAT", TextColor3 = C.Accent }, body)
-        y = y + 20
-        addToggle("Activar", CombC, "Enabled") 
-    end
-
-    if CamC then 
-        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "CAMLOCK", TextColor3 = C.Accent }, body)
-        y = y + 20
-        addToggle("Activar Camlock", CamC, "Enabled") 
-    end
-
-    -- Burbuja y Minimizar
     local BUBBLE = 46
     local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Row, Visible = false, Text = "F", TextColor3 = C.Accent, Font = Enum.Font.GothamBold, TextSize = 22 }, gui)
     new("UICorner", { CornerRadius = UDim.new(1, 0) }, bubble)
