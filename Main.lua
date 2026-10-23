@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v13.0: Mahoraga Floating Button
+--// Main.lua - Froggy Hub | UI v13.1: Mahoraga Floating Button + Fix
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -7,6 +7,8 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
+
+print("[Froggy] Iniciando Main.lua v13.1...")
 
 local parentGui = LocalPlayer:WaitForChild("PlayerGui")
 for _, obj in ipairs(parentGui:GetChildren()) do
@@ -64,7 +66,7 @@ end
 local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ZIndex = 999 }, gui)
 stroke(promptGui, "Accent", 2)
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?", TextColor3 = C.Text, ZIndex = 1000 }, promptGui)
-new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v13.0 //", ZIndex = 1000 }, promptGui)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v13.1 //", ZIndex = 1000 }, promptGui)
 
 local function makeChoice(y, text, folder, display)
     local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false, ZIndex = 1000 }, promptGui)
@@ -174,10 +176,10 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
     if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled"); addToggle("Auto M1", CombC, "AutoM1") end
 
-    -- 🛠️ BOTÓN FLOTANTE MAHORAGA
+    -- BOTÓN FLOTANTE MAHORAGA
     local mahoBtn = new("TextButton", { 
         Size = UDim2.fromOffset(100, 40), 
-        Position = UDim2.fromOffset(viewport.X - 120, viewport.Y / 2), -- Aparece a la derecha por defecto
+        Position = UDim2.fromOffset(viewport.X - 120, viewport.Y / 2),
         BackgroundColor3 = C.Row, 
         Text = "MAHORAGA: OFF", 
         TextColor3 = C.Text, 
@@ -204,7 +206,6 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
         end
     end)
     
-    -- Hacer que el botón de Mahoraga se pueda arrastrar
     makeDraggable(mahoBtn, mahoBtn, 100, 40)
 
     local BUBBLE = 46
@@ -235,4 +236,4 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     
     makeDraggable(header, frame, WIDTH, HEIGHT)
     makeDraggable(bubble, bubble, BUBBLE, BUBBLE)
-endloadstring(game:HttpGet("https://raw.githubusercontent.com/cristhiandalmauquintana-ctrl/Whitefantasy/main/Main.lua?v=11.4"))()
+end
