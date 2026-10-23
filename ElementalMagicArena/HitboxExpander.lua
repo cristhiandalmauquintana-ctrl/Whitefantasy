@@ -1,162 +1,86 @@
---// Froggy Hub - Hitbox Expander V5 (Live Force - Full Body)
+-- ============================================================
+-- WHITE FANTASY - HitboxExpander.lua
+-- Aumenta el hitbox a 35 studs y elimina las colisiones físicas
+-- ============================================================
+
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
+local LP = Players.LocalPlayer
 
-local env = (getgenv and getgenv()) or _G
-if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
+local originalSizes = {}
+local originalMasses = {}
 
-local Config = {
-    Enabled = false,
-    Size = 35,             
-    Transparency = 0.7,
-    Color = Color3.fromRGB(255, 0, 0),
-    IgnoreFriends = true,
-}
-
-env.BF_HITBOX_CONFIG = Config
-
-local expandedParts = {}
-local connections = {}
-
-local function isFriend(player)
-    local ok, result = pcall(function() return LocalPlayer:IsFriendsWith(player.UserId) end)
-    return ok and result
+-- Aseguramos que la tabla de configuración exista (por si este script carga antes que el Main)
+if not getgenv().WhiteFantasy then
+    getgenv().WhiteFantasy = { Hitbox = false }
 end
 
-local function expandPart(part)
-    -- Si no está en la tabla, guardamos sus propiedades originales
-    if not expandedParts[part] then
-        expandedParts[part] = {
-            Size = part.Size,
-            CanCollide = part.CanCollide,
-            CanTouch = part.CanTouch,
-            CanQuery = part.CanQuery,
-            Massless = part.Massless,
-            Transparency = part.Transparency,
-            Color = part.Color
-        }
-    end
-    
-    -- 🔥 LA CLAVE: Forzamos la aplicación constantemente
-    pcall(function()
-        -- Si el servidor lo reseteó, lo volvemos a agrandar
-        if part.Size ~= Vector3.new(Config.Size, Config.Size, Config.Size) then
-            part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
-        end
-        
-        part.CanCollide = false 
-        part.Massless = true
-        part.CanQuery = true 
-        part.CanTouch = true
-        part.Transparency = Config.Transparency
-        part.Color = Config.Color
-    end)
-end
+local HITBOX_SIZE = 35 -- Tamaño de 35 studs
 
-local function restorePart(part)
-    if not expandedParts[part] then return end
-    
-    local data = expandedParts[part]
-    pcall(function()
-        if part and part.Parent then
-            part.Size = data.Size
-            part.CanCollide = data.CanCollide
-            part.CanTouch = data.CanTouch
-            part.CanQuery = data.CanQuery
-            part.Massless = data.Massless
-            part.Transparency = data.Transparency
-            part.Color = data.Color
-        end
-    end)
-    
-    expandedParts[part] = nil
-end
-
-local function processCharacter(char)
-    if not char then return end
-    -- Escaneamos todo el cuerpo
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            expandPart(part)
-        end
-    end
-end
-
-local function restoreCharacter(char)
-    if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            restorePart(part)
-        end
-    end
-end
-
-local function restoreAll()
-    for part, _ in pairs(expandedParts) do
-        restorePart(part)
-    end
-end
-
--- 🛠️ Escuchar cuando un jugador nuevo entra o respawnea
-local function onPlayerAdded(player)
-    if player == LocalPlayer then return end
-    player.CharacterAdded:Connect(function(char)
-        task.wait(0.5) -- Dar tiempo a que las partes carguen
-        if Config.Enabled then
-            local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if myRoot and root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                processCharacter(char)
-            end
-        end
-    end)
-end
-
-for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
-table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
-
-table.insert(connections, RunService.Heartbeat:Connect(function()
-    if not Config.Enabled then 
-        if next(expandedParts) then restoreAll() end
-        return 
-    end
-
-    local myChar = LocalPlayer.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            local root = player.Character:FindFirstChild("HumanoidRootPart")
+task.spawn(function()
+    while task.wait(0.1) do -- Se actualiza 10 veces por segundo (anti-reversión)
+        -- Leemos el estado desde el Main.lua
+        if getgenv().WhiteFantasy.Hitbox then
             
-            if hum and hum.Health > 0 and root then
-                local dist = (root.Position - myRoot.Position).Magnitude
-                if dist <= 1000 and not (Config.IgnoreFriends and isFriend(player)) then
-                    processCharacter(player.Character)
-                else
-                    restoreCharacter(player.Character)
+            -- 1. Expandir Hitboxes de los enemigos
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP and p.Character then
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    local head = p.Character:FindFirstChild("Head")
+                    
+                    if hrp then
+                        if not originalSizes[hrp] then originalSizes[hrp] = hrp.Size end
+                        if originalMasses[hrp] == nil then originalMasses[hrp] = hrp.Massless end
+                        
+                        hrp.Size = Vector3.new(HITBOX_SIZE, HITBOX_SIZE, HITBOX_SIZE)
+                        hrp.Transparency = 0.8
+                        hrp.CanCollide = false
+                        hrp.Massless = true -- TRUCO: No te empuja
+                    end
+                    
+                    if head then
+                        if not originalSizes[head] then originalSizes[head] = head.Size end
+                        if originalMasses[head] == nil then originalMasses[head] = head.Massless end
+                        
+                        head.Size = Vector3.new(HITBOX_SIZE/1.5, HITBOX_SIZE/1.5, HITBOX_SIZE/1.5)
+                        head.Transparency = 0.8
+                        head.CanCollide = false
+                        head.Massless = true -- TRUCO: No te empuja
+                    end
                 end
-            else
-                restoreCharacter(player.Character)
+            end
+            
+            -- 2. Noclip automático para el jugador local (para atravesarlos)
+            if LP.Character then
+                for _, part in ipairs(LP.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then 
+                        part.CanCollide = false 
+                    end
+                end
+            end
+            
+        else
+            -- 3. Restaurar todo si el Main.lua apaga el botón
+            for part, size in pairs(originalSizes) do
+                if part and part.Parent then
+                    part.Size = size
+                    part.Transparency = 0
+                    part.CanCollide = true
+                    if originalMasses[part] ~= nil then
+                        part.Massless = originalMasses[part]
+                    end
+                end
+            end
+            originalSizes = {}
+            originalMasses = {}
+            
+            -- Restaurar colisiones del jugador local
+            if LP.Character then
+                for _, part in ipairs(LP.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then 
+                        part.CanCollide = true 
+                    end
+                end
             end
         end
     end
-end))
-
--- Limpieza
-table.insert(connections, RunService.Stepped:Connect(function()
-    for part, _ in pairs(expandedParts) do
-        if not part or not part.Parent then
-            restorePart(part)
-        end
-    end
-end))
-
-env.__BF_HITBOX_CLEANUP = function()
-    restoreAll()
-    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
-    env.BF_HITBOX_CONFIG = nil
-    env.__BF_HITBOX_CLEANUP = nil
-end
+end)
