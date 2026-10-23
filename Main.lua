@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v11.2: Starship + Persistencia + Anti-Bucle
+--// Main.lua - Froggy Hub (loader + panel) | UI v11.4: Starship + Lockfile + Anti-Override
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -6,16 +6,60 @@ local BRANCH = "main"
 
 local env = (getgenv and getgenv()) or _G
 
--- 🛠️ KILL SWITCH: Destruir cualquier rastro de scripts viejos
-local function killOldHubs()
-    local parent = (gethui and gethui()) or game:GetService("CoreGui")
-    for _, obj in ipairs(parent:GetChildren()) do
-        if obj.Name:match("^FroggyHub_") then
-            pcall(function() obj:Destroy() end)
+-- 🛑 SISTEMA DE BLOQUEO (LOCKFILE)
+local LOCK_FILE = "FroggyHub.lock"
+if type(isfile) == "function" and type(readfile) == "function" and isfile(LOCK_FILE) then
+    local lock_time = tonumber(readfile(LOCK_FILE)) or 0
+    local now = os.time()
+    -- Si el bloqueo tiene menos de 5 segundos, significa que ya hay un script ejecutándose
+    if now - lock_time < 5 then
+        warn("[Froggy] ⚠️ Ya hay una instancia de Froggy Hub ejecutándose. Abortando duplicado.")
+        return
+    end
+end
+-- Crear el bloqueo
+if type(writefile) == "function" then pcall(writefile, LOCK_FILE, tostring(os.time())) end
+
+-- 💥 BORRADOR NUCLEAR
+local function destroyAllHubs()
+    local places = {
+        game:GetService("CoreGui"),
+        game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"),
+        (gethui and gethui()) or game:GetService("CoreGui")
+    }
+    for _, parent in pairs(places) do
+        if parent then
+            for _, obj in ipairs(parent:GetChildren()) do
+                if obj:IsA("ScreenGui") and (obj.Name == "FroggyHub_Main" or obj.Name:match("^FroggyHub_")) then
+                    pcall(function() obj:Destroy() end)
+                end
+            end
         end
     end
 end
-killOldHubs()
+destroyAllHubs()
+
+-- 🛡️ ANTÍDOTO CONTRA SCRIPTS VIEJOS (Vigilante en segundo plano)
+task.spawn(function()
+    while true do
+        task.wait(1.0)
+        local places = {
+            game:GetService("CoreGui"),
+            game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"),
+            (gethui and gethui()) or game:GetService("CoreGui")
+        }
+        for _, parent in pairs(places) do
+            if parent then
+                for _, obj in ipairs(parent:GetChildren()) do
+                    -- Si encuentra un FroggyHub que NO sea el de esta versión, lo mata
+                    if obj:IsA("ScreenGui") and obj.Name:match("^FroggyHub_") and obj.Name ~= "FroggyHub_v11.4" then
+                        pcall(function() obj:Destroy() end)
+                    end
+                end
+            end
+        end
+    end
+end)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -24,7 +68,7 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
--- TEMAS (Intactos de Claude)
+-- TEMAS
 local THEMES = {
     { Name = "Froggy", Accent = Color3.fromRGB(110, 220, 90),  Accent2 = Color3.fromRGB(40, 170, 130),  Bg = Color3.fromRGB(16, 16, 22) },
     { Name = "Cyber",  Accent = Color3.fromRGB(255, 50, 150),  Accent2 = Color3.fromRGB(120, 80, 255),  Bg = Color3.fromRGB(20, 10, 30) },
@@ -170,12 +214,38 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local gui = new("ScreenGui", { Name = "FroggyHub_Main", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, getParent())
+-- 🛠️ NOMBRE ESPECÍFICO DE LA VERSIÓN PARA QUE EL ANTÍDOTO LO RECONOZCA
+local gui = new("ScreenGui", { Name = "FroggyHub_v11.4", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, getParent())
 local connections = {}
 local tweens = {}
 
+local function cleanup()
+    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
+    for _, t in ipairs(tweens) do pcall(function() t:Cancel() end) end
+    if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
+    if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
+    if env.__BF_CAM_CLEANUP then pcall(env.__BF_CAM_CLEANUP) end
+    if env.__BF_DODGE_CLEANUP then pcall(env.__BF_DODGE_CLEANUP) end
+    if env.__BF_SA_CLEANUP then pcall(env.__BF_SA_CLEANUP) end
+    if env.__BF_POTATO_CLEANUP then pcall(env.__BF_POTATO_CLEANUP) end
+    if env.__BF_TP_CLEANUP then pcall(env.__BF_TP_CLEANUP) end
+    if env.__BF_LIFT_CLEANUP then pcall(env.__BF_LIFT_CLEANUP) end
+    if env.__BF_DIAMOND_CLEANUP then pcall(env.__BF_DIAMOND_CLEANUP) end
+    if env.__BF_AFARM_CLEANUP then pcall(env.__BF_AFARM_CLEANUP) end
+    if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
+    if env.__BF_COMBAT_CLEANUP then pcall(env.__BF_COMBAT_CLEANUP) end
+    if env.__BF_CHAT_CLEANUP then pcall(env.__BF_CHAT_CLEANUP) end
+    if env.__BF_GOD_CLEANUP then pcall(env.__BF_GOD_CLEANUP) end
+
+    if type(delfile) == "function" then pcall(delfile, LOCK_FILE) end
+
+    if gui then gui:Destroy() end
+    env.__BF_PANEL_CLEANUP = nil
+end
+env.__BF_PANEL_CLEANUP = cleanup
+
 -- ==========================================
--- 🚀 FUNCIÓN DE INICIO (Se llama sin bucles)
+-- 🚀 FUNCIÓN DE INICIO
 -- ==========================================
 local function StartHub(CurrentGameFolder, GameDisplayName)
     local ROOT_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
@@ -183,9 +253,8 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
     if CurrentGameFolder == "ElementalMagicArena" then BASE_URL = ROOT_URL .. "ElementalMagicArena/" end
 
     local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-    local HUB_VERSION = "v11.2"
+    local HUB_VERSION = "v11.4"
     
-    -- 🛠️ GUARDAR JUEGO EN ARCHIVO
     local GAME_FILE = "FroggyHub_game.txt"
     if type(writefile) == "function" then pcall(function() writefile(GAME_FILE, CurrentGameFolder) end) end
 
@@ -324,7 +393,6 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
         return env[configKey] or _G[configKey]
     end
 
-    -- 🛠️ CARGA ASÍNCRONA
     task.spawn(function()
         setProgress(0.1, "Cargando logo...")
         local logoAsset = fetchLogo()
@@ -788,7 +856,7 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
                 updateBgVisibility(); applyPanelStyle(); applyTheme(THEMES[1])
                 for _, r in ipairs(refreshers) do pcall(r) end
             end, true)
-            -- 🎮 Cambiar de juego: borra la selección guardada y cierra el hub (al volver a ejecutar preguntará de nuevo)
+            -- 🎮 Cambiar de juego
             actionButton(info, "Cambiar de juego (reiniciar)", function()
                 if type(delfile) == "function" and type(isfile) == "function" then
                     pcall(function() if isfile(GAME_FILE) then delfile(GAME_FILE) end end)
@@ -940,7 +1008,6 @@ local VALID_GAMES = {
     Universal = "Universal",
 }
 
--- Si ya se eligió un juego antes (y el entorno se reinició), lo recuperamos del archivo
 if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME
     and type(isfile) == "function" and type(readfile) == "function" then
     pcall(function()
@@ -964,7 +1031,7 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
     local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
     addGradient(pTop, accentSeq, 0)
     bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
-    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v11.2" }, promptGui)
+    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v11.4" }, promptGui)
 
     local function makeChoice(y, text, folder, display)
         local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 2 }, promptGui)
