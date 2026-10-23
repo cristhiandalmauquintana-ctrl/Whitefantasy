@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v17.0 (Brookhaven + Sound)
+--// Main.lua - Froggy Hub | UI v17.1 (Brookhaven + Custom ID)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -48,7 +48,7 @@ end
 
 local loadHub
 
--- 1. SELECTOR DE JUEGO (Más alto para 3 opciones)
+-- 1. SELECTOR DE JUEGO
 local prompt = new("Frame", { Size = UDim2.fromOffset(300, 260), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
 new("UICorner", { CornerRadius = UDim.new(0, 8) }, prompt)
 new("UIStroke", { Color = C.Accent, Thickness = 2 }, prompt)
@@ -65,7 +65,7 @@ local function makeChoice(y, text, folder, display, color)
 end
 makeChoice(60, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic Arena", C.Row)
 makeChoice(115, "Blox Fruits", "BloxFruits", "Blox Fruits", C.Row)
-makeChoice(170, "Brookhaven", "Brookhaven", "Brookhaven RP", Color3.fromRGB(60, 130, 200)) -- Botón Azul para Brookhaven
+makeChoice(170, "Brookhaven", "Brookhaven", "Brookhaven RP", Color3.fromRGB(60, 130, 200))
 
 -- 2. CARGA DE MÓDULOS
 loadHub = function(folder, displayName)
@@ -95,24 +95,16 @@ loadHub = function(folder, displayName)
         if folder == "Brookhaven" then
             loadText.Text = "Cargando Sonidos..."
             SoundC = download({"SoundPlayer.lua"}, "BF_SOUND_CONFIG")
-            loadText.Text = "Cargando ESP..."
-            EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
         elseif folder == "ElementalMagicArena" then
             loadText.Text = "Cargando ESP..."
             EspC = download({"EspElemental.lua"}, "BF_ESP_CONFIG")
             loadText.Text = "Cargando Movimiento..."
             MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
-            loadText.Text = "Cargando Combate..."
-            CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
-            loadText.Text = "Cargando Hitbox..."
-            HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
         else
             loadText.Text = "Cargando ESP..."
             EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
             loadText.Text = "Cargando Movimiento..."
             MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
-            loadText.Text = "Cargando Camlock..."
-            CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
         end
         
         loading:Destroy()
@@ -122,7 +114,7 @@ end
 
 -- 3. INTERFAZ PRINCIPAL
 function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
-    local WIDTH, HEIGHT = 350, 400
+    local WIDTH, HEIGHT = 350, 420
     local viewport = workspace.CurrentCamera.ViewportSize
     local startX = (viewport.X - WIDTH) / 2
     local startY = (viewport.Y - HEIGHT) / 2
@@ -143,6 +135,23 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
     local function addTitle(text)
         new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = string.upper(text), TextColor3 = C.Accent }, body)
         y = y + 22
+    end
+
+    -- 🛠️ NUEVO: CAJA DE TEXTO PARA EL SOUND ID
+    local function addTextBox(text, cfg, key)
+        if not cfg then return end
+        local row = new("Frame", { Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, y), BackgroundColor3 = C.Row }, body)
+        new("UICorner", { CornerRadius = UDim.new(0, 6) }, row)
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -60, 1, 0), Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Text = text, TextColor3 = C.Text }, row)
+        
+        local box = new("TextBox", { Size = UDim2.fromOffset(80, 24), Position = UDim2.new(1, -90, 0.5, -12), BackgroundColor3 = C.Bg, Text = tostring(cfg[key] or ""), TextColor3 = C.Accent, Font = Enum.Font.GothamBold, TextSize = 12, PlaceholderText = "ID..." }, row)
+        new("UICorner", { CornerRadius = UDim.new(0, 4) }, box)
+        new("UIStroke", { Color = C.Off }, box)
+        
+        box.FocusLost:Connect(function()
+            cfg[key] = box.Text
+        end)
+        y = y + 45
     end
 
     local function addToggle(text, cfg, key)
@@ -191,18 +200,16 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
         y = y + 50
     end
 
-    -- Sección Brookhaven (Sonido)
+    -- SECCIÓN BROOKHAVEN
     if SoundC then
-        addTitle("Sonidos del Servidor")
+        addTitle("Reproductor de Audio")
+        addTextBox("Sound ID", SoundC, "SoundId")
         addToggle("Reproducir Sonido", SoundC, "Playing")
         addSlider("Volumen", SoundC, "Volume", 1, 10)
     end
 
     if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
     if MoveC then addTitle("Movimiento"); addToggle("Speed", MoveC, "SpeedEnabled"); addSlider("Velocidad", MoveC, "Speed", 16, 200); addToggle("Super Jump", MoveC, "JumpEnabled"); addSlider("Salto", MoveC, "JumpPower", 50, 300) end
-    if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
-    if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled") end
-    if CamC then addTitle("Camlock"); addToggle("Activar", CamC, "Enabled") end
 
     local BUBBLE = 46
     local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Row, Visible = false, Text = "F", TextColor3 = C.Accent, Font = Enum.Font.GothamBold, TextSize = 22 }, gui)
