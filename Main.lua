@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v12.8: Mahoraga Mode (Adaptación)
+--// Main.lua - Froggy Hub | UI v12.9: Mahoraga + Screen Boundaries
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -30,7 +30,15 @@ local function tween(o, t, props) return TweenService:Create(o, TweenInfo.new(t,
 local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
 local function stroke(o, key, thickness) local s = Instance.new("UIStroke"); s.Thickness = thickness or 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Color = C[key] or C.Stroke; s.Parent = o; return s end
 
-local function makeDraggable(handle, target, onTap)
+-- 🛠️ FUNCIÓN DE LÍMITES (Evita que se salga de la pantalla)
+local function clampPosition(x, y, width, height)
+    local viewport = workspace.CurrentCamera.ViewportSize
+    local clampedX = math.clamp(x, 0, viewport.X - width)
+    local clampedY = math.clamp(y, 0, viewport.Y - height)
+    return clampedX, clampedY
+end
+
+local function makeDraggable(handle, target, width, height, onTap)
     local active, startMouse, startPos, moved
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -48,7 +56,12 @@ local function makeDraggable(handle, target, onTap)
         if active.UserInputType == Enum.UserInputType.Touch then if input ~= active then return end
         elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
         local d = input.Position - startMouse; if d.Magnitude > 5 then moved = true end
-        if moved then target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end
+        if moved then 
+            local newX = startPos.X.Offset + d.X
+            local newY = startPos.Y.Offset + d.Y
+            local cx, cy = clampPosition(newX, newY, width, height)
+            target.Position = UDim2.new(0, cx, 0, cy) 
+        end
     end)
 end
 
@@ -56,7 +69,7 @@ end
 local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ZIndex = 999 }, gui)
 stroke(promptGui, "Accent", 2)
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?", TextColor3 = C.Text, ZIndex = 1000 }, promptGui)
-new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v12.8 //", ZIndex = 1000 }, promptGui)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v12.9 //", ZIndex = 1000 }, promptGui)
 
 local function makeChoice(y, text, folder, display)
     local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false, ZIndex = 1000 }, promptGui)
@@ -103,7 +116,13 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     local WIDTH, HEIGHT = 400, 450
     local HEADER_H = 40
     
-    local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 1, BorderColor3 = C.Accent, ClipsDescendants = true, ZIndex = 2 }, gui)
+    local viewport = workspace.CurrentCamera.ViewportSize
+    local startX = (viewport.X - WIDTH) / 2
+    local startY = (viewport.Y - HEIGHT) / 2
+    
+    -- Usamos AnchorPoint (0,0) para que las matemáticas de posición sean exactas
+    local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromOffset(startX, startY), BackgroundColor3 = C.Bg, BorderSizePixel = 1, BorderColor3 = C.Accent, ClipsDescendants = true, ZIndex = 2 }, gui)
+    
     local header = new("Frame", { Size = UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3 = C.Header, BorderSizePixel = 0, ZIndex = 3 }, frame)
     new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -100, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Text = "Froggy | " .. displayName, TextColor3 = C.Text, ZIndex = 4 }, header)
     
@@ -159,23 +178,36 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
     if MoveC then addTitle("Movimiento"); addToggle("Speed", MoveC, "SpeedEnabled"); addSlider("Velocidad", MoveC, "Speed", 16, 200); addToggle("Super Jump", MoveC, "JumpEnabled"); addSlider("Salto", MoveC, "JumpPower", 50, 300) end
     if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
-    
-    -- 🛠️ MAHORAGA UI
-    if GodC then 
-        addTitle("Mahoraga (Adaptación)")
-        addToggle("Activar Mahoraga", GodC, "Enabled")
-        -- Agregamos el slider para los segundos
-        addSlider("Duración Invulnerable", GodC, "Duration", 1, 15)
-    end
-    
+    if GodC then addTitle("Mahoraga (Adaptación)"); addToggle("Activar Mahoraga", GodC, "Enabled"); addSlider("Duración Invulnerable", GodC, "Duration", 1, 15) end
     if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled"); addToggle("Auto M1", CombC, "AutoM1") end
 
+    -- 🛠️ BURBUJA CON LÍMITES
     local BUBBLE = 46
     local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Header, Visible = false, Text = "F", Font = Enum.Font.GothamBold, TextSize = 20, TextColor3 = C.Accent, AutoButtonColor = false, ZIndex = 10 }, gui)
     new("UICorner", { CornerRadius = UDim.new(1, 0) }, bubble)
-    btnMin.Activated:Connect(function() bubble.Position = UDim2.new(frame.Position.X.Scale, frame.Position.X.Offset + 8, frame.Position.Y.Scale, frame.Position.Y.Offset + 8); frame.Visible = false; bubble.Visible = true end)
-    bubble.Activated:Connect(function() frame.Position = UDim2.new(bubble.Position.X.Scale, bubble.Position.X.Offset - 8, bubble.Position.Y.Scale, bubble.Position.Y.Offset - 8); bubble.Visible = false; frame.Visible = true end)
+    
+    local function minimizePanel()
+        local px = frame.Position.X.Offset + 8
+        local py = frame.Position.Y.Offset + 8
+        local cx, cy = clampPosition(px, py, BUBBLE, BUBBLE)
+        bubble.Position = UDim2.fromOffset(cx, cy)
+        frame.Visible = false
+        bubble.Visible = true
+    end
+    
+    local function restorePanel()
+        local px = bubble.Position.X.Offset - 8
+        local py = bubble.Position.Y.Offset - 8
+        local cx, cy = clampPosition(px, py, WIDTH, HEIGHT)
+        frame.Position = UDim2.fromOffset(cx, cy)
+        bubble.Visible = false
+        frame.Visible = true
+    end
+
+    btnMin.Activated:Connect(minimizePanel)
+    bubble.Activated:Connect(restorePanel) 
     btnClose.Activated:Connect(function() gui:Destroy() end)
-    makeDraggable(header, frame)
-    makeDraggable(bubble, bubble)
+    
+    makeDraggable(header, frame, WIDTH, HEIGHT)
+    makeDraggable(bubble, bubble, BUBBLE, BUBBLE)
 end
