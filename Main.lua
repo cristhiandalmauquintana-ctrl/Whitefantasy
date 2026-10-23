@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v17.1 (Brookhaven + Custom ID)
+--// Main.lua - Froggy Hub | UI v17.2 (Brookhaven + Sound Loop)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -100,11 +100,17 @@ loadHub = function(folder, displayName)
             EspC = download({"EspElemental.lua"}, "BF_ESP_CONFIG")
             loadText.Text = "Cargando Movimiento..."
             MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+            loadText.Text = "Cargando Combate..."
+            CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
+            loadText.Text = "Cargando Hitbox..."
+            HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
         else
             loadText.Text = "Cargando ESP..."
             EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
             loadText.Text = "Cargando Movimiento..."
             MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+            loadText.Text = "Cargando Camlock..."
+            CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
         end
         
         loading:Destroy()
@@ -137,7 +143,6 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
         y = y + 22
     end
 
-    -- 🛠️ NUEVO: CAJA DE TEXTO PARA EL SOUND ID
     local function addTextBox(text, cfg, key)
         if not cfg then return end
         local row = new("Frame", { Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, y), BackgroundColor3 = C.Row }, body)
@@ -148,9 +153,7 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
         new("UICorner", { CornerRadius = UDim.new(0, 4) }, box)
         new("UIStroke", { Color = C.Off }, box)
         
-        box.FocusLost:Connect(function()
-            cfg[key] = box.Text
-        end)
+        box.FocusLost:Connect(function() cfg[key] = box.Text end)
         y = y + 45
     end
 
@@ -205,11 +208,15 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
         addTitle("Reproductor de Audio")
         addTextBox("Sound ID", SoundC, "SoundId")
         addToggle("Reproducir Sonido", SoundC, "Playing")
+        addToggle("Reproducir en Bucle (Loop)", SoundC, "Loop")
         addSlider("Volumen", SoundC, "Volume", 1, 10)
     end
 
     if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
     if MoveC then addTitle("Movimiento"); addToggle("Speed", MoveC, "SpeedEnabled"); addSlider("Velocidad", MoveC, "Speed", 16, 200); addToggle("Super Jump", MoveC, "JumpEnabled"); addSlider("Salto", MoveC, "JumpPower", 50, 300) end
+    if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
+    if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled") end
+    if CamC then addTitle("Camlock"); addToggle("Activar", CamC, "Enabled") end
 
     local BUBBLE = 46
     local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Row, Visible = false, Text = "F", TextColor3 = C.Accent, Font = Enum.Font.GothamBold, TextSize = 22 }, gui)
