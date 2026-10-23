@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v12.4: Movement + Bubble + Drag
+--// Main.lua - Froggy Hub | UI v12.5: Final Lightweight Build
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -12,7 +12,7 @@ local env = (getgenv and getgenv()) or _G
 -- 🛠️ USAMOS PLAYER GUI
 local parentGui = LocalPlayer:WaitForChild("PlayerGui")
 for _, obj in ipairs(parentGui:GetChildren()) do
-    if obj.Name:match("^FroggyHub_") then obj:Destroy() end
+    if obj.Name == "FroggyHub_Main" then obj:Destroy() end
 end
 
 local gui = Instance.new("ScreenGui")
@@ -26,6 +26,7 @@ local C = { Danger = Color3.fromRGB(210, 70, 70), Text = Color3.fromRGB(240, 240
 C.Header = C.Bg:Lerp(Color3.new(1,1,1), 0.06)
 C.Row = C.Bg:Lerp(Color3.new(1,1,1), 0.10)
 C.Off = C.Bg:Lerp(Color3.new(1,1,1), 0.20)
+C.Stroke = C.Bg:Lerp(Color3.new(1,1,1), 0.22)
 
 local function tween(o, t, props) return TweenService:Create(o, TweenInfo.new(t, Enum.EasingStyle.Quad), props) end
 local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
@@ -44,7 +45,7 @@ local function brackets(parent, key, len, th, inset)
     end
 end
 
--- Arrastrar (Drag & Drop)
+-- Arrastrar (Drag & Drop Seguro)
 local function makeDraggable(handle, target, onTap)
     local active, startMouse, startPos, moved
     handle.InputBegan:Connect(function(input)
@@ -62,7 +63,7 @@ local function makeDraggable(handle, target, onTap)
         if not active then return end
         if active.UserInputType == Enum.UserInputType.Touch then if input ~= active then return end
         elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-        local d = input.Position - startMouse; if d.Magnitude > 8 then moved = true end
+        local d = input.Position - startMouse; if d.Magnitude > 5 then moved = true end
         if moved then target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end
     end)
 end
@@ -70,15 +71,17 @@ end
 -- ==========================================
 -- 1. SELECTOR DE JUEGO
 -- ==========================================
-local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
+local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ZIndex = 999 }, gui)
 stroke(promptGui, "Accent", 2); brackets(promptGui, "Accent", 14, 2, 4)
 
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?", TextColor3 = C.Text }, promptGui)
-new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// SELECCIONA TU DESTINO // v12.4" }, promptGui)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v12.5 //" }, promptGui)
 
 local function makeChoice(y, text, folder, display)
     local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false }, promptGui)
     stroke(b, "Stroke", 1)
+    b.MouseEnter:Connect(function() b.BackgroundColor3 = C.Stroke end)
+    b.MouseLeave:Connect(function() b.BackgroundColor3 = C.Row end)
     b.Activated:Connect(function()
         promptGui:Destroy()
         loadHub(folder, display)
@@ -94,14 +97,14 @@ function loadHub(folder, displayName)
     local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
     local BASE = (folder == "BloxFruits") and ROOT or (ROOT .. folder .. "/")
     
-    local loading = new("Frame", { Size = UDim2.fromOffset(300, 200), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
+    local loading = new("Frame", { Size = UDim2.fromOffset(300, 200), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ZIndex = 998 }, gui)
     brackets(loading, "Accent", 16, 2, 4)
     new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 40), Position = UDim2.fromOffset(0, 30), Font = Enum.Font.GothamBold, TextSize = 18, Text = "CARGANDO...", TextColor3 = C.Accent }, loading)
     local status = new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, -20, 0, 20), Position = UDim2.fromOffset(10, 80), Font = Enum.Font.Gotham, TextSize = 12, Text = "Conectando...", TextColor3 = C.Text, TextXAlignment = Enum.TextXAlignment.Left }, loading)
 
     task.spawn(function()
         local function download(names, label, key)
-            status.Text = "Descargando " .. label .. "..."
+            status.Text = "Cargando " .. label .. "..."
             for _, n in ipairs(names) do
                 local ok, res = pcall(function() return game:HttpGet(BASE .. n .. "?v=" .. os.time()) end)
                 if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
@@ -109,7 +112,7 @@ function loadHub(folder, displayName)
                     if fn then pcall(fn) end
                 end
             end
-            task.wait(0.2)
+            task.wait(0.1)
             return env[key] or _G[key]
         end
 
@@ -128,14 +131,14 @@ end
 -- 3. PANEL PRINCIPAL
 -- ==========================================
 function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
-    local WIDTH, HEIGHT = 400, 300 -- Panel más compacto para móvil
+    local WIDTH, HEIGHT = 400, 300
     local HEADER_H = 40
     
     local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ClipsDescendants = true }, gui)
     stroke(frame, "Accent", 1.5); brackets(frame, "Accent", 10, 1.5, 2)
     
     local header = new("Frame", { Size = UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3 = C.Header, BorderSizePixel = 0 }, frame)
-    local titleTxt = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -100, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Text = "Froggy | " .. displayName, TextColor3 = C.Text }, header)
+    new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -100, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Text = "Froggy | " .. displayName, TextColor3 = C.Text }, header)
     
     local btnMin = new("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -60, 0.5, -13), BackgroundColor3 = C.Row, Text = "-", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 18, AutoButtonColor = false }, header)
     stroke(btnMin, "Stroke", 1)
@@ -161,7 +164,11 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
         new("UICorner", { CornerRadius = UDim.new(1, 0) }, btn)
         local knob = new("Frame", { Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(2, 2), BackgroundColor3 = Color3.new(1,1,1) }, btn)
         new("UICorner", { CornerRadius = UDim.new(1, 0) }, knob)
-        local function refresh() local on = config and config[key]; btn.BackgroundColor3 = on and C.Accent or C.Off; knob.Position = on and UDim2.new(1, -16, 0, 2) or UDim2.fromOffset(2, 2) end
+        local function refresh() 
+            local on = config and config[key]
+            btn.BackgroundColor3 = on and C.Accent or C.Off
+            knob.Position = on and UDim2.new(1, -16, 0, 2) or UDim2.fromOffset(2, 2)
+        end
         btn.Activated:Connect(function() if config then config[key] = not config[key]; refresh() end end)
         refresh()
     end
@@ -189,8 +196,7 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
         UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
     end
 
-    -- Contenido
-    if EspC then local g = makeGroup("ESP"); makeToggle(g, "Activar ESP", EspC, "Enabled"); makeToggle(g, "Cajas", EspC, "Boxes") end
+    if EspC then local g = makeGroup("ESP"); makeToggle(g, "Activar ESP", EspC, "Enabled"); makeToggle(g, "Cajas 2D", EspC, "Boxes") end
     if MoveC then local g = makeGroup("Movimiento"); makeToggle(g, "Speed", MoveC, "SpeedEnabled"); makeSlider(g, "Velocidad", MoveC, "Speed", 16, 200); makeToggle(g, "Super Jump", MoveC, "JumpEnabled"); makeSlider(g, "Salto", MoveC, "JumpPower", 50, 300) end
     if HitC then local g = makeGroup("Hitbox"); makeToggle(g, "Hitbox 35 Studs", HitC, "Enabled") end
     if GodC then local g = makeGroup("God Mode"); makeToggle(g, "Inmortalidad", GodC, "Enabled"); makeToggle(g, "Anti-Caída", GodC, "AntiVoid") end
@@ -217,5 +223,5 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     btnClose.Activated:Connect(function() gui:Destroy() end)
     
     makeDraggable(header, frame)
-    makeDraggable(bubble, bubble, restorePanel) -- Si tocas la burbuja (sin arrastrar), se restaura
+    makeDraggable(bubble, bubble, restorePanel) 
 end
