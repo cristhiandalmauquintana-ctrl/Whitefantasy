@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v12.9: Mahoraga + Screen Boundaries
+--// Main.lua - Froggy Hub | UI v13.0: Mahoraga Floating Button
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -20,7 +20,7 @@ gui.IgnoreGuiInset = true
 gui.DisplayOrder = 100
 gui.Parent = parentGui
 
-local C = { Danger = Color3.fromRGB(210, 70, 70), Text = Color3.fromRGB(240, 240, 245), Dim = Color3.fromRGB(150, 150, 165), Bg = Color3.fromRGB(16, 16, 22), Accent = Color3.fromRGB(110, 220, 90) }
+local C = { Danger = Color3.fromRGB(210, 70, 70), Text = Color3.fromRGB(240, 240, 245), Dim = Color3.fromRGB(150, 150, 165), Bg = Color3.fromRGB(16, 16, 22), Accent = Color3.fromRGB(110, 220, 90), Maho = Color3.fromRGB(180, 60, 180) }
 C.Header = C.Bg:Lerp(Color3.new(1,1,1), 0.06)
 C.Row = C.Bg:Lerp(Color3.new(1,1,1), 0.10)
 C.Off = C.Bg:Lerp(Color3.new(1,1,1), 0.20)
@@ -30,12 +30,9 @@ local function tween(o, t, props) return TweenService:Create(o, TweenInfo.new(t,
 local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
 local function stroke(o, key, thickness) local s = Instance.new("UIStroke"); s.Thickness = thickness or 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Color = C[key] or C.Stroke; s.Parent = o; return s end
 
--- 🛠️ FUNCIÓN DE LÍMITES (Evita que se salga de la pantalla)
 local function clampPosition(x, y, width, height)
     local viewport = workspace.CurrentCamera.ViewportSize
-    local clampedX = math.clamp(x, 0, viewport.X - width)
-    local clampedY = math.clamp(y, 0, viewport.Y - height)
-    return clampedX, clampedY
+    return math.clamp(x, 0, viewport.X - width), math.clamp(y, 0, viewport.Y - height)
 end
 
 local function makeDraggable(handle, target, width, height, onTap)
@@ -57,10 +54,8 @@ local function makeDraggable(handle, target, width, height, onTap)
         elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
         local d = input.Position - startMouse; if d.Magnitude > 5 then moved = true end
         if moved then 
-            local newX = startPos.X.Offset + d.X
-            local newY = startPos.Y.Offset + d.Y
-            local cx, cy = clampPosition(newX, newY, width, height)
-            target.Position = UDim2.new(0, cx, 0, cy) 
+            local cx, cy = clampPosition(startPos.X.Offset + d.X, startPos.Y.Offset + d.Y, width, height)
+            target.Position = UDim2.fromOffset(cx, cy) 
         end
     end)
 end
@@ -69,7 +64,7 @@ end
 local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ZIndex = 999 }, gui)
 stroke(promptGui, "Accent", 2)
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?", TextColor3 = C.Text, ZIndex = 1000 }, promptGui)
-new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v12.9 //", ZIndex = 1000 }, promptGui)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v13.0 //", ZIndex = 1000 }, promptGui)
 
 local function makeChoice(y, text, folder, display)
     local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false, ZIndex = 1000 }, promptGui)
@@ -113,14 +108,13 @@ end
 
 -- 3. PANEL
 function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
-    local WIDTH, HEIGHT = 400, 450
+    local WIDTH, HEIGHT = 400, 420
     local HEADER_H = 40
     
     local viewport = workspace.CurrentCamera.ViewportSize
     local startX = (viewport.X - WIDTH) / 2
     local startY = (viewport.Y - HEIGHT) / 2
     
-    -- Usamos AnchorPoint (0,0) para que las matemáticas de posición sean exactas
     local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromOffset(startX, startY), BackgroundColor3 = C.Bg, BorderSizePixel = 1, BorderColor3 = C.Accent, ClipsDescendants = true, ZIndex = 2 }, gui)
     
     local header = new("Frame", { Size = UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3 = C.Header, BorderSizePixel = 0, ZIndex = 3 }, frame)
@@ -178,10 +172,41 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
     if MoveC then addTitle("Movimiento"); addToggle("Speed", MoveC, "SpeedEnabled"); addSlider("Velocidad", MoveC, "Speed", 16, 200); addToggle("Super Jump", MoveC, "JumpEnabled"); addSlider("Salto", MoveC, "JumpPower", 50, 300) end
     if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
-    if GodC then addTitle("Mahoraga (Adaptación)"); addToggle("Activar Mahoraga", GodC, "Enabled"); addSlider("Duración Invulnerable", GodC, "Duration", 1, 15) end
     if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled"); addToggle("Auto M1", CombC, "AutoM1") end
 
-    -- 🛠️ BURBUJA CON LÍMITES
+    -- 🛠️ BOTÓN FLOTANTE MAHORAGA
+    local mahoBtn = new("TextButton", { 
+        Size = UDim2.fromOffset(100, 40), 
+        Position = UDim2.fromOffset(viewport.X - 120, viewport.Y / 2), -- Aparece a la derecha por defecto
+        BackgroundColor3 = C.Row, 
+        Text = "MAHORAGA: OFF", 
+        TextColor3 = C.Text, 
+        Font = Enum.Font.GothamBold, 
+        TextSize = 11, 
+        AutoButtonColor = false,
+        ZIndex = 10
+    }, gui)
+    stroke(mahoBtn, "Maho", 2)
+    new("UICorner", { CornerRadius = UDim.new(0, 8) }, mahoBtn)
+
+    mahoBtn.Activated:Connect(function()
+        if GodC then
+            GodC.Mahoraga = not GodC.Mahoraga
+            if GodC.Mahoraga then
+                mahoBtn.Text = "MAHORAGA: ON"
+                mahoBtn.BackgroundColor3 = C.Maho
+                mahoBtn.TextColor3 = Color3.new(1,1,1)
+            else
+                mahoBtn.Text = "MAHORAGA: OFF"
+                mahoBtn.BackgroundColor3 = C.Row
+                mahoBtn.TextColor3 = C.Text
+            end
+        end
+    end)
+    
+    -- Hacer que el botón de Mahoraga se pueda arrastrar
+    makeDraggable(mahoBtn, mahoBtn, 100, 40)
+
     local BUBBLE = 46
     local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Header, Visible = false, Text = "F", Font = Enum.Font.GothamBold, TextSize = 20, TextColor3 = C.Accent, AutoButtonColor = false, ZIndex = 10 }, gui)
     new("UICorner", { CornerRadius = UDim.new(1, 0) }, bubble)
@@ -210,4 +235,4 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     
     makeDraggable(header, frame, WIDTH, HEIGHT)
     makeDraggable(bubble, bubble, BUBBLE, BUBBLE)
-end
+endloadstring(game:HttpGet("https://raw.githubusercontent.com/cristhiandalmauquintana-ctrl/Whitefantasy/main/Main.lua?v=11.4"))()
