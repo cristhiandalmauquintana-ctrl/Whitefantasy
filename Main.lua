@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v16.1 (Fixed + No GodMode)
+--// Main.lua - Froggy Hub | UI v17.0 (Brookhaven + Sound)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -46,17 +46,16 @@ local function makeDraggable(handle, target)
     end)
 end
 
--- 🛠️ DECLARAMOS LA FUNCIÓN ARRIBA PARA QUE EL BOTÓN LA ENCUENTRE
 local loadHub
 
--- 1. SELECTOR DE JUEGO
-local prompt = new("Frame", { Size = UDim2.fromOffset(300, 200), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
+-- 1. SELECTOR DE JUEGO (Más alto para 3 opciones)
+local prompt = new("Frame", { Size = UDim2.fromOffset(300, 260), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
 new("UICorner", { CornerRadius = UDim.new(0, 8) }, prompt)
 new("UIStroke", { Color = C.Accent, Thickness = 2 }, prompt)
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 15), Size = UDim2.new(1, 0, 0, 30), Font = Enum.Font.GothamBold, TextSize = 16, Text = "Selecciona el Juego", TextColor3 = C.Text }, prompt)
 
-local function makeChoice(y, text, folder, display)
-    local btn = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 45), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false }, prompt)
+local function makeChoice(y, text, folder, display, color)
+    local btn = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 45), BackgroundColor3 = color or C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false }, prompt)
     new("UICorner", { CornerRadius = UDim.new(0, 6) }, btn)
     new("UIStroke", { Color = C.Off }, btn)
     btn.Activated:Connect(function()
@@ -64,10 +63,11 @@ local function makeChoice(y, text, folder, display)
         if loadHub then loadHub(folder, display) end
     end)
 end
-makeChoice(60, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic Arena")
-makeChoice(120, "Blox Fruits", "BloxFruits", "Blox Fruits")
+makeChoice(60, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic Arena", C.Row)
+makeChoice(115, "Blox Fruits", "BloxFruits", "Blox Fruits", C.Row)
+makeChoice(170, "Brookhaven", "Brookhaven", "Brookhaven RP", Color3.fromRGB(60, 130, 200)) -- Botón Azul para Brookhaven
 
--- 2. CARGA DE MÓDULOS (Sin GodMode)
+-- 2. CARGA DE MÓDULOS
 loadHub = function(folder, displayName)
     local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
     local BASE = (folder == "BloxFruits") and ROOT or (ROOT .. folder .. "/")
@@ -83,38 +83,46 @@ loadHub = function(folder, displayName)
                 local ok, res = pcall(game.HttpGet, game, BASE .. n .. "?v=" .. os.time())
                 if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
                     local fnOk, fn = pcall(loadstring, res)
-                    if fnOk and type(fn) == "function" then 
-                        pcall(fn) 
-                    end
+                    if fnOk and type(fn) == "function" then pcall(fn) end
                 end
             end
             task.wait(0.1)
             return env[key] or _G[key]
         end
 
-        loadText.Text = "Cargando ESP..."
-        local EspC = download({folder == "BloxFruits" and "Esp.lua" or "EspElemental.lua"}, "BF_ESP_CONFIG")
+        local EspC, MoveC, HitC, CombC, CamC, SoundC = nil, nil, nil, nil, nil, nil
         
-        loadText.Text = "Cargando Movimiento..."
-        local MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
-        
-        loadText.Text = "Cargando Hitbox..."
-        local HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
-        
-        loadText.Text = "Cargando Combate..."
-        local CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
-        
-        loadText.Text = "Cargando Camlock..."
-        local CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
+        if folder == "Brookhaven" then
+            loadText.Text = "Cargando Sonidos..."
+            SoundC = download({"SoundPlayer.lua"}, "BF_SOUND_CONFIG")
+            loadText.Text = "Cargando ESP..."
+            EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
+        elseif folder == "ElementalMagicArena" then
+            loadText.Text = "Cargando ESP..."
+            EspC = download({"EspElemental.lua"}, "BF_ESP_CONFIG")
+            loadText.Text = "Cargando Movimiento..."
+            MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+            loadText.Text = "Cargando Combate..."
+            CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
+            loadText.Text = "Cargando Hitbox..."
+            HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
+        else
+            loadText.Text = "Cargando ESP..."
+            EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
+            loadText.Text = "Cargando Movimiento..."
+            MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+            loadText.Text = "Cargando Camlock..."
+            CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
+        end
         
         loading:Destroy()
-        buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
+        buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
     end)
 end
 
 -- 3. INTERFAZ PRINCIPAL
-function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
-    local WIDTH, HEIGHT = 350, 420
+function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
+    local WIDTH, HEIGHT = 350, 400
     local viewport = workspace.CurrentCamera.ViewportSize
     local startX = (viewport.X - WIDTH) / 2
     local startY = (viewport.Y - HEIGHT) / 2
@@ -181,6 +189,13 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
         UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then update(input.Position.X) end end)
         UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
         y = y + 50
+    end
+
+    -- Sección Brookhaven (Sonido)
+    if SoundC then
+        addTitle("Sonidos del Servidor")
+        addToggle("Reproducir Sonido", SoundC, "Playing")
+        addSlider("Volumen", SoundC, "Volume", 1, 10)
     end
 
     if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
