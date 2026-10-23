@@ -1,27 +1,25 @@
 -- ============================================================
--- WHITE FANTASY - HitboxExpander.lua
--- Aumenta el hitbox a 35 studs y elimina las colisiones físicas
+-- WHITE FANTASY - HitboxExpander.lua (MODULAR)
 -- ============================================================
-
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 
+-- 1. CREAMOS LA TABLA DE CONFIGURACIÓN PARA EL MAIN.LUA
+getgenv().BF_HITBOX_CONFIG = {
+    Enabled = false,
+    Size = 35
+}
+
+local HitC = getgenv().BF_HITBOX_CONFIG
 local originalSizes = {}
 local originalMasses = {}
 
--- Aseguramos que la tabla de configuración exista (por si este script carga antes que el Main)
-if not getgenv().WhiteFantasy then
-    getgenv().WhiteFantasy = { Hitbox = false }
-end
-
-local HITBOX_SIZE = 35 -- Tamaño de 35 studs
-
+-- 2. LOOP PRINCIPAL DEL HITBOX
 task.spawn(function()
-    while task.wait(0.1) do -- Se actualiza 10 veces por segundo (anti-reversión)
-        -- Leemos el estado desde el Main.lua
-        if getgenv().WhiteFantasy.Hitbox then
+    while task.wait(0.1) do
+        if HitC.Enabled then
+            local HITBOX_SIZE = HitC.Size
             
-            -- 1. Expandir Hitboxes de los enemigos
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LP and p.Character then
                     local hrp = p.Character:FindFirstChild("HumanoidRootPart")
@@ -34,7 +32,7 @@ task.spawn(function()
                         hrp.Size = Vector3.new(HITBOX_SIZE, HITBOX_SIZE, HITBOX_SIZE)
                         hrp.Transparency = 0.8
                         hrp.CanCollide = false
-                        hrp.Massless = true -- TRUCO: No te empuja
+                        hrp.Massless = true -- TRUCO: Evita que el hitbox te empuje
                     end
                     
                     if head then
@@ -44,12 +42,12 @@ task.spawn(function()
                         head.Size = Vector3.new(HITBOX_SIZE/1.5, HITBOX_SIZE/1.5, HITBOX_SIZE/1.5)
                         head.Transparency = 0.8
                         head.CanCollide = false
-                        head.Massless = true -- TRUCO: No te empuja
+                        head.Massless = true
                     end
                 end
             end
             
-            -- 2. Noclip automático para el jugador local (para atravesarlos)
+            -- Noclip automático para que puedas atravesarlos
             if LP.Character then
                 for _, part in ipairs(LP.Character:GetDescendants()) do
                     if part:IsA("BasePart") then 
@@ -59,7 +57,7 @@ task.spawn(function()
             end
             
         else
-            -- 3. Restaurar todo si el Main.lua apaga el botón
+            -- Restaurar todo si el Main apaga el botón
             for part, size in pairs(originalSizes) do
                 if part and part.Parent then
                     part.Size = size
@@ -73,7 +71,7 @@ task.spawn(function()
             originalSizes = {}
             originalMasses = {}
             
-            -- Restaurar colisiones del jugador local
+            -- Restaurar colisiones del jugador
             if LP.Character then
                 for _, part in ipairs(LP.Character:GetDescendants()) do
                     if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then 
