@@ -1,7 +1,6 @@
---// Froggy Hub - Brookhaven Sound Player (Global + Loop)
+--// Froggy Hub - Brookhaven Sound Player (Global + Loop + Debug)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 
@@ -11,7 +10,7 @@ local Config = {
     Playing = false,
     SoundId = "1837879082",
     Volume = 5,
-    Loop = false, -- 🛠️ NUEVA OPCIÓN
+    Loop = false,
 }
 env.BF_SOUND_CONFIG = Config
 
@@ -27,8 +26,9 @@ local function playSound()
     local char = LocalPlayer.Character
     if not char then return end
     
+    -- Limpiamos el string para sacar solo los números
     local cleanId = tostring(Config.SoundId):match("%d+")
-    if not cleanId then return end
+    if not cleanId then warn("[Froggy] ⚠️ ID de audio inválido.") return end
     currentLoadedId = "rbxassetid://" .. cleanId
 
     soundPart = Instance.new("Part")
@@ -41,8 +41,14 @@ local function playSound()
     sound = Instance.new("Sound")
     sound.SoundId = currentLoadedId
     sound.Volume = Config.Volume
-    sound.Looped = Config.Loop -- 🛠️ APLICAMOS EL BUCLE
+    sound.Looped = Config.Loop
     sound.Parent = soundPart
+    
+    -- Verificamos si el audio cargó
+    sound.Loaded:Connect(function()
+        print("[Froggy] ✅ Audio cargado con éxito: " .. currentLoadedId)
+    end)
+    
     sound:Play()
 end
 
@@ -56,21 +62,14 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local cleanId = tostring(Config.SoundId):match("%d+")
     local formattedId = cleanId and ("rbxassetid://" .. cleanId) or ""
     
+    -- Si el ID cambió, reiniciamos
     if currentLoadedId ~= formattedId then playSound(); return end
 
     if soundPart then
         soundPart.Position = root.Position
-        
         if sound then 
             sound.Volume = Config.Volume 
-            -- 🛠️ Si el usuario cambia el toggle de Bucle en el panel, lo aplicamos en vivo
-            if sound.Looped ~= Config.Loop then
-                sound.Looped = Config.Loop
-            end
-            -- Si por alguna razon el sonido se detuvo y no está en bucle, lo reiniciamos
-            if not sound.IsPlaying and not Config.Loop then
-                playSound()
-            end
+            if sound.Looped ~= Config.Loop then sound.Looped = Config.Loop end
         end
     end
 end))
