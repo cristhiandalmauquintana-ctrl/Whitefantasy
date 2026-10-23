@@ -1,108 +1,247 @@
---// Froggy Hub - GodMode V15 (Evasión Automática Anti-Acumulación)
+--// Main.lua - Froggy Hub | UI v16.0 (GitHub Ready - Dual Game Support)
+local GITHUB_USER = "cristhiandalmauquintana-ctrl"
+local GITHUB_REPO = "Whitefantasy"
+local BRANCH = "main"
+
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
-
 local env = (getgenv and getgenv()) or _G
-if env.__BF_GOD_CLEANUP then pcall(env.__BF_GOD_CLEANUP) end
 
-local Config = {
-    Mahoraga = false,
+-- Limpieza en PlayerGui (Evita crasheos en Delta)
+local parentGui = LocalPlayer:WaitForChild("PlayerGui")
+for _, obj in ipairs(parentGui:GetChildren()) do
+    if obj.Name:match("^FroggyHub_") then obj:Destroy() end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "FroggyHub_Main"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 100
+gui.Parent = parentGui
+
+-- Paleta de Colores
+local C = { 
+    Danger = Color3.fromRGB(210, 70, 70), 
+    Text = Color3.fromRGB(240, 240, 245), 
+    Dim = Color3.fromRGB(150, 150, 165), 
+    Bg = Color3.fromRGB(16, 16, 22), 
+    Accent = Color3.fromRGB(110, 220, 90),
+    Row = Color3.fromRGB(30, 30, 40),
+    Off = Color3.fromRGB(50, 50, 60)
 }
-env.BF_GODMODE_CONFIG = Config
 
-local connections = {}
-local isHooked = false
-local isEvading = false
-local lastEvadeTime = 0
+-- Utilidades
+local function new(class, props, parent) 
+    local o = Instance.new(class)
+    for k, v in pairs(props) do o[k] = v end
+    if parent then o.Parent = parent end
+    return o 
+end
 
-local function setupHooks()
-    if isHooked then return end
-    pcall(function()
-        -- Bloqueamos TakeDamage
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if Config.Mahoraga then
-                if method == "TakeDamage" and self:IsA("Humanoid") and self.Parent == LocalPlayer.Character then
-                    return
+local function makeDraggable(handle, target)
+    local active, startMouse, startPos, moved
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            active = input; startMouse = input.Position; startPos = target.Position; moved = false
+            local conn; conn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if active == input then active = nil end
+                    conn:Disconnect()
                 end
-                if method == "BreakJoints" and self:IsA("BasePart") and self.Parent == LocalPlayer.Character then
-                    return
-                end
-            end
-            return oldNamecall(self, ...)
-        end)
-        isHooked = true
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if not active then return end
+        if active.UserInputType == Enum.UserInputType.Touch then if input ~= active then return end
+        elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        local d = input.Position - startMouse; if d.Magnitude > 5 then moved = true end
+        if moved then target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end
     end)
 end
 
-local function setupCharacter(char)
-    setupHooks()
+-- ==========================================
+-- 1. SELECTOR DE JUEGO
+-- ==========================================
+local prompt = new("Frame", { Size = UDim2.fromOffset(300, 200), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
+new("UICorner", { CornerRadius = UDim.new(0, 8) }, prompt)
+new("UIStroke", { Color = C.Accent, Thickness = 2 }, prompt)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 15), Size = UDim2.new(1, 0, 0, 30), Font = Enum.Font.GothamBold, TextSize = 16, Text = "Selecciona el Juego", TextColor3 = C.Text }, prompt)
+
+local function makeChoice(y, text, folder, display)
+    local btn = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 45), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false }, prompt)
+    new("UICorner", { CornerRadius = UDim.new(0, 6) }, btn)
+    new("UIStroke", { Color = C.Off }, btn)
+    btn.Activated:Connect(function()
+        prompt:Destroy()
+        loadHub(folder, display)
+    end)
+end
+makeChoice(60, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic Arena")
+makeChoice(120, "Blox Fruits", "BloxFruits", "Blox Fruits")
+
+-- ==========================================
+-- 2. CARGA DE MÓDULOS
+-- ==========================================
+function loadHub(folder, displayName)
+    local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
+    local BASE = (folder == "BloxFruits") and ROOT or (ROOT .. folder .. "/")
     
-    local hum = char:WaitForChild("Humanoid", 5)
-    local root = char:WaitForChild("HumanoidRootPart", 5)
-    if not hum or not root then return end
-
-    -- 🛡️ Loop principal
-    table.insert(connections, RunService.Stepped:Connect(function()
-        if not Config.Mahoraga then return end
-        
-        -- 1. Vida infinita
-        pcall(function()
-            hum.MaxHealth = math.huge
-            hum.Health = math.huge
-            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-        end)
-
-        -- 2. Evasión automática (si la vida baja, te movemos al cielo)
-        if hum.Health < hum.MaxHealth - 1 and not isEvading and os.clock() - lastEvadeTime > 2 then
-            isEvading = true
-            lastEvadeTime = os.clock()
-            
-            local originalPos = root.CFrame
-            local skyPos = originalPos + Vector3.new(0, 60, 0)
-            
-            -- Teletransporte al cielo
-            root.CFrame = skyPos
-            
-            -- Esperamos 0.5 segundos y volvemos al suelo
-            task.delay(0.5, function()
-                if char and char.Parent and Config.Mahoraga then
-                    pcall(function()
-                        root.CFrame = originalPos
-                        hum.Health = math.huge
-                    end)
+    local loading = new("Frame", { Size = UDim2.fromOffset(250, 100), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg }, gui)
+    new("UICorner", { CornerRadius = UDim.new(0, 8) }, loading)
+    new("UIStroke", { Color = C.Accent, Thickness = 1.5 }, loading)
+    new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Font = Enum.Font.GothamBold, TextSize = 16, Text = "Cargando " .. displayName .. "...", TextColor3 = C.Accent }, loading)
+    
+    task.spawn(function()
+        local function download(names, key)
+            for _, n in ipairs(names) do
+                local ok, res = pcall(game.HttpGet, game, BASE .. n .. "?v=" .. os.time())
+                if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
+                    local fnOk, fn = pcall(loadstring, res)
+                    if fnOk and type(fn) == "function" then pcall(fn) end
                 end
-                isEvading = false
-            end)
+            end
+            task.wait(0.1)
+            return env[key] or _G[key]
         end
-    end))
 
-    -- 🛡️ Revivir si el servidor nos mata
-    table.insert(connections, hum.Died:Connect(function()
-        if not Config.Mahoraga then return end
-        task.wait(0.01)
-        if char and char.Parent then
-            pcall(function()
-                hum.MaxHealth = math.huge
-                hum.Health = math.huge
-                hum:ChangeState(Enum.HumanoidStateType.Running)
-            end)
-        end
-    end))
+        local EspC = download({folder == "BloxFruits" and "Esp.lua" or "EspElemental.lua"}, "BF_ESP_CONFIG")
+        local MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+        local HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
+        local CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
+        local CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
+        
+        loading:Destroy()
+        pcall(function() buildUI(displayName, EspC, MoveC, HitC, CombC, CamC) end)
+    end)
 end
 
-if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
-table.insert(connections, LocalPlayer.CharacterAdded:Connect(setupCharacter))
+-- ==========================================
+-- 3. INTERFAZ PRINCIPAL (Bloques Fijos)
+-- ==========================================
+function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC)
+    local WIDTH, HEIGHT = 350, 400
+    local viewport = workspace.CurrentCamera.ViewportSize
+    local startX = (viewport.X - WIDTH) / 2
+    local startY = (viewport.Y - HEIGHT) / 2
+    
+    local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromOffset(startX, startY), BackgroundColor3 = C.Bg, BorderSizePixel = 1, BorderColor3 = C.Accent }, gui)
+    
+    -- Header
+    local header = new("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = C.Row }, frame)
+    new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -80, 1, 0), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Text = "Froggy | " .. displayName, TextColor3 = C.Text }, header)
+    
+    local btnMin = new("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -60, 0.5, -13), BackgroundColor3 = C.Bg, Text = "-", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 18 }, header)
+    new("UICorner", { CornerRadius = UDim.new(0, 4) }, btnMin)
+    local btnClose = new("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -32, 0.5, -13), BackgroundColor3 = C.Danger, Text = "X", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14 }, header)
+    new("UICorner", { CornerRadius = UDim.new(0, 4) }, btnClose)
 
--- Sincronización con el botón
-LocalPlayer:GetAttributeChangedSignal("FroggyMahoraga"):Connect(function()
-    Config.Mahoraga = LocalPlayer:GetAttribute("FroggyMahoraga")
-end)
+    -- Body
+    local body = new("ScrollingFrame", { Position = UDim2.fromOffset(0, 45), Size = UDim2.new(1, 0, 1, -45), BackgroundTransparency = 1, ScrollBarThickness = 2, CanvasSize = UDim2.new(0, 0, 0, 800) }, frame)
+    local y = 5
+    
+    local function addToggle(text, cfg, key)
+        if not cfg then return end
+        local row = new("Frame", { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.fromOffset(10, y), BackgroundColor3 = C.Row }, body)
+        new("UICorner", { CornerRadius = UDim.new(0, 6) }, row)
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -60, 1, 0), Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Text = text, TextColor3 = C.Text }, row)
+        
+        local btn = new("TextButton", { Size = UDim2.fromOffset(40, 20), Position = UDim2.new(1, -50, 0.5, -10), BackgroundColor3 = cfg[key] and C.Accent or C.Off }, row)
+        new("UICorner", { CornerRadius = UDim.new(1, 0) }, btn)
+        local knob = new("Frame", { Size = UDim2.fromOffset(16, 16), Position = cfg[key] and UDim2.new(1, -18, 0, 2) or UDim2.fromOffset(2, 2), BackgroundColor3 = Color3.new(1,1,1) }, btn)
+        new("UICorner", { CornerRadius = UDim.new(1, 0) }, knob)
+        
+        btn.Activated:Connect(function()
+            cfg[key] = not cfg[key]
+            btn.BackgroundColor3 = cfg[key] and C.Accent or C.Off
+            knob.Position = cfg[key] and UDim2.new(1, -18, 0, 2) or UDim2.fromOffset(2, 2)
+        end)
+        y = y + 40
+    end
 
-env.__BF_GOD_CLEANUP = function()
-    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
-    env.BF_GODMODE_CONFIG = nil
-    env.__BF_GOD_CLEANUP = nil
+    local function addSlider(text, cfg, key, minV, maxV)
+        if not cfg then return end
+        local row = new("Frame", { Size = UDim2.new(1, -20, 0, 45), Position = UDim2.fromOffset(10, y), BackgroundColor3 = C.Row }, body)
+        new("UICorner", { CornerRadius = UDim.new(0, 6) }, row)
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 2), Size = UDim2.new(1, -60, 0, 18), Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Text = text, TextColor3 = C.Text }, row)
+        local valLbl = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(1, -50, 0, 2), Size = UDim2.fromOffset(40, 18), Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, Text = tostring(cfg[key] or minV), TextColor3 = C.Accent }, row)
+        
+        local track = new("Frame", { Position = UDim2.fromOffset(10, 25), Size = UDim2.new(1, -20, 0, 6), BackgroundColor3 = C.Off }, row)
+        new("UICorner", { CornerRadius = UDim.new(1, 0) }, track)
+        local fill = new("Frame", { Size = UDim2.fromScale(((cfg[key] or minV) - minV) / (maxV - minV), 1), BackgroundColor3 = C.Accent }, track)
+        new("UICorner", { CornerRadius = UDim.new(1, 0) }, fill)
+        
+        local hit = new("Frame", { Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1 }, row)
+        local dragging = false
+        local function update(x)
+            local rel = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            local v = math.floor(minV + rel * (maxV - minV) + 0.5)
+            cfg[key] = v
+            fill.Size = UDim2.fromScale(rel, 1)
+            valLbl.Text = tostring(v)
+        end
+        hit.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; update(input.Position.X) end end)
+        UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then update(input.Position.X) end end)
+        UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+        y = y + 50
+    end
+
+    -- Secciones
+    if EspC then 
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "ESP", TextColor3 = C.Accent }, body)
+        y = y + 20
+        addToggle("Activar ESP", EspC, "Enabled") 
+        addToggle("Cajas 2D", EspC, "Boxes") 
+    end
+
+    if MoveC then 
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "MOVIMIENTO", TextColor3 = C.Accent }, body)
+        y = y + 20
+        addToggle("Speed", MoveC, "SpeedEnabled") 
+        addSlider("Velocidad", MoveC, "Speed", 16, 200) 
+        addToggle("Super Jump", MoveC, "JumpEnabled") 
+        addSlider("Salto", MoveC, "JumpPower", 50, 300) 
+    end
+
+    if HitC then 
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "HITBOX", TextColor3 = C.Accent }, body)
+        y = y + 20
+        addToggle("Hitbox 35 Studs", HitC, "Enabled") 
+    end
+
+    if CombC then 
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "AUTO COMBAT", TextColor3 = C.Accent }, body)
+        y = y + 20
+        addToggle("Activar", CombC, "Enabled") 
+    end
+
+    if CamC then 
+        new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, y), Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Text = "CAMLOCK", TextColor3 = C.Accent }, body)
+        y = y + 20
+        addToggle("Activar Camlock", CamC, "Enabled") 
+    end
+
+    -- Burbuja y Minimizar
+    local BUBBLE = 46
+    local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Row, Visible = false, Text = "F", TextColor3 = C.Accent, Font = Enum.Font.GothamBold, TextSize = 22 }, gui)
+    new("UICorner", { CornerRadius = UDim.new(1, 0) }, bubble)
+    new("UIStroke", { Color = C.Accent, Thickness = 2 }, bubble)
+
+    btnMin.Activated:Connect(function()
+        bubble.Position = UDim2.new(frame.Position.X.Scale, frame.Position.X.Offset + 8, frame.Position.Y.Scale, frame.Position.Y.Offset + 8)
+        frame.Visible = false
+        bubble.Visible = true
+    end)
+    bubble.Activated:Connect(function()
+        frame.Position = UDim2.new(bubble.Position.X.Scale, bubble.Position.X.Offset - 8, bubble.Position.Y.Scale, bubble.Position.Y.Offset - 8)
+        bubble.Visible = false
+        frame.Visible = true
+    end)
+    btnClose.Activated:Connect(function() gui:Destroy() end)
+
+    makeDraggable(header, frame)
+    makeDraggable(bubble, bubble)
 end
