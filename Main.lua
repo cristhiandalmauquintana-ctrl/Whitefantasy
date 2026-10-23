@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Conectado al Design de Claude
+--// Main.lua - Froggy Hub | UI Épica v20 (Conectado a design.lua)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -12,19 +12,20 @@ local env = (getgenv and getgenv()) or _G
 local designUrl = ROOT .. "design.lua"
 local UI_Library = loadstring(game:HttpGet(designUrl))()
 
--- 2. CREAMOS LA VENTANA CON EL DISEÑO ÉPICO
+-- 2. CREAMOS LA VENTANA PRINCIPAL
 local Window = UI_Library.CreateWindow({
     Title = "FROGGY HUB",
     Subtitle = "SYS 0x5EE9"
 })
 
--- 3. CREAMOS LAS PESTAÑAS (Tabs)
+-- 3. CREAMOS LAS PESTAÑAS ORGANIZADAS
 local TabMain = Window:CreateTab("MAIN")
 local TabVisual = Window:CreateTab("VISUAL")
+local TabMovement = Window:CreateTab("MOVEMENT")
 local TabConfig = Window:CreateTab("CONFIG")
 
 -- ==========================================
--- 4. LÓGICA DE DETECCIÓN Y CARGA DE MÓDULOS
+-- 4. DETECCIÓN DE JUEGO Y CARGA DE MÓDULOS
 -- ==========================================
 -- Detectamos si el juego es Blox Fruits por su PlaceID
 local isBloxFruits = (game.PlaceId == 2753915549 or game.PlaceId == 4442272183 or game.PlaceId == 7449423635)
@@ -43,7 +44,7 @@ local function download(names, key)
     return env[key] or _G[key]
 end
 
--- Descargamos los módulos según el juego
+-- Descargamos los módulos correspondientes
 local EspC, MoveC, HitC, CombC, CamC
 
 if isBloxFruits then
@@ -58,18 +59,30 @@ else
 end
 
 -- ==========================================
--- 5. CONECTAMOS LOS BOTONES DEL DISEÑO A LA LÓGICA
+-- 5. CONECTAMOS LOS BOTONES A LA LÓGICA
 -- ==========================================
 
--- === PESTAÑA MAIN ===
+-- === PESTAÑA MAIN (Combate y Acciones) ===
 TabMain:AddButton("REJOIN SERVER", function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
 end)
+
+if HitC then
+    TabMain:AddToggle("HITBOX EXPANDER", HitC.Enabled, function(state)
+        HitC.Enabled = state
+    end)
+end
 
 if CombC then
     TabMain:AddToggle("AUTO COMBAT", CombC.Enabled, function(state)
         CombC.Enabled = state
     end)
+    -- Si tienes un toggle de AutoM1 en tu CombC, puedes agregarlo aquí:
+    if CombC.AutoM1 ~= nil then
+        TabMain:AddToggle("AUTO M1", CombC.AutoM1, function(state)
+            CombC.AutoM1 = state
+        end)
+    end
 end
 
 if CamC then
@@ -78,30 +91,34 @@ if CamC then
     end)
 end
 
--- === PESTAÑA VISUAL ===
+-- === PESTAÑA VISUAL (Solo lo que se ve) ===
 if EspC then
     TabVisual:AddToggle("ESP JUGADORES", EspC.Enabled, function(state)
         EspC.Enabled = state
     end)
+    if EspC.Boxes ~= nil then
+        TabVisual:AddToggle("CAJAS 2D", EspC.Boxes, function(state)
+            EspC.Boxes = state
+        end)
+    end
 end
 
-if HitC then
-    TabVisual:AddToggle("HITBOX EXPANDER (35)", HitC.Enabled, function(state)
-        HitC.Enabled = state
-    end)
-end
-
+-- === PESTAÑA MOVEMENT (Física y velocidad) ===
 if MoveC then
-    TabVisual:AddToggle("SPEED HACK", MoveC.SpeedEnabled, function(state)
+    TabMovement:AddToggle("SPEED HACK", MoveC.SpeedEnabled, function(state)
         MoveC.SpeedEnabled = state
     end)
     
-    TabVisual:AddSlider("VELOCIDAD", 16, 200, MoveC.Speed or 60, function(val)
+    TabMovement:AddSlider("VELOCIDAD", 16, 200, MoveC.Speed or 60, function(val)
         MoveC.Speed = val
     end)
     
-    TabVisual:AddToggle("SUPER JUMP", MoveC.JumpEnabled, function(state)
+    TabMovement:AddToggle("SUPER JUMP", MoveC.JumpEnabled, function(state)
         MoveC.JumpEnabled = state
+    end)
+    
+    TabMovement:AddSlider("ALTURA DE SALTO", 50, 300, MoveC.JumpPower or 100, function(val)
+        MoveC.JumpPower = val
     end)
 end
 
@@ -110,4 +127,4 @@ TabConfig:AddButton("DESTRUIR UI", function()
     Window:Destroy()
 end)
 
-print("[Main] Hub conectado al diseño de Claude con éxito.")
+print("[Main] Hub cargado con éxito. UI Épica conectada.")
