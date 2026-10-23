@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v12.6: Fixed Mobile Layout + Error Catch
+--// Main.lua - Froggy Hub | UI v12.7: Fixed Mobile Layout + Sliders Return
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -69,7 +69,7 @@ local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint 
 stroke(promptGui, "Accent", 2)
 
 new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?", TextColor3 = C.Text, ZIndex = 1000 }, promptGui)
-new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v12.6 //", ZIndex = 1000 }, promptGui)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v12.7 //", ZIndex = 1000 }, promptGui)
 
 local function makeChoice(y, text, folder, display)
     local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false, ZIndex = 1000 }, promptGui)
@@ -114,7 +114,6 @@ function loadHub(folder, displayName)
         
         loading:Destroy()
         
-        -- 🛠️ PROTECCIÓN: Si algo falla dibujando, te avisa en consola
         local success, err = pcall(function()
             buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
         end)
@@ -125,10 +124,10 @@ function loadHub(folder, displayName)
 end
 
 -- ==========================================
--- 3. PANEL PRINCIPAL (POSICIONES FIJAS PARA CELULAR)
+-- 3. PANEL PRINCIPAL
 -- ==========================================
 function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
-    local WIDTH, HEIGHT = 400, 400 -- Más alto para que quepa todo
+    local WIDTH, HEIGHT = 400, 450 -- Un poco más alto para que quepan los sliders
     local HEADER_H = 40
     
     local frame = new("Frame", { Size = UDim2.fromOffset(WIDTH, HEIGHT), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 1, BorderColor3 = C.Accent, ClipsDescendants = true, ZIndex = 2 }, gui)
@@ -139,10 +138,15 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     local btnMin = new("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -60, 0.5, -13), BackgroundColor3 = C.Row, Text = "-", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 18, AutoButtonColor = false, ZIndex = 4 }, header)
     local btnClose = new("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -32, 0.5, -13), BackgroundColor3 = C.Danger, Text = "X", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false, ZIndex = 4 }, header)
 
-    local body = new("ScrollingFrame", { Position = UDim2.fromOffset(10, HEADER_H + 10), Size = UDim2.new(1, -20, 1, -(HEADER_H + 20)), BackgroundTransparency = 1, ScrollBarThickness = 2, CanvasSize = UDim2.new(0, 0, 0, 500), ZIndex = 3 }, frame)
+    local body = new("ScrollingFrame", { Position = UDim2.fromOffset(10, HEADER_H + 10), Size = UDim2.new(1, -20, 1, -(HEADER_H + 20)), BackgroundTransparency = 1, ScrollBarThickness = 2, CanvasSize = UDim2.new(0, 0, 0, 800), ZIndex = 3 }, frame)
 
-    -- Posiciones fijas (Y va sumando de 45 en 45)
     local currentY = 0
+    
+    local function addTitle(text)
+        new("TextLabel", { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.fromOffset(0, currentY), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Text = string.upper(text), TextColor3 = C.Accent, ZIndex = 4 }, body)
+        currentY = currentY + 25
+    end
+
     local function addToggle(text, config, key)
         if not config then return end
         local row = new("Frame", { Size = UDim2.new(1, 0, 0, 35), Position = UDim2.fromOffset(0, currentY), BackgroundColor3 = C.Row, ZIndex = 4 }, body)
@@ -162,14 +166,67 @@ function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
         currentY = currentY + 40
     end
 
-    local function addTitle(text)
-        new("TextLabel", { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.fromOffset(0, currentY), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Text = string.upper(text), TextColor3 = C.Accent, ZIndex = 4 }, body)
-        currentY = currentY + 25
+    -- 🛠️ SLIDER REINCORPORADO (Posiciones fijas para evitar crasheo)
+    local function addSlider(text, config, key, minV, maxV)
+        if not config then return end
+        local row = new("Frame", { Size = UDim2.new(1, 0, 0, 45), Position = UDim2.fromOffset(0, currentY), BackgroundColor3 = C.Row, ZIndex = 4 }, body)
+        
+        new("TextLabel", { Size = UDim2.new(1, -60, 0, 18), Position = UDim2.fromOffset(10, 2), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Text = text, TextColor3 = C.Text, ZIndex = 5 }, row)
+        
+        local valLabel = new("TextLabel", { Size = UDim2.fromOffset(50, 18), Position = UDim2.new(1, -60, 0, 2), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, Text = tostring(config[key] or minV), TextColor3 = C.Accent, ZIndex = 5 }, row)
+        
+        local track = new("Frame", { Size = UDim2.new(1, -20, 0, 6), Position = UDim2.fromOffset(10, 25), BackgroundColor3 = C.Off, ZIndex = 5 }, row)
+        new("UICorner", { CornerRadius = UDim.new(1, 0) }, track)
+        
+        local rel = math.clamp(((config[key] or minV) - minV) / (maxV - minV), 0, 1)
+        local fill = new("Frame", { Size = UDim2.fromScale(rel, 1), BackgroundColor3 = C.Accent, ZIndex = 6 }, track)
+        new("UICorner", { CornerRadius = UDim.new(1, 0) }, fill)
+        
+        local hit = new("Frame", { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.fromOffset(0, 18), BackgroundTransparency = 1, ZIndex = 7 }, row)
+        
+        local dragging = false
+        local function update(x)
+            local width = math.max(1, track.AbsoluteSize.X)
+            local relX = math.clamp((x - track.AbsolutePosition.X) / width, 0, 1)
+            local v = math.floor(minV + relX * (maxV - minV) + 0.5)
+            config[key] = v
+            fill.Size = UDim2.fromScale(relX, 1)
+            valLabel.Text = tostring(v)
+        end
+        
+        hit.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                update(input.Position.X)
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                update(input.Position.X)
+            end
+        end)
+        
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+        
+        currentY = currentY + 50
     end
 
-    -- 🛠️ AGREGAR BOTONES
+    -- 🛠️ AGREGAR BOTONES Y SLIDERS
     if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
-    if MoveC then addTitle("Movimiento"); addToggle("Speed (Velocidad)", MoveC, "SpeedEnabled"); addToggle("Super Jump (Salto)", MoveC, "JumpEnabled") end
+    
+    if MoveC then 
+        addTitle("Movimiento")
+        addToggle("Speed (Velocidad)", MoveC, "SpeedEnabled")
+        addSlider("Velocidad extra", MoveC, "Speed", 16, 200)
+        addToggle("Super Jump (Salto)", MoveC, "JumpEnabled")
+        addSlider("Fuerza de salto", MoveC, "JumpPower", 50, 300)
+    end
+    
     if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
     if GodC then addTitle("God Mode"); addToggle("Inmortalidad", GodC, "Enabled"); addToggle("Anti-Caída", GodC, "AntiVoid") end
     if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled"); addToggle("Auto M1", CombC, "AutoM1") end
