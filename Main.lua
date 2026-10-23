@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI v17.3 (Real-Time TextBox)
+--// Main.lua - Froggy Hub | UI v18.1 (Elemental sin Camlock + Restauración)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -48,6 +48,7 @@ end
 
 local loadHub
 
+-- 1. SELECTOR DE JUEGO
 local prompt = new("Frame", { Size = UDim2.fromOffset(300, 260), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0 }, gui)
 new("UICorner", { CornerRadius = UDim.new(0, 8) }, prompt)
 new("UIStroke", { Color = C.Accent, Thickness = 2 }, prompt)
@@ -66,6 +67,7 @@ makeChoice(60, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic 
 makeChoice(115, "Blox Fruits", "BloxFruits", "Blox Fruits", C.Row)
 makeChoice(170, "Brookhaven", "Brookhaven", "Brookhaven RP", Color3.fromRGB(60, 130, 200))
 
+-- 2. CARGA DE MÓDULOS
 loadHub = function(folder, displayName)
     local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
     local BASE = (folder == "BloxFruits") and ROOT or (ROOT .. folder .. "/")
@@ -96,9 +98,20 @@ loadHub = function(folder, displayName)
         elseif folder == "ElementalMagicArena" then
             loadText.Text = "Cargando ESP..."
             EspC = download({"EspElemental.lua"}, "BF_ESP_CONFIG")
+            loadText.Text = "Cargando Movimiento..."
+            MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+            loadText.Text = "Cargando Hitbox..."
+            HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
+            loadText.Text = "Cargando Combate..."
+            CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
+            -- 🛠️ Camlock ELIMINADO DE ELEMENTAL ARENA
         else
             loadText.Text = "Cargando ESP..."
             EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
+            loadText.Text = "Cargando Movimiento..."
+            MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
+            loadText.Text = "Cargando Camlock..."
+            CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
         end
         
         loading:Destroy()
@@ -106,6 +119,7 @@ loadHub = function(folder, displayName)
     end)
 end
 
+-- 3. INTERFAZ PRINCIPAL
 function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
     local WIDTH, HEIGHT = 350, 420
     local viewport = workspace.CurrentCamera.ViewportSize
@@ -122,7 +136,7 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
     local btnClose = new("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -32, 0.5, -13), BackgroundColor3 = C.Danger, Text = "X", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14 }, header)
     new("UICorner", { CornerRadius = UDim.new(0, 4) }, btnClose)
 
-    local body = new("ScrollingFrame", { Position = UDim2.fromOffset(0, 45), Size = UDim2.new(1, 0, 1, -45), BackgroundTransparency = 1, ScrollBarThickness = 2, CanvasSize = UDim2.new(0, 0, 0, 1000) }, frame)
+    local body = new("ScrollingFrame", { Position = UDim2.fromOffset(0, 45), Size = UDim2.new(1, 0, 1, -45), BackgroundTransparency = 1, ScrollBarThickness = 2, CanvasSize = UDim2.new(0, 0, 0, 1500) }, frame)
     local y = 5
     
     local function addTitle(text)
@@ -130,21 +144,15 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
         y = y + 22
     end
 
-    -- 🛠️ TEXTBOX MEJORADO (Actualiza en tiempo real)
     local function addTextBox(text, cfg, key)
         if not cfg then return end
         local row = new("Frame", { Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, y), BackgroundColor3 = C.Row }, body)
         new("UICorner", { CornerRadius = UDim.new(0, 6) }, row)
         new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -60, 1, 0), Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Text = text, TextColor3 = C.Text }, row)
-        
         local box = new("TextBox", { Size = UDim2.fromOffset(80, 24), Position = UDim2.new(1, -90, 0.5, -12), BackgroundColor3 = C.Bg, Text = tostring(cfg[key] or ""), TextColor3 = C.Accent, Font = Enum.Font.GothamBold, TextSize = 12, PlaceholderText = "ID..." }, row)
         new("UICorner", { CornerRadius = UDim.new(0, 4) }, box)
         new("UIStroke", { Color = C.Off }, box)
-        
-        -- 🛠️ Ahora se actualiza cada vez que cambia el texto
-        box:GetPropertyChangedSignal("Text"):Connect(function()
-            cfg[key] = box.Text
-        end)
+        box:GetPropertyChangedSignal("Text"):Connect(function() cfg[key] = box.Text end)
         y = y + 45
     end
 
@@ -194,15 +202,44 @@ function buildUI(displayName, EspC, MoveC, HitC, CombC, CamC, SoundC)
         y = y + 50
     end
 
+    -- 🛠️ SECCIONES CONDICIONALES
     if SoundC then
         addTitle("Reproductor de Audio")
         addTextBox("Sound ID", SoundC, "SoundId")
         addToggle("Reproducir Sonido", SoundC, "Playing")
-        addToggle("Reproducir en Bucle (Loop)", SoundC, "Loop")
+        addToggle("Bucle (Loop)", SoundC, "Loop")
         addSlider("Volumen", SoundC, "Volume", 1, 10)
     end
 
-    if EspC then addTitle("ESP"); addToggle("Activar ESP", EspC, "Enabled"); addToggle("Cajas 2D", EspC, "Boxes") end
+    if EspC then 
+        addTitle("ESP"); 
+        addToggle("Activar ESP", EspC, "Enabled"); 
+        addToggle("Cajas 2D", EspC, "Boxes") 
+    end
+
+    if MoveC then 
+        addTitle("Movimiento"); 
+        addToggle("Speed", MoveC, "SpeedEnabled"); 
+        addSlider("Velocidad", MoveC, "Speed", 16, 200); 
+        addToggle("Super Jump", MoveC, "JumpEnabled"); 
+        addSlider("Salto", MoveC, "JumpPower", 50, 300) 
+    end
+
+    if HitC then 
+        addTitle("Hitbox"); 
+        addToggle("Hitbox 35 Studs", HitC, "Enabled") 
+    end
+
+    if CombC then 
+        addTitle("Auto Combat"); 
+        addToggle("Activar Combate", CombC, "Enabled"); 
+        addToggle("Auto M1 (Solo Espadas)", CombC, "AutoM1") 
+    end
+
+    if CamC then 
+        addTitle("Camlock"); 
+        addToggle("Activar Camlock", CamC, "Enabled") 
+    end
 
     local BUBBLE = 46
     local bubble = new("TextButton", { Size = UDim2.fromOffset(BUBBLE, BUBBLE), BackgroundColor3 = C.Row, Visible = false, Text = "F", TextColor3 = C.Accent, Font = Enum.Font.GothamBold, TextSize = 22 }, gui)
