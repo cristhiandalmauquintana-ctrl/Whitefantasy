@@ -1,4 +1,5 @@
---// Main.lua - Froggy Hub (loader + panel) | UI v11.4: Starship + Lockfile + Anti-Override
+
+--// Main.lua - Froggy Hub (loader + panel) | UI v11.5: Starship + Anti-Crash UI
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -10,17 +11,15 @@ local env = (getgenv and getgenv()) or _G
 local LOCK_FILE = "FroggyHub.lock"
 if type(isfile) == "function" and type(readfile) == "function" and isfile(LOCK_FILE) then
     local lock_time = tonumber(readfile(LOCK_FILE)) or 0
-    local now = os.time()
-    -- Si el bloqueo tiene menos de 5 segundos, significa que ya hay un script ejecutándose
-    if now - lock_time < 5 then
+    local now = os.time and os.time() or 0
+    if now - lock_time < 10 then
         warn("[Froggy] ⚠️ Ya hay una instancia de Froggy Hub ejecutándose. Abortando duplicado.")
         return
     end
 end
--- Crear el bloqueo
-if type(writefile) == "function" then pcall(writefile, LOCK_FILE, tostring(os.time())) end
+if type(writefile) == "function" then pcall(writefile, LOCK_FILE, tostring(os.time and os.time() or 0)) end
 
--- 💥 BORRADOR NUCLEAR
+-- 💥 BORRADOR NUCLEAR INICIAL
 local function destroyAllHubs()
     local places = {
         game:GetService("CoreGui"),
@@ -30,7 +29,7 @@ local function destroyAllHubs()
     for _, parent in pairs(places) do
         if parent then
             for _, obj in ipairs(parent:GetChildren()) do
-                if obj:IsA("ScreenGui") and (obj.Name == "FroggyHub_Main" or obj.Name:match("^FroggyHub_")) then
+                if obj:IsA("ScreenGui") and obj.Name:match("^FroggyHub_") then
                     pcall(function() obj:Destroy() end)
                 end
             end
@@ -38,28 +37,6 @@ local function destroyAllHubs()
     end
 end
 destroyAllHubs()
-
--- 🛡️ ANTÍDOTO CONTRA SCRIPTS VIEJOS (Vigilante en segundo plano)
-task.spawn(function()
-    while true do
-        task.wait(1.0)
-        local places = {
-            game:GetService("CoreGui"),
-            game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"),
-            (gethui and gethui()) or game:GetService("CoreGui")
-        }
-        for _, parent in pairs(places) do
-            if parent then
-                for _, obj in ipairs(parent:GetChildren()) do
-                    -- Si encuentra un FroggyHub que NO sea el de esta versión, lo mata
-                    if obj:IsA("ScreenGui") and obj.Name:match("^FroggyHub_") and obj.Name ~= "FroggyHub_v11.4" then
-                        pcall(function() obj:Destroy() end)
-                    end
-                end
-            end
-        end
-    end
-end)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -214,8 +191,31 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- 🛠️ NOMBRE ESPECÍFICO DE LA VERSIÓN PARA QUE EL ANTÍDOTO LO RECONOZCA
-local gui = new("ScreenGui", { Name = "FroggyHub_v11.4", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, getParent())
+-- 🛠️ NOMBRE ALEATORIO PARA EL ANTÍDOTO
+local uniqueGuiName = "FroggyHub_" .. tostring(math.random(1000, 9999))
+local gui = new("ScreenGui", { Name = uniqueGuiName, ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, getParent())
+
+-- 🛡️ ANTÍDOTO
+task.spawn(function()
+    while gui.Parent do
+        task.wait(1.0)
+        local places = {
+            game:GetService("CoreGui"),
+            game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"),
+            (gethui and gethui()) or game:GetService("CoreGui")
+        }
+        for _, parent in pairs(places) do
+            if parent then
+                for _, obj in ipairs(parent:GetChildren()) do
+                    if obj:IsA("ScreenGui") and obj.Name:match("^FroggyHub_") and obj.Name ~= uniqueGuiName then
+                        pcall(function() obj:Destroy() end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
 local connections = {}
 local tweens = {}
 
@@ -237,7 +237,7 @@ local function cleanup()
     if env.__BF_CHAT_CLEANUP then pcall(env.__BF_CHAT_CLEANUP) end
     if env.__BF_GOD_CLEANUP then pcall(env.__BF_GOD_CLEANUP) end
 
-    if type(delfile) == "function" then pcall(delfile, LOCK_FILE) end
+    if type(delfile) == "function" then pcall(delfile, "FroggyHub.lock") end
 
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
@@ -245,7 +245,7 @@ end
 env.__BF_PANEL_CLEANUP = cleanup
 
 -- ==========================================
--- 🚀 FUNCIÓN DE INICIO
+-- 🚀 FUNCIÓN DE INICIO (PROTEGIDA CON PCALL)
 -- ==========================================
 local function StartHub(CurrentGameFolder, GameDisplayName)
     local ROOT_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
@@ -253,10 +253,10 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
     if CurrentGameFolder == "ElementalMagicArena" then BASE_URL = ROOT_URL .. "ElementalMagicArena/" end
 
     local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-    local HUB_VERSION = "v11.4"
+    local HUB_VERSION = "v11.5"
     
     local GAME_FILE = "FroggyHub_game.txt"
-    if type(writefile) == "function" then pcall(function() writefile(GAME_FILE, CurrentGameFolder) end) end
+    if type(writefile) == "function" then pcall(function() writefile(GAME_FILE, tostring(CurrentGameFolder)) end) end
 
     -- PANTALLA DE CARGA
     local LW, LH = 300, 262
@@ -287,7 +287,7 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
 
     local loadTitle = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 150), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBlack, TextSize = 19, TextColor3 = Color3.new(1, 1, 1), Text = "F R O G G Y   H U B", ZIndex = 4 }, loading)
     pcall(addGradient, loadTitle, accentSeq, 0)
-    local loadGame = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 174), Size = UDim2.new(1, 0, 0, 16), Font = Enum.Font.Gotham, TextSize = 11, Text = "DESTINO: " .. string.upper(GameDisplayName), ZIndex = 4 }, loading)
+    local loadGame = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 174), Size = UDim2.new(1, 0, 0, 16), Font = Enum.Font.Gotham, TextSize = 11, Text = "DESTINO: " .. string.upper(GameDisplayName or "Universal"), ZIndex = 4 }, loading)
     bind(loadGame, "TextColor3", "Text")
     local loadStatus = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(20, 194), Size = UDim2.new(1, -40, 0, 16), Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Text = "> iniciando_", ZIndex = 4 }, loading)
     bind(loadStatus, "TextColor3", "Dim")
@@ -450,7 +450,7 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
         task.wait(0.7)
 
         -- ==========================================
-        -- 🛸 PANEL PRINCIPAL (Se construye DESPUÉS de descargar)
+        -- 🛸 PANEL PRINCIPAL (DISEÑO DE CLAUDE)
         -- ==========================================
         local function screenSize() local sz = gui.AbsoluteSize; if sz.X < 50 then local cam = workspace.CurrentCamera; sz = cam and cam.ViewportSize or Vector2.new(800, 600) end; return sz end
         local S0 = screenSize()
@@ -856,7 +856,6 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
                 updateBgVisibility(); applyPanelStyle(); applyTheme(THEMES[1])
                 for _, r in ipairs(refreshers) do pcall(r) end
             end, true)
-            -- 🎮 Cambiar de juego
             actionButton(info, "Cambiar de juego (reiniciar)", function()
                 if type(delfile) == "function" and type(isfile) == "function" then
                     pcall(function() if isfile(GAME_FILE) then delfile(GAME_FILE) end end)
@@ -1031,7 +1030,7 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
     local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
     addGradient(pTop, accentSeq, 0)
     bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
-    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v11.4" }, promptGui)
+    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v11.5" }, promptGui)
 
     local function makeChoice(y, text, folder, display)
         local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 2 }, promptGui)
@@ -1055,7 +1054,8 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
         b.MouseButton1Down:Connect(function() tween(bs, 0.08, { Scale = 0.96 }) end)
         b.Activated:Connect(function()
             promptGui:Destroy()
-            StartHub(folder, display) -- 🛠️ Se llama directo, sin bucles
+            local success, err = pcall(function() StartHub(folder, display) end)
+            if not success then warn("[Froggy] ❌ Error interno al cargar el panel: " .. tostring(err)) end
         end)
         return b
     end
@@ -1063,6 +1063,6 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
     makeChoice(134, "Blox Fruits", "BloxFruits", "Blox Fruits")
     bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 1, -28), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.Gotham, TextSize = 10, Text = "FROGGY HUB  //  SISTEMAS EN ESPERA" }, promptGui), "TextColor3", "Dim")
 else
-    -- Si ya hay un juego guardado, saltamos el menú directo al Hub
-    StartHub(env.BF_SELECTED_GAME or _G.BF_SELECTED_GAME, VALID_GAMES[env.BF_SELECTED_GAME or _G.BF_SELECTED_GAME] or "Universal")
+    local success, err = pcall(function() StartHub(env.BF_SELECTED_GAME or _G.BF_SELECTED_GAME, VALID_GAMES[env.BF_SELECTED_GAME or _G.BF_SELECTED_GAME] or "Universal") end)
+    if not success then warn("[Froggy] ❌ Error interno al cargar el panel: " .. tostring(err)) end
 end
