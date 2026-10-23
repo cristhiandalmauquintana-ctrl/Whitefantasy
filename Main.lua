@@ -1,5 +1,4 @@
-
---// Main.lua - Froggy Hub | UI v13.2: Mahoraga Floating + Safe
+--// Main.lua - Froggy Hub | UI v13.3: Plano y Anti-Nil
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -9,80 +8,78 @@ local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 
-local function initHub()
-    local parentGui = LocalPlayer:WaitForChild("PlayerGui")
-    for _, obj in ipairs(parentGui:GetChildren()) do
-        if obj.Name == "FroggyHub_Main" then obj:Destroy() end
-    end
-
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "FroggyHub_Main"
-    gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
-    gui.DisplayOrder = 100
-    gui.Parent = parentGui
-
-    local C = { Danger = Color3.fromRGB(210, 70, 70), Text = Color3.fromRGB(240, 240, 245), Dim = Color3.fromRGB(150, 150, 165), Bg = Color3.fromRGB(16, 16, 22), Accent = Color3.fromRGB(110, 220, 90), Maho = Color3.fromRGB(180, 60, 180) }
-    C.Header = C.Bg:Lerp(Color3.new(1,1,1), 0.06)
-    C.Row = C.Bg:Lerp(Color3.new(1,1,1), 0.10)
-    C.Off = C.Bg:Lerp(Color3.new(1,1,1), 0.20)
-    C.Stroke = C.Bg:Lerp(Color3.new(1,1,1), 0.22)
-
-    local function tween(o, t, props) return TweenService:Create(o, TweenInfo.new(t, Enum.EasingStyle.Quad), props) end
-    local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
-    local function stroke(o, key, thickness) local s = Instance.new("UIStroke"); s.Thickness = thickness or 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Color = C[key] or C.Stroke; s.Parent = o; return s end
-
-    local function clampPosition(x, y, width, height)
-        local viewport = workspace.CurrentCamera.ViewportSize
-        return math.clamp(x, 0, viewport.X - width), math.clamp(y, 0, viewport.Y - height)
-    end
-
-    local function makeDraggable(handle, target, width, height, onTap)
-        local active, startMouse, startPos, moved
-        handle.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                active = input; startMouse = input.Position; startPos = target.Position; moved = false
-                local conn; conn = input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
-                        if active == input then active = nil; if not moved and onTap then onTap() end end
-                        conn:Disconnect()
-                    end
-                end)
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if not active then return end
-            if active.UserInputType == Enum.UserInputType.Touch then if input ~= active then return end
-            elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-            local d = input.Position - startMouse; if d.Magnitude > 5 then moved = true end
-            if moved then 
-                local cx, cy = clampPosition(startPos.X.Offset + d.X, startPos.Y.Offset + d.Y, width, height)
-                target.Position = UDim2.fromOffset(cx, cy) 
-            end
-        end)
-    end
-
-    -- 1. SELECTOR
-    local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ZIndex = 999 }, gui)
-    stroke(promptGui, "Accent", 2)
-    new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?", TextColor3 = C.Text, ZIndex = 1000 }, promptGui)
-    new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v13.2 //", ZIndex = 1000 }, promptGui)
-
-    local function makeChoice(y, text, folder, display)
-        local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false, ZIndex = 1000 }, promptGui)
-        stroke(b, "Stroke", 1)
-        b.Activated:Connect(function() 
-            promptGui:Destroy()
-            -- Llamada a la función interna
-            loadHub(folder, display, gui, C, new, stroke, makeDraggable, clampPosition, tween)
-        end)
-    end
-    makeChoice(78, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic Arena")
-    makeChoice(134, "Blox Fruits", "BloxFruits", "Blox Fruits")
+local parentGui = LocalPlayer:WaitForChild("PlayerGui")
+for _, obj in ipairs(parentGui:GetChildren()) do
+    if obj.Name == "FroggyHub_Main" then obj:Destroy() end
 end
 
--- 2. CARGA
-local function loadHub(folder, displayName, gui, C, new, stroke, makeDraggable, clampPosition, tween)
+local gui = Instance.new("ScreenGui")
+gui.Name = "FroggyHub_Main"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 100
+gui.Parent = parentGui
+
+local C = { Danger = Color3.fromRGB(210, 70, 70), Text = Color3.fromRGB(240, 240, 245), Dim = Color3.fromRGB(150, 150, 165), Bg = Color3.fromRGB(16, 16, 22), Accent = Color3.fromRGB(110, 220, 90), Maho = Color3.fromRGB(180, 60, 180) }
+C.Header = C.Bg:Lerp(Color3.new(1,1,1), 0.06)
+C.Row = C.Bg:Lerp(Color3.new(1,1,1), 0.10)
+C.Off = C.Bg:Lerp(Color3.new(1,1,1), 0.20)
+C.Stroke = C.Bg:Lerp(Color3.new(1,1,1), 0.22)
+
+local function new(class, props, parent) local o = Instance.new(class); for k, v in pairs(props) do o[k] = v end; if parent then o.Parent = parent end; return o end
+local function stroke(o, key, thickness) local s = Instance.new("UIStroke"); s.Thickness = thickness or 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Color = C[key] or C.Stroke; s.Parent = o; return s end
+
+-- Funciones auxiliares de UI
+local function clampPos(x, y, w, h)
+    local v = workspace.CurrentCamera.ViewportSize
+    return math.clamp(x, 0, v.X - w), math.clamp(y, 0, v.Y - h)
+end
+
+local function makeDraggable(handle, target, w, h, onTap)
+    local active, startMouse, startPos, moved
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            active = input; startMouse = input.Position; startPos = target.Position; moved = false
+            local conn; conn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if active == input then active = nil; if not moved and onTap then onTap() end end
+                    conn:Disconnect()
+                end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if not active then return end
+        if active.UserInputType == Enum.UserInputType.Touch then if input ~= active then return end
+        elseif input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        local d = input.Position - startMouse; if d.Magnitude > 5 then moved = true end
+        if moved then 
+            local cx, cy = clampPos(startPos.X.Offset + d.X, startPos.Y.Offset + d.Y, w, h)
+            target.Position = UDim2.fromOffset(cx, cy) 
+        end
+    end)
+end
+
+-- 1. SELECTOR
+local promptGui = new("Frame", { Size = UDim2.fromOffset(320, 226), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.Bg, BorderSizePixel = 0, ZIndex = 999 }, gui)
+stroke(promptGui, "Accent", 2)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?", TextColor3 = C.Text, ZIndex = 1000 }, promptGui)
+new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = C.Accent, Text = "// FROGGY HUB v13.3 //", ZIndex = 1000 }, promptGui)
+
+local function makeChoice(y, text, folder, display)
+    local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BackgroundColor3 = C.Row, Text = text, TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = false, ZIndex = 1000 }, promptGui)
+    stroke(b, "Stroke", 1)
+    b.Activated:Connect(function() 
+        promptGui:Destroy()
+        -- Llamada global a loadHub
+        _G.Froggy_LoadHub(folder, display)
+    end)
+end
+makeChoice(78, "Elemental Magic Arena", "ElementalMagicArena", "Elemental Magic Arena")
+makeChoice(134, "Blox Fruits", "BloxFruits", "Blox Fruits")
+
+-- 2. CARGA (Función Global para evitar problemas de scope)
+function _G.Froggy_LoadHub(folder, displayName)
     local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
     local BASE = (folder == "BloxFruits") and ROOT or (ROOT .. folder .. "/")
     
@@ -93,9 +90,11 @@ local function loadHub(folder, displayName, gui, C, new, stroke, makeDraggable, 
     task.spawn(function()
         local function download(names, key)
             for _, n in ipairs(names) do
-                local ok, res = pcall(function() return game:HttpGet(BASE .. n .. "?v=" .. os.time()) end)
+                local ok, res = pcall(game.HttpGet, game, BASE .. n .. "?v=" .. os.time())
                 if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
-                    local fn = loadstring(res); if fn then pcall(fn) end
+                    -- Usamos pcall en loadstring para evitar errores si falla
+                    local fnOk, fn = pcall(loadstring, res)
+                    if fnOk and type(fn) == "function" then pcall(fn) end
                 end
             end
             task.wait(0.1)
@@ -109,17 +108,14 @@ local function loadHub(folder, displayName, gui, C, new, stroke, makeDraggable, 
         local CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
         
         loading:Destroy()
-        pcall(function() 
-            buildUI(displayName, EspC, MoveC, HitC, GodC, CombC, gui, C, new, stroke, makeDraggable, clampPosition, tween) 
-        end)
+        pcall(function() _G.Froggy_BuildUI(displayName, EspC, MoveC, HitC, GodC, CombC) end)
     end)
 end
 
--- 3. PANEL
-local function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC, gui, C, new, stroke, makeDraggable, clampPosition, tween)
+-- 3. PANEL (Función Global)
+function _G.Froggy_BuildUI(displayName, EspC, MoveC, HitC, GodC, CombC)
     local WIDTH, HEIGHT = 400, 420
     local HEADER_H = 40
-    
     local viewport = workspace.CurrentCamera.ViewportSize
     local startX = (viewport.X - WIDTH) / 2
     local startY = (viewport.Y - HEIGHT) / 2
@@ -183,17 +179,7 @@ local function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC, gui, C, new,
     if HitC then addTitle("Hitbox"); addToggle("Hitbox 35 Studs", HitC, "Enabled") end
     if CombC then addTitle("Auto Combat"); addToggle("Activar", CombC, "Enabled"); addToggle("Auto M1", CombC, "AutoM1") end
 
-    local mahoBtn = new("TextButton", { 
-        Size = UDim2.fromOffset(100, 40), 
-        Position = UDim2.fromOffset(viewport.X - 120, viewport.Y / 2),
-        BackgroundColor3 = C.Row, 
-        Text = "MAHORAGA: OFF", 
-        TextColor3 = C.Text, 
-        Font = Enum.Font.GothamBold, 
-        TextSize = 11, 
-        AutoButtonColor = false,
-        ZIndex = 10
-    }, gui)
+    local mahoBtn = new("TextButton", { Size = UDim2.fromOffset(100, 40), Position = UDim2.fromOffset(viewport.X - 120, viewport.Y / 2), BackgroundColor3 = C.Row, Text = "MAHORAGA: OFF", TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 11, AutoButtonColor = false, ZIndex = 10 }, gui)
     stroke(mahoBtn, "Maho", 2)
     new("UICorner", { CornerRadius = UDim.new(0, 8) }, mahoBtn)
 
@@ -221,7 +207,7 @@ local function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC, gui, C, new,
     local function minimizePanel()
         local px = frame.Position.X.Offset + 8
         local py = frame.Position.Y.Offset + 8
-        local cx, cy = clampPosition(px, py, BUBBLE, BUBBLE)
+        local cx, cy = clampPos(px, py, BUBBLE, BUBBLE)
         bubble.Position = UDim2.fromOffset(cx, cy)
         frame.Visible = false
         bubble.Visible = true
@@ -230,7 +216,7 @@ local function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC, gui, C, new,
     local function restorePanel()
         local px = bubble.Position.X.Offset - 8
         local py = bubble.Position.Y.Offset - 8
-        local cx, cy = clampPosition(px, py, WIDTH, HEIGHT)
+        local cx, cy = clampPos(px, py, WIDTH, HEIGHT)
         frame.Position = UDim2.fromOffset(cx, cy)
         bubble.Visible = false
         frame.Visible = true
@@ -243,5 +229,3 @@ local function buildUI(displayName, EspC, MoveC, HitC, GodC, CombC, gui, C, new,
     makeDraggable(header, frame, WIDTH, HEIGHT)
     makeDraggable(bubble, bubble, BUBBLE, BUBBLE)
 end
-
-initHub()
