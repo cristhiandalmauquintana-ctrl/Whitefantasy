@@ -1,4 +1,4 @@
---// Froggy Hub - Brookhaven Sound Player
+--// Froggy Hub - Brookhaven Sound Player (Custom ID Support)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -8,13 +8,14 @@ if env.__BF_SOUND_CLEANUP then pcall(env.__BF_SOUND_CLEANUP) end
 
 local Config = {
     Playing = false,
-    SoundId = "rbxassetid://1837879082", -- ID de ejemplo (cámbialo por tu audio de 3 min)
+    SoundId = "1837879082", -- ID por defecto
     Volume = 5,
 }
 env.BF_SOUND_CONFIG = Config
 
 local soundPart = nil
 local sound = nil
+local currentLoadedId = nil
 local connections = {}
 
 local function cleanupSound()
@@ -22,6 +23,7 @@ local function cleanupSound()
         soundPart:Destroy()
         soundPart = nil
         sound = nil
+        currentLoadedId = nil
     end
 end
 
@@ -30,7 +32,11 @@ local function playSound()
     local char = LocalPlayer.Character
     if not char then return end
     
-    -- Creamos una parte invisible que sigue al jugador
+    -- Limpiamos el ID por si pegan el link completo o solo los números
+    local cleanId = tostring(Config.SoundId):match("%d+")
+    if not cleanId then return end -- Si no hay números, no hace nada
+    currentLoadedId = "rbxassetid://" .. cleanId
+
     soundPart = Instance.new("Part")
     soundPart.Name = "FroggySoundPart"
     soundPart.Anchored = true
@@ -41,14 +47,13 @@ local function playSound()
     soundPart.Parent = workspace
 
     sound = Instance.new("Sound")
-    sound.SoundId = Config.SoundId
+    sound.SoundId = currentLoadedId
     sound.Volume = Config.Volume
     sound.Looped = false
     sound.Parent = soundPart
     sound:Play()
 end
 
--- Bucle para mantener la parte pegada al jugador y verificar si el sonido sigue vivo
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Playing then
         cleanupSound()
@@ -63,16 +68,14 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         return
     end
 
-    -- Si la parte no existe o el sonido se detuvo, lo volvemos a crear
-    if not soundPart or not soundPart.Parent or not sound or not sound.IsPlaying then
+    -- Si cambiamos el ID en el panel, reiniciamos el sonido
+    local cleanId = tostring(Config.SoundId):match("%d+")
+    local formattedId = cleanId and ("rbxassetid://" .. cleanId) or ""
+    
+    if not soundPart or not soundPart.Parent or not sound or not sound.IsPlaying or currentLoadedId ~= formattedId then
         playSound()
     else
-        -- Mantenemos la parte en la posición del jugador
         soundPart.Position = root.Position
-    end
-
-    -- Actualizamos el volumen en tiempo real por si el slider se mueve
-    if sound then
         sound.Volume = Config.Volume
     end
 end))
