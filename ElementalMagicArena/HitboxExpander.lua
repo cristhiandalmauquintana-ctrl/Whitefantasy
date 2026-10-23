@@ -1,4 +1,4 @@
---// Froggy Hub - Hitbox Expander V5 (Live Force - Full Body)
+--// Froggy Hub - Hitbox Expander V5 (Live Force - Full Body) - RESTAURADO
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -7,14 +7,14 @@ local env = (getgenv and getgenv()) or _G
 
 if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
--- CONFIGURACIÓN (Conectada a tu Main.lua)
+-- CONFIGURACIÓN CONECTADA AL MAIN.LUA
 if not getgenv().BF_HITBOX_CONFIG then
     getgenv().BF_HITBOX_CONFIG = {
         Enabled = false,
-        Size = 35,
+        Size = 35,             
         Transparency = 0.7,
         Color = Color3.fromRGB(255, 0, 0),
-        IgnoreFriends = true
+        IgnoreFriends = true,
     }
 end
 local Config = getgenv().BF_HITBOX_CONFIG
@@ -23,7 +23,7 @@ local expandedParts = {}
 local connections = {}
 
 local function isFriend(player)
-    -- Aquí puedes añadir tu lógica de amigos si la tienes
+    -- Mantenemos tu lógica original (o el return false si no tenías nada)
     return false 
 end
 
@@ -43,18 +43,19 @@ local function expandPart(part)
 
     -- 🔥 LA CLAVE: Forzamos la aplicación constantemente
     pcall(function()
-        local targetSize = Vector3.new(Config.Size, Config.Size, Config.Size)
-        
         -- Hacemos la parte gigante
-        if part.Size ~= targetSize then
-            part.Size = targetSize
+        part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
+        
+        -- Si el servidor lo reseteó, lo volvemos a agrandar
+        if part.Size ~= Vector3.new(Config.Size, Config.Size, Config.Size) then
+            part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         end
         
-        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
+        -- PROPIEDADES ANTI-CRASH Y ANTI-FÍSICA (Para que no te empujen)
         part.CanCollide = false 
-        part.Massless = true        
+        part.Massless = true                
         
-        -- 🔥 LA CLAVE DEL TOUCH KILL: Forzamos a que los golpes y roces detecten esta parte
+        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes y roces detecten esta parte
         part.CanQuery = true 
         part.CanTouch = true
         
@@ -112,7 +113,7 @@ end
 local function onPlayerAdded(player)
     if player == LocalPlayer then return end
     table.insert(connections, player.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
+        task.wait(0.5) -- Dar tiempo a que las partes carguen
         if Config.Enabled then
             local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             local root = char:FindFirstChild("HumanoidRootPart")
@@ -126,7 +127,7 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
--- 🛠️ El bucle principal (Corre 60 veces por segundo para forzar el Touch Kill)
+-- 🛠️ El bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
