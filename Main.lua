@@ -1,5 +1,4 @@
-
---// Main.lua - Froggy Hub (loader + panel) | UI v11.5: Starship + Anti-Crash UI
+--// Main.lua - Froggy Hub | PARTE 1
 
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
@@ -7,36 +6,21 @@ local BRANCH = "main"
 
 local env = (getgenv and getgenv()) or _G
 
--- 🛑 SISTEMA DE BLOQUEO (LOCKFILE)
-local LOCK_FILE = "FroggyHub.lock"
-if type(isfile) == "function" and type(readfile) == "function" and isfile(LOCK_FILE) then
-    local lock_time = tonumber(readfile(LOCK_FILE)) or 0
-    local now = os.time and os.time() or 0
-    if now - lock_time < 10 then
-        warn("[Froggy] ⚠️ Ya hay una instancia de Froggy Hub ejecutándose. Abortando duplicado.")
-        return
-    end
-end
-if type(writefile) == "function" then pcall(writefile, LOCK_FILE, tostring(os.time and os.time() or 0)) end
-
--- 💥 BORRADOR NUCLEAR INICIAL
-local function destroyAllHubs()
-    local places = {
-        game:GetService("CoreGui"),
-        game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"),
-        (gethui and gethui()) or game:GetService("CoreGui")
-    }
-    for _, parent in pairs(places) do
-        if parent then
-            for _, obj in ipairs(parent:GetChildren()) do
-                if obj:IsA("ScreenGui") and obj.Name:match("^FroggyHub_") then
-                    pcall(function() obj:Destroy() end)
-                end
+-- 💥 BORRADOR EXTREMO
+local places = {
+    game:GetService("CoreGui"),
+    game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"),
+    (gethui and gethui()) or game:GetService("CoreGui")
+}
+for _, parent in pairs(places) do
+    if parent then
+        for _, obj in ipairs(parent:GetChildren()) do
+            if obj:IsA("ScreenGui") and obj.Name:match("^FroggyHub_") then
+                pcall(function() obj:Destroy() end)
             end
         end
     end
 end
-destroyAllHubs()
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -45,7 +29,6 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
--- TEMAS
 local THEMES = {
     { Name = "Froggy", Accent = Color3.fromRGB(110, 220, 90),  Accent2 = Color3.fromRGB(40, 170, 130),  Bg = Color3.fromRGB(16, 16, 22) },
     { Name = "Cyber",  Accent = Color3.fromRGB(255, 50, 150),  Accent2 = Color3.fromRGB(120, 80, 255),  Bg = Color3.fromRGB(20, 10, 30) },
@@ -191,30 +174,8 @@ local function getParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- 🛠️ NOMBRE ALEATORIO PARA EL ANTÍDOTO
 local uniqueGuiName = "FroggyHub_" .. tostring(math.random(1000, 9999))
 local gui = new("ScreenGui", { Name = uniqueGuiName, ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, getParent())
-
--- 🛡️ ANTÍDOTO
-task.spawn(function()
-    while gui.Parent do
-        task.wait(1.0)
-        local places = {
-            game:GetService("CoreGui"),
-            game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"),
-            (gethui and gethui()) or game:GetService("CoreGui")
-        }
-        for _, parent in pairs(places) do
-            if parent then
-                for _, obj in ipairs(parent:GetChildren()) do
-                    if obj:IsA("ScreenGui") and obj.Name:match("^FroggyHub_") and obj.Name ~= uniqueGuiName then
-                        pcall(function() obj:Destroy() end)
-                    end
-                end
-            end
-        end
-    end
-end)
 
 local connections = {}
 local tweens = {}
@@ -237,28 +198,22 @@ local function cleanup()
     if env.__BF_CHAT_CLEANUP then pcall(env.__BF_CHAT_CLEANUP) end
     if env.__BF_GOD_CLEANUP then pcall(env.__BF_GOD_CLEANUP) end
 
-    if type(delfile) == "function" then pcall(delfile, "FroggyHub.lock") end
-
     if gui then gui:Destroy() end
     env.__BF_PANEL_CLEANUP = nil
 end
 env.__BF_PANEL_CLEANUP = cleanup
 
--- ==========================================
--- 🚀 FUNCIÓN DE INICIO (PROTEGIDA CON PCALL)
--- ==========================================
 local function StartHub(CurrentGameFolder, GameDisplayName)
     local ROOT_URL = ("https://raw.githubusercontent.com/%s/%s/%s/"):format(GITHUB_USER, GITHUB_REPO, BRANCH)
     local BASE_URL = ROOT_URL
     if CurrentGameFolder == "ElementalMagicArena" then BASE_URL = ROOT_URL .. "ElementalMagicArena/" end
 
     local HUB_NAME = "Froggy Hub | " .. GameDisplayName
-    local HUB_VERSION = "v11.5"
+    local HUB_VERSION = "v11.7"
     
     local GAME_FILE = "FroggyHub_game.txt"
     if type(writefile) == "function" then pcall(function() writefile(GAME_FILE, tostring(CurrentGameFolder)) end) end
 
-    -- PANTALLA DE CARGA
     local LW, LH = 300, 262
     local loading = new("Frame", { Size = UDim2.fromOffset(LW, LH), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 998 }, gui)
     bind(loading, "BackgroundColor3", "Bg")
@@ -289,7 +244,7 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
     pcall(addGradient, loadTitle, accentSeq, 0)
     local loadGame = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 174), Size = UDim2.new(1, 0, 0, 16), Font = Enum.Font.Gotham, TextSize = 11, Text = "DESTINO: " .. string.upper(GameDisplayName or "Universal"), ZIndex = 4 }, loading)
     bind(loadGame, "TextColor3", "Text")
-    local loadStatus = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(20, 194), Size = UDim2.new(1, -40, 0, 16), Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Text = "> iniciando_", ZIndex = 4 }, loading)
+    local loadStatus = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(20, 194), Size = UDim2.new(1, -40, 0, 16), Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Text = "> v11.7 iniciando_", ZIndex = 4 }, loading)
     bind(loadStatus, "TextColor3", "Dim")
 
     local LOAD_BLOCKS = 20
@@ -393,7 +348,8 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
         return env[configKey] or _G[configKey]
     end
 
-    task.spawn(function()
+-- [AQUI EMPIEZA LA PARTE 2]
+        task.spawn(function()
         setProgress(0.1, "Cargando logo...")
         local logoAsset = fetchLogo()
         if logoAsset then
@@ -447,7 +403,7 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
         loadOptional(CHAT_FILES, "ChatMessage.lua", "BF_CHAT_CONFIG")
 
         setProgress(1, "Sistemas en linea. Listo")
-        task.wait(0.7)
+        task.wait(0.5)
 
         -- ==========================================
         -- 🛸 PANEL PRINCIPAL (DISEÑO DE CLAUDE)
@@ -981,7 +937,6 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
         pcall(function() loadConn:Disconnect() end)
         loading:Destroy()
 
-        -- 🚀 Secuencia de arranque del panel
         frame.Visible = true
         tween(panelScale, 0.4, { Scale = PanelConfig.Scale }, Enum.EasingStyle.Back)
         if PanelConfig.Animations then
@@ -998,24 +953,16 @@ local function StartHub(CurrentGameFolder, GameDisplayName)
 end
 
 -- ==========================================
--- 🚀 SELECTOR DE JUEGO (EVENT-DRIVEN + PERSISTENCIA)
+-- 🚀 SELECTOR DE JUEGO
 -- ==========================================
 local GAME_FILE = "FroggyHub_game.txt"
-local VALID_GAMES = {
-    BloxFruits = "Blox Fruits",
-    ElementalMagicArena = "Elemental Magic Arena",
-    Universal = "Universal",
-}
+local VALID_GAMES = { BloxFruits = "Blox Fruits", ElementalMagicArena = "Elemental Magic Arena", Universal = "Universal" }
 
-if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME
-    and type(isfile) == "function" and type(readfile) == "function" then
+if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME and type(isfile) == "function" and type(readfile) == "function" then
     pcall(function()
         if isfile(GAME_FILE) then
             local v = readfile(GAME_FILE):gsub("%s+", "")
-            if VALID_GAMES[v] then
-                env.BF_SELECTED_GAME = v
-                _G.BF_SELECTED_GAME = v
-            end
+            if VALID_GAMES[v] then env.BF_SELECTED_GAME = v; _G.BF_SELECTED_GAME = v end
         end
     end)
 end
@@ -1030,7 +977,7 @@ if not env.BF_SELECTED_GAME and not _G.BF_SELECTED_GAME then
     local pTop = new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, promptGui)
     addGradient(pTop, accentSeq, 0)
     bind(new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 24), Font = Enum.Font.GothamBold, TextSize = 18, Text = "¿Qué juego estás jugando?" }, promptGui), "TextColor3", "Text")
-    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v11.5" }, promptGui)
+    local pSub = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Color3.fromRGB(255, 100, 100), Text = "// SELECCIONA TU DESTINO // v11.7" }, promptGui)
 
     local function makeChoice(y, text, folder, display)
         local b = new("TextButton", { Position = UDim2.fromOffset(20, y), Size = UDim2.new(1, -40, 0, 46), BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 2 }, promptGui)
