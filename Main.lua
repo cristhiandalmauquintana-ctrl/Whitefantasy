@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI Épica v21.1 (Modular Auto Farm)
+--// Main.lua - Froggy Hub | UI Épica v21.2 (Auto Farm + Hitbox Sync)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -55,7 +55,7 @@ else
     MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
     HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
     CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
-    AutoFarmC = download({"AutoFarm.lua"}, "BF_AUTOFARM_CONFIG") -- 🚀 CARGAMOS EL NUEVO MÓDULO
+    AutoFarmC = download({"AutoFarm.lua"}, "BF_AUTOFARM_CONFIG")
 end
 
 -- ==========================================
@@ -67,8 +67,10 @@ TabMain:AddButton("REJOIN SERVER", function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
 end)
 
+-- Guardamos la referencia al botón del Hitbox para poder activarlo desde el Auto Farm
+local HitboxUI = nil
 if HitC then
-    TabMain:AddToggle("HITBOX EXPANDER", HitC.Enabled, function(state)
+    HitboxUI = TabMain:AddToggle("HITBOX EXPANDER", HitC.Enabled, function(state)
         HitC.Enabled = state
     end)
 end
@@ -85,6 +87,15 @@ if AutoFarmC then
     
     TabAutoFarm:AddToggle("KAMIKAZE FARM (BETA)", AutoFarmC.Enabled, function(state)
         AutoFarmC.Enabled = state
+        
+        -- 🔥 LÓGICA DE SINCRONIZACIÓN: Si el Farm se activa, forzamos el Hitbox
+        if state then
+            if HitC and HitboxUI then
+                HitC.Enabled = true
+                HitboxUI:Set(true) -- Actualiza el botón visual en la pestaña MAIN
+                print("[Auto Farm] Hitbox activado automáticamente.")
+            end
+        end
     end)
     
     TabAutoFarm:AddToggle("AUTO-EQUIPAR ARMA (BETA)", AutoFarmC.AutoEquip, function(state)
@@ -123,4 +134,4 @@ TabConfig:AddButton("DESTRUIR UI", function()
     Window:Destroy()
 end)
 
-print("[Main] Hub cargado con éxito. Módulos y pestaña Auto Farm (Beta) conectados.")
+print("[Main] Hub cargado con éxito. Pestaña Auto Farm conectada al Hitbox.")
