@@ -1,4 +1,4 @@
---// Froggy Hub - Hitbox Expander V5 (Live Force - Full Body) - RESTAURADO
+--// Froggy Hub - Hitbox Expander V6 (Touch Kill Sólido)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -7,7 +7,7 @@ local env = (getgenv and getgenv()) or _G
 
 if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
--- CONFIGURACIÓN CONECTADA AL MAIN.LUA
+-- CONFIGURACIÓN
 if not getgenv().BF_HITBOX_CONFIG then
     getgenv().BF_HITBOX_CONFIG = {
         Enabled = false,
@@ -23,12 +23,10 @@ local expandedParts = {}
 local connections = {}
 
 local function isFriend(player)
-    -- Mantenemos tu lógica original (o el return false si no tenías nada)
     return false 
 end
 
 local function expandPart(part)
-    -- Si no está en la tabla, guardamos sus propiedades originales
     if not expandedParts[part] then
         expandedParts[part] = {
             Size = part.Size,
@@ -41,25 +39,19 @@ local function expandPart(part)
         }
     end
 
-    -- 🔥 LA CLAVE: Forzamos la aplicación constantemente
     pcall(function()
-        -- Hacemos la parte gigante
-        part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
-        
-        -- Si el servidor lo reseteó, lo volvemos a agrandar
-        if part.Size ~= Vector3.new(Config.Size, Config.Size, Config.Size) then
-            part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
+        local targetSize = Vector3.new(Config.Size, Config.Size, Config.Size)
+        if part.Size ~= targetSize then
+            part.Size = targetSize
         end
         
-        -- PROPIEDADES ANTI-CRASH Y ANTI-FÍSICA (Para que no te empujen)
-        part.CanCollide = false 
-        part.Massless = true                
+        -- 🔥 COLISIONES ACTIVADAS: Para que tu espada y cuerpo choquen con el hitbox
+        part.CanCollide = true
+        part.Massless = true  -- Sin masa: chocas, pero no te empuja hacia atrás
         
-        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes y roces detecten esta parte
         part.CanQuery = true 
         part.CanTouch = true
         
-        -- VISUALES
         part.Transparency = Config.Transparency
         part.Color = Config.Color
     end)
@@ -83,7 +75,6 @@ end
 
 local function processCharacter(char)
     if not char then return end
-    -- Escaneamos TODO el cuerpo (Cabeza, Torso, Brazos, Piernas, Accesorios)
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             expandPart(part)
@@ -109,11 +100,10 @@ local function restoreAll()
     expandedParts = {}
 end
 
--- 🛠️ Escuchar cuando un jugador nuevo entra o respawnea
 local function onPlayerAdded(player)
     if player == LocalPlayer then return end
     table.insert(connections, player.CharacterAdded:Connect(function(char)
-        task.wait(0.5) -- Dar tiempo a que las partes carguen
+        task.wait(0.5)
         if Config.Enabled then
             local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             local root = char:FindFirstChild("HumanoidRootPart")
@@ -127,7 +117,6 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
--- 🛠️ El bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
@@ -138,7 +127,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- Escanear jugadores
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -159,7 +147,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- Escanear NPCs / Dummies
     local enemiesFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("NPCs") or Workspace:FindFirstChild("Dummies")
     if enemiesFolder then
         for _, npc in ipairs(enemiesFolder:GetChildren()) do
@@ -176,7 +163,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     end
 end))
 
--- Limpieza al recargar
 env.__BF_HITBOX_CLEANUP = function()
     restoreAll()
     for _, conn in ipairs(connections) do
