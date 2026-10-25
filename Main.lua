@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI Épica v21.2 (Auto Farm + Hitbox Sync)
+--// Main.lua - Froggy Hub | UI Épica v22 (Nearest Kill + Modular)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -8,14 +8,14 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 
--- 1. CARGAMOS EL DISEÑO
+-- 1. CARGAMOS EL DISEÑO DE CLAUDE (design.lua)
 local designUrl = ROOT .. "design.lua"
 local UI_Library = loadstring(game:HttpGet(designUrl))()
 
--- 2. CREAMOS LA VENTANA
+-- 2. CREAMOS LA VENTANA PRINCIPAL
 local Window = UI_Library.CreateWindow({
     Title = "FROGGY HUB",
-    Subtitle = "SYS 0x5EE9"
+    Subtitle = "v1.1 | Elemental Arena"
 })
 
 -- 3. CREAMOS LAS PESTAÑAS
@@ -44,7 +44,8 @@ local function download(names, key)
     return env[key] or _G[key]
 end
 
-local EspC, MoveC, HitC, CombC, CamC, AutoFarmC
+-- Descargamos los módulos
+local EspC, MoveC, HitC, CombC, CamC, AutoFarmC, KillC
 
 if isBloxFruits then
     EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
@@ -56,21 +57,22 @@ else
     HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
     CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
     AutoFarmC = download({"AutoFarm.lua"}, "BF_AUTOFARM_CONFIG")
+    
+    -- 🔥 NUEVO MÓDULO: NEAREST KILL (Botón Flotante)
+    KillC = download({"NearestKill.lua"}, "BF_KILL_CONFIG")
 end
 
 -- ==========================================
--- 5. CONECTAMOS LOS BOTONES A LA LÓGICA
+-- 5. CONECTAMOS LOS BOTONES
 -- ==========================================
 
--- === PESTAÑA MAIN ===
+-- === PESTAÑA MAIN (Combate y Acciones) ===
 TabMain:AddButton("REJOIN SERVER", function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
 end)
 
--- Guardamos la referencia al botón del Hitbox para poder activarlo desde el Auto Farm
-local HitboxUI = nil
 if HitC then
-    HitboxUI = TabMain:AddToggle("HITBOX EXPANDER", HitC.Enabled, function(state)
+    TabMain:AddToggle("HITBOX EXPANDER", HitC.Enabled, function(state)
         HitC.Enabled = state
     end)
 end
@@ -81,36 +83,20 @@ if CombC then
     end)
 end
 
--- === PESTAÑA AUTO FARM (BETA) ===
-if AutoFarmC then
-    TabAutoFarm:AddButton("⚠️ ADVERTENCIA: FUNCIÓN EN BETA", function() end)
-    
-    TabAutoFarm:AddToggle("KAMIKAZE FARM (BETA)", AutoFarmC.Enabled, function(state)
-        AutoFarmC.Enabled = state
-        
-        -- 🔥 LÓGICA DE SINCRONIZACIÓN: Si el Farm se activa, forzamos el Hitbox
-        if state then
-            if HitC and HitboxUI then
-                HitC.Enabled = true
-                HitboxUI:Set(true) -- Actualiza el botón visual en la pestaña MAIN
-                print("[Auto Farm] Hitbox activado automáticamente.")
-            end
-        end
-    end)
-    
-    TabAutoFarm:AddToggle("AUTO-EQUIPAR ARMA (BETA)", AutoFarmC.AutoEquip, function(state)
-        AutoFarmC.AutoEquip = state
+if CamC then
+    TabMain:AddToggle("CAMLOCK (BLOX FRUITS)", CamC.Enabled, function(state)
+        CamC.Enabled = state
     end)
 end
 
--- === PESTAÑA VISUAL ===
+-- === PESTAÑA VISUAL (Solo lo que se ve) ===
 if EspC then
     TabVisual:AddToggle("ESP JUGADORES", EspC.Enabled, function(state)
         EspC.Enabled = state
     end)
 end
 
--- === PESTAÑA MOVEMENT ===
+-- === PESTAÑA MOVEMENT (Física) ===
 if MoveC then
     TabMovement:AddToggle("SPEED HACK", MoveC.SpeedEnabled, function(state)
         MoveC.SpeedEnabled = state
@@ -129,9 +115,25 @@ if MoveC then
     end)
 end
 
+-- === PESTAÑA AUTO FARM (BETA) ===
+if AutoFarmC then
+    TabAutoFarm:AddButton("⚠️ ADVERTENCIA: FUNCIÓN EN BETA", function() end)
+    
+    TabAutoFarm:AddToggle("KAMIKAZE FARM (BETA)", AutoFarmC.Enabled, function(state)
+        AutoFarmC.Enabled = state
+        if state and HitC then
+            HitC.Enabled = true
+        end
+    end)
+    
+    TabAutoFarm:AddToggle("AUTO-EQUIPAR ARMA (BETA)", AutoFarmC.AutoEquip, function(state)
+        AutoFarmC.AutoEquip = state
+    end)
+end
+
 -- === PESTAÑA CONFIG ===
 TabConfig:AddButton("DESTRUIR UI", function()
     Window:Destroy()
 end)
 
-print("[Main] Hub cargado con éxito. Pestaña Auto Farm conectada al Hitbox.")
+print("[Main] Froggy Hub cargado con éxito. Todos los módulos conectados.")
