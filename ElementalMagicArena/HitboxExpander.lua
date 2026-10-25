@@ -1,10 +1,11 @@
---// Froggy Hub - HitboxExpander.lua (V5 - PvP + Zombies)
+--// Froggy Hub - HitboxExpander.lua (V5 - PvP + Zombies Sólido)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 
+-- Limpieza previa si el script se ejecuta de nuevo
 if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
 -- CONFIGURACIÓN
@@ -39,8 +40,8 @@ local function expandPart(part)
         -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
-        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
-        part.CanCollide = false 
+        -- 🔥 SOLUCIÓN: Chocas con la hitbox pero no te empuja
+        part.CanCollide = true 
         part.Massless = true                
         
         -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes y roces detecten esta parte
@@ -96,6 +97,7 @@ local function restoreAll()
     expandedParts = {}
 end
 
+-- 🛠️ Escuchar cuando un jugador nuevo entra o respawnea
 local function onPlayerAdded(player)
     if player == LocalPlayer then return end
     table.insert(connections, player.CharacterAdded:Connect(function(char)
@@ -145,16 +147,18 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- 2. 🔥 ESCANEAR ZOMBIS Y NPCS (El nuevo parche)
+    -- 2. ESCANEAR ZOMBIS Y NPCS (PvE)
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= myChar then
             local hum = obj:FindFirstChildOfClass("Humanoid")
+            -- Si tiene humanoid, está vivo, y NO es un jugador real
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
-                -- Filtramos para que solo agrande cosas que parezcan enemigos
                 local name = obj.Name:lower()
-                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") then
+                -- Filtramos para agrandar solo cosas que parezcan enemigos
+                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("mob") then
                     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
-                    if root and (root.Position - myRoot.Position).Magnitude <= 150 then -- Rango de 150 studs
+                    -- Solo agrandar si están en un rango de 150 studs (para no lagear el celular)
+                    if root and (root.Position - myRoot.Position).Magnitude <= 150 then 
                         processCharacter(obj)
                     else
                         restoreCharacter(obj)
@@ -165,6 +169,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     end
 end))
 
+-- Limpieza al recargar el Hub
 env.__BF_HITBOX_CLEANUP = function()
     restoreAll()
     for _, conn in ipairs(connections) do
