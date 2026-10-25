@@ -1,4 +1,4 @@
---// Froggy Hub - HitboxExpander.lua (V5 - PvP + Zombies One-Shot)
+--// Froggy Hub - HitboxExpander.lua (V8 - One-Shot Intacto + Física Estable)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -21,6 +21,7 @@ local Config = getgenv().BF_HITBOX_CONFIG
 
 local expandedParts = {}
 local connections = {}
+local lastSafePos = nil
 
 local function isFriend(player)
     return false 
@@ -39,9 +40,12 @@ local function expandPart(part)
         -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
-        -- 🔥 MANTENEMOS LA COLISIÓN PARA EL ONE-SHOT
+        -- 🔥 EL CANCOLLIDE SE QUEDA EN TRUE PARA EL ONE-SHOT
         part.CanCollide = true 
-        part.Massless = true                
+        
+        -- 🔥 LA SOLUCIÓN AL BUG: ELIMINAMOS EL MASSLESS
+        -- Al ser un objeto con masa, la física se estabiliza y no salimos volando
+        part.Massless = false 
         
         -- 🔥 DETECCIÓN DE DAÑO
         part.CanQuery = true 
@@ -117,12 +121,6 @@ table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
-        -- Restauramos colisiones del jugador local
-        if LocalPlayer.Character then
-            for _, p in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if p:IsA("BasePart") then p.CanCollide = true end
-            end
-        end
         return 
     end
 
@@ -130,25 +128,16 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- 🔥 EL TRUCO ANTI-UNDERGROUND: Noclip para el jugador local
-    -- Así las hitboxes gigantes no te empujan bajo el mapa, pero tu espada SÍ les hace daño
-    for _, p in ipairs(myChar:GetDescendants()) do
-        if p:IsA("BasePart") then p.CanCollide = false end
+    -- 🚨 SISTEMA ANTI-CAÍDA
+    if myRoot.Position.Y > -5 then
+        lastSafePos = myRoot.CFrame
     end
 
-    -- 🚨 SISTEMA ANTI-CAÍDA (La red de seguridad)
-    -- Si el jugador cae al vacío (Y < -20), lo devolvemos arriba
     if myRoot.Position.Y < -20 then
-        -- Buscamos un lugar seguro en el mapa
-        local safePos = Vector3.new(0, 50, 0) -- Posición por defecto
-        local ok, spawn = pcall(function() return workspace:FindFirstChildOfClass("SpawnLocation") end)
-        if ok and spawn then
-            safePos = spawn.Position + Vector3.new(0, 5, 0)
+        if lastSafePos then
+            myRoot.CFrame = lastSafePos
+            myRoot.AssemblyLinearVelocity = Vector3.zero
         end
-        
-        -- Teletransportamos al jugador al spawn
-        myRoot.CFrame = CFrame.new(safePos)
-        myRoot.AssemblyLinearVelocity = Vector3.zero
     end
 
     -- 1. Escanear JUGADORES
