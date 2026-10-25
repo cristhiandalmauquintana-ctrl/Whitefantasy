@@ -136,6 +136,21 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         if p:IsA("BasePart") then p.CanCollide = false end
     end
 
+    -- 🚨 SISTEMA ANTI-CAÍDA (La red de seguridad)
+    -- Si el jugador cae al vacío (Y < -20), lo devolvemos arriba
+    if myRoot.Position.Y < -20 then
+        -- Buscamos un lugar seguro en el mapa
+        local safePos = Vector3.new(0, 50, 0) -- Posición por defecto
+        local ok, spawn = pcall(function() return workspace:FindFirstChildOfClass("SpawnLocation") end)
+        if ok and spawn then
+            safePos = spawn.Position + Vector3.new(0, 5, 0)
+        end
+        
+        -- Teletransportamos al jugador al spawn
+        myRoot.CFrame = CFrame.new(safePos)
+        myRoot.AssemblyLinearVelocity = Vector3.zero
+    end
+
     -- 1. Escanear JUGADORES
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
