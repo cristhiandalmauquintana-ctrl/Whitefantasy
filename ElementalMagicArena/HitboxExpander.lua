@@ -1,4 +1,4 @@
---// Froggy Hub - HitboxExpander.lua (V8 - One-Shot Intacto + Física Estable)
+--// Froggy Hub - HitboxExpander.lua (V5 - Original Restaurado)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -21,7 +21,6 @@ local Config = getgenv().BF_HITBOX_CONFIG
 
 local expandedParts = {}
 local connections = {}
-local lastSafePos = nil
 
 local function isFriend(player)
     return false 
@@ -40,14 +39,11 @@ local function expandPart(part)
         -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
-        -- 🔥 EL CANCOLLIDE SE QUEDA EN TRUE PARA EL ONE-SHOT
-        part.CanCollide = true 
+        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
+        part.CanCollide = false 
+        part.Massless = true                
         
-        -- 🔥 LA SOLUCIÓN AL BUG: ELIMINAMOS EL MASSLESS
-        -- Al ser un objeto con masa, la física se estabiliza y no salimos volando
-        part.Massless = false 
-        
-        -- 🔥 DETECCIÓN DE DAÑO
+        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes detecten esta parte
         part.CanQuery = true 
         part.CanTouch = true
         
@@ -117,7 +113,7 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
--- 🛠️ El bucle principal
+-- 🛠️ El bucle principal (SIN PARCHES DE FÍSICA)
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
@@ -128,19 +124,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- 🚨 SISTEMA ANTI-CAÍDA
-    if myRoot.Position.Y > -5 then
-        lastSafePos = myRoot.CFrame
-    end
-
-    if myRoot.Position.Y < -20 then
-        if lastSafePos then
-            myRoot.CFrame = lastSafePos
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-        end
-    end
-
-    -- 1. Escanear JUGADORES
+    -- Escanear Jugadores
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -161,7 +145,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- 2. Escanear ZOMBIS Y NPCS
+    -- Escanear NPCs / Zombis
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= myChar then
             local hum = obj:FindFirstChildOfClass("Humanoid")
@@ -180,6 +164,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     end
 end))
 
+-- Limpieza al recargar
 env.__BF_HITBOX_CLEANUP = function()
     restoreAll()
     for _, conn in ipairs(connections) do
