@@ -1,11 +1,10 @@
---// Froggy Hub - HitboxExpander.lua (V5 - PvP + Zombies Sólido)
+--// Froggy Hub - HitboxExpander.lua (V5 - PvP + Zombies One-Shot)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 
--- Limpieza previa si el script se ejecuta de nuevo
 if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
 -- CONFIGURACIÓN
@@ -40,11 +39,11 @@ local function expandPart(part)
         -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
-        -- 🔥 SOLUCIÓN: Chocas con la hitbox pero no te empuja
+        -- 🔥 MANTENEMOS LA COLISIÓN PARA EL ONE-SHOT
         part.CanCollide = true 
         part.Massless = true                
         
-        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes y roces detecten esta parte
+        -- 🔥 DETECCIÓN DE DAÑO
         part.CanQuery = true 
         part.CanTouch = true
         
@@ -97,7 +96,6 @@ local function restoreAll()
     expandedParts = {}
 end
 
--- 🛠️ Escuchar cuando un jugador nuevo entra o respawnea
 local function onPlayerAdded(player)
     if player == LocalPlayer then return end
     table.insert(connections, player.CharacterAdded:Connect(function(char)
@@ -119,6 +117,12 @@ table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
+        -- Restauramos colisiones del jugador local
+        if LocalPlayer.Character then
+            for _, p in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = true end
+            end
+        end
         return 
     end
 
@@ -126,7 +130,13 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- 1. Escanear JUGADORES (PvP)
+    -- 🔥 EL TRUCO ANTI-UNDERGROUND: Noclip para el jugador local
+    -- Así las hitboxes gigantes no te empujan bajo el mapa, pero tu espada SÍ les hace daño
+    for _, p in ipairs(myChar:GetDescendants()) do
+        if p:IsA("BasePart") then p.CanCollide = false end
+    end
+
+    -- 1. Escanear JUGADORES
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -147,17 +157,14 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- 2. ESCANEAR ZOMBIS Y NPCS (PvE)
+    -- 2. Escanear ZOMBIS Y NPCS
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= myChar then
             local hum = obj:FindFirstChildOfClass("Humanoid")
-            -- Si tiene humanoid, está vivo, y NO es un jugador real
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
                 local name = obj.Name:lower()
-                -- Filtramos para agrandar solo cosas que parezcan enemigos
-                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("mob") then
+                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") then
                     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
-                    -- Solo agrandar si están en un rango de 150 studs (para no lagear el celular)
                     if root and (root.Position - myRoot.Position).Magnitude <= 150 then 
                         processCharacter(obj)
                     else
@@ -169,7 +176,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     end
 end))
 
--- Limpieza al recargar el Hub
 env.__BF_HITBOX_CLEANUP = function()
     restoreAll()
     for _, conn in ipairs(connections) do
