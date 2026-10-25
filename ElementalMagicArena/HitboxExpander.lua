@@ -1,4 +1,4 @@
---// Froggy Hub - Hitbox Expander V6 (Touch Kill Sólido)
+--// Froggy Hub - HitboxExpander.lua (V5 - PvP + Zombies)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -29,29 +29,25 @@ end
 local function expandPart(part)
     if not expandedParts[part] then
         expandedParts[part] = {
-            Size = part.Size,
-            CanCollide = part.CanCollide,
-            CanTouch = part.CanTouch,
-            CanQuery = part.CanQuery,
-            Massless = part.Massless,
-            Transparency = part.Transparency,
-            Color = part.Color
+            Size = part.Size, CanCollide = part.CanCollide, CanTouch = part.CanTouch,
+            CanQuery = part.CanQuery, Massless = part.Massless,
+            Transparency = part.Transparency, Color = part.Color
         }
     end
 
     pcall(function()
-        local targetSize = Vector3.new(Config.Size, Config.Size, Config.Size)
-        if part.Size ~= targetSize then
-            part.Size = targetSize
-        end
+        -- Hacemos la parte gigante
+        part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
-        -- 🔥 COLISIONES ACTIVADAS: Para que tu espada y cuerpo choquen con el hitbox
-        part.CanCollide = true
-        part.Massless = true  -- Sin masa: chocas, pero no te empuja hacia atrás
+        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
+        part.CanCollide = false 
+        part.Massless = true                
         
+        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes y roces detecten esta parte
         part.CanQuery = true 
         part.CanTouch = true
         
+        -- VISUALES
         part.Transparency = Config.Transparency
         part.Color = Config.Color
     end)
@@ -117,6 +113,7 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
+-- 🛠️ El bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
@@ -127,6 +124,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
+    -- 1. Escanear JUGADORES (PvP)
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -147,16 +145,20 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    local enemiesFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("NPCs") or Workspace:FindFirstChild("Dummies")
-    if enemiesFolder then
-        for _, npc in ipairs(enemiesFolder:GetChildren()) do
-            local hum = npc:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                local root = npc:FindFirstChild("HumanoidRootPart")
-                if root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                    processCharacter(npc)
-                else
-                    restoreCharacter(npc)
+    -- 2. 🔥 ESCANEAR ZOMBIS Y NPCS (El nuevo parche)
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and obj ~= myChar then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
+                -- Filtramos para que solo agrande cosas que parezcan enemigos
+                local name = obj.Name:lower()
+                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") then
+                    local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
+                    if root and (root.Position - myRoot.Position).Magnitude <= 150 then -- Rango de 150 studs
+                        processCharacter(obj)
+                    else
+                        restoreCharacter(obj)
+                    end
                 end
             end
         end
