@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V5 - Instakill Passthrough)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V7 - Atacar NPCs, Ignorar Players)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -10,7 +10,7 @@ if env.__BF_WAVEFARM_CLEANUP then pcall(env.__BF_WAVEFARM_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    CandyRadius = 500,
+    CandyRadius = 2000,     -- Rango largo para el mapa de Halloween
     NoEnemyTimeout = 3,
 }
 env.BF_WAVEFARM_CONFIG = Config
@@ -35,13 +35,16 @@ local function equipWeapon()
     end
 end
 
+-- 🔥 FIX: Ataca a todo lo que tenga Humanoid, excepto a los jugadores reales
 local function getClosestNPC()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
-    local closest, dist = nil, 300 
+    local closest, dist = nil, 2000 
+    
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= LocalPlayer.Character then
             local hum = obj:FindFirstChildOfClass("Humanoid")
+            -- Si tiene Humanidad, está vivo, y NO es un jugador
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
                 local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
                 if hrp then
@@ -61,7 +64,7 @@ local function getCandies()
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Model") then
             local name = obj.Name:lower()
-            if name:find("candy") or name:find("caramel") or name:find("dulce") then
+            if name:find("candy") or name:find("caramel") or name:find("dulce") or name:find("treat") or name:find("sweet") then
                 local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
                 if part and (part.Position - myRoot.Position).Magnitude <= Config.CandyRadius then
                     table.insert(candies, part)
@@ -96,7 +99,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         
         myHum.PlatformStand = true
         
-        -- 🔥 FIX INSTAKILL: Nos lanzamos al centro (0, 1, 0) para atravesar la hitbox gigante
+        -- Instakill: Nos lanzamos al centro del enemigo
         local offsetCFrame = targetHrp.CFrame * CFrame.new(0, 1, 0)
         myRoot.CFrame = offsetCFrame
         myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -128,16 +131,18 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
             myRoot.CFrame = CFrame.new(closestCandy.Position)
             myRoot.AssemblyLinearVelocity = Vector3.zero
             
-            local prompt = closestCandy:FindFirstChildOfClass("ProximityPrompt") or (closestCandy.Parent and closestCandy.Parent:FindFirstChildOfClass("ProximityPrompt"))
+            local prompt = closestCandy:FindFirstChildWhichIsA("ProximityPrompt", true) 
+            
             if prompt then
                 pcall(function() fireproximityprompt(prompt) end)
             else
                 pcall(function()
                     firetouchinterest(myRoot, closestCandy, 0)
-                    task.wait(0.05)
+                    task.wait(0.1)
                     firetouchinterest(myRoot, closestCandy, 1)
                 end)
             end
+            task.wait(0.1) 
         else
             state = "WAITING"
             myHum.PlatformStand = false
