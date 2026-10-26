@@ -1,10 +1,22 @@
---// Froggy Hub - NearestKill.lua (V4 - Modo Vampiro / Flotar hasta matar)
+--// Froggy Hub - NearestKill.lua (V6 - Config y Stop Fix)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LP = Players.LocalPlayer
 
--- Función para buscar al enemigo más cercano
+local env = (getgenv and getgenv()) or _G
+if env.__BF_KILL_CLEANUP then pcall(env.__BF_KILL_CLEANUP) end
+
+-- 🔥 NUEVO: Configuración para que el panel pueda controlarlo
+local Config = { Enabled = false }
+env.BF_KILL_CONFIG = Config
+
+local isRunning = false
+local lockedTarget = nil
+local startTime = 0
+local heartbeatConn = nil
+
 local function getClosestEnemy()
     local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
@@ -15,14 +27,13 @@ local function getClosestEnemy()
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
             if hum and hum.Health > 0 and hrp then
                 local d = (hrp.Position - myRoot.Position).Magnitude
-                if d < dist then dist = d; closest = hrp end
+                if d < dist then dist = d; closest = p end
             end
         end
     end
     return closest
 end
 
--- Función para equipar la espada
 local function equipSword()
     local char = LP.Character
     if not char or char:FindFirstChildOfClass("Tool") then return end
@@ -39,148 +50,104 @@ local function equipSword()
     end
 end
 
--- ==========================================
--- INTERFAZ GRÁFICA (Botón Flotante)
--- ==========================================
+local function stopKill()
+    if heartbeatConn then
+        heartbeatConn:Disconnect()
+        heartbeatConn = nil
+    end
+    isRunning = false
+    lockedTarget = nil
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false end
+end
+
+local function executeKill()
+    local targetPlayer = getClosestEnemy()
+    if not targetPlayer then return end
+
+    isRunning = true
+    lockedTarget = targetPlayer
+    startTime = tick()
+    
+    local myChar = LP.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+
+    if not myRoot or not myHum then stopKill() return end
+
+    equipSword()
+    myHum.PlatformStand = true
+
+    heartbeatConn = RunService.Heartbeat:Connect(function()
+        -- 🛑 FIX: Si el toggle se apaga, detenemos todo inmediatamente
+        if not Config.Enabled or not isRunning or not lockedTarget or not lockedTarget.Character then
+            stopKill() return
+        end
+
+        local targetHum = lockedTarget.Character:FindFirstChild("Humanoid")
+        local targetRoot = lockedTarget.Character:FindFirstChild("HumanoidRootPart")
+
+        if not targetHum or targetHum.Health <= 0 or not targetRoot then
+            stopKill() return
+        end
+
+        if tick() - startTime > 3 then
+            stopKill() return
+        end
+
+        equipSword()
+        
+        -- Se pega al jugador
+        local targetPos = targetRoot.Position
+        local newCFrame = CFrame.lookAt(targetPos - targetRoot.CFrame.LookVector * 3, targetPos)
+        myRoot.CFrame = newCFrame
+        myRoot.AssemblyLinearVelocity = Vector3.zero
+        
+        local tool = myChar:FindFirstChildOfClass("Tool")
+        if tool then
+            pcall(function() tool:Activate() end)
+            pcall(function()
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end)
+        end
+    end)
+end
+
+-- UI del botón (Se mantiene igual)
 local gui = Instance.new("ScreenGui")
 gui.Name = "FroggyNearestKill"
 gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.DisplayOrder = 9999
 gui.Parent = LP:WaitForChild("PlayerGui")
 
-local btnFrame = Instance.new("Frame")
-btnFrame.Name = "KillButton"
+local btnFrame = Instance.new("TextButton")
 btnFrame.Size = UDim2.fromOffset(60, 60) 
 btnFrame.Position = UDim2.new(1, -80, 1, -150) 
 btnFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-btnFrame.BackgroundTransparency = 0.2
-btnFrame.BorderSizePixel = 0
-btnFrame.Active = true
+btnFrame.Text = "KILL"
+btnFrame.TextColor3 = Color3.fromRGB(255, 50, 50)
+btnFrame.Visible = Config.Enabled -- Solo visible si está activo
 btnFrame.Parent = gui
-
-Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(1, 0)
-
-local stroke = Instance.new("UIStroke", btnFrame)
-stroke.Thickness = 2
-stroke.Color = Color3.fromRGB(255, 50, 50)
-
-local iconLabel = Instance.new("TextLabel")
-iconLabel.Size = UDim2.fromScale(1, 1)
-iconLabel.BackgroundTransparency = 1
-iconLabel.Text = "⚔️"
-iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-iconLabel.Font = Enum.Font.GothamBold
-iconLabel.TextSize = 28
-iconLabel.Parent = btnFrame
-
-local textLabel = Instance.new("TextLabel")
-textLabel.Size = UDim2.new(1, 0, 0, 12)
-textLabel.Position = UDim2.new(0, 0, 1, -14)
-textLabel.BackgroundTransparency = 1
-textLabel.Text = "KILL"
-textLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-textLabel.Font = Enum.Font.GothamBold
-textLabel.TextSize = 9
-textLabel.Parent = btnFrame
-
--- Arrastrar el botón
-local dragging = false
-local dragInput, mousePos, framePos
-
-btnFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        mousePos = input.Position
-        framePos = btnFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - mousePos
-        btnFrame.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
-    end
-end)
-
--- ==========================================
--- LÓGICA DE EJECUCIÓN (MODO VAMPIRO)
--- ==========================================
-local isRunning = false
 
 btnFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         if isRunning then return end 
-        
-        local target = getClosestEnemy()
-        if not target then
-            textLabel.Text = "NONE"
-            task.wait(1)
-            textLabel.Text = "KILL"
-            return
-        end
-
-        isRunning = true
-        iconLabel.Text = "🩸"
-        textLabel.Text = "LOCKED"
-        stroke.Color = Color3.fromRGB(255, 100, 100)
-
-        local myChar = LP.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        local myHum = myChar and myChar:FindFirstChild("Humanoid")
-
-        if myRoot and myHum then
-            -- Equipar espada
-            equipSword()
-
-            -- 🔥 EL TRUCO: Desactivamos la gravedad (PlatformStand)
-            myHum.PlatformStand = true
-
-            local startTime = tick()
-            -- Bucle infinito de pegamiento hasta que muera o pasen 3 segundos
-            while isRunning and target and target.Parent do
-                local targetHum = target.Parent and target.Parent:FindFirstChild("Humanoid")
-                
-                -- Si el enemigo murió, rompemos el bucle
-                if not targetHum or targetHum.Health <= 0 then
-                    break
-                end
-
-                -- Si pasa mucho tiempo (3 segundos), rompemos por seguridad
-                if tick() - startTime > 3 then
-                    break
-                end
-
-                -- Teletransportamos al jugador 3 studs arriba del enemigo (para que el cuerpo no se caiga)
-                -- y forzamos el ataque con la espada
-                local targetPos = target.Position + Vector3.new(0, 3, 0)
-                myRoot.CFrame = CFrame.new(targetPos, target.Position)
-                myRoot.AssemblyLinearVelocity = Vector3.zero
-
-                -- Disparamos la espada (por si el roce no es suficiente)
-                local tool = myChar:FindFirstChildOfClass("Tool")
-                if tool then
-                    pcall(function() tool:Activate() end)
-                end
-
-                task.wait(0.05) -- Muy rápido para que el hitbox haga el combo
-            end
-
-            -- 🛑 FIN DEL BUCLE: Restauramos la gravedad
-            if myHum then
-                myHum.PlatformStand = false
-            end
-        end
-
-        -- Resetear UI
-        isRunning = false
-        iconLabel.Text = "⚔️"
-        textLabel.Text = "KILL"
-        stroke.Color = Color3.fromRGB(255, 50, 50)
+        executeKill()
     end
 end)
 
-print("[NearestKill] Módulo cargado. Modo Vampiro listo.")
+-- Ocultar/Mostrar botón según el toggle
+RunService.Heartbeat:Connect(function()
+    btnFrame.Visible = Config.Enabled
+    if not Config.Enabled then stopKill() end
+end)
+
+LP.CharacterAdded:Connect(function() stopKill() end)
+
+env.__BF_KILL_CLEANUP = function()
+    stopKill()
+    gui:Destroy()
+    env.BF_KILL_CONFIG = nil
+    env.__BF_KILL_CLEANUP = nil
+end
