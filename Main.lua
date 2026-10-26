@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | UI Épica v22 (Nearest Kill + Modular)
+--// Main.lua - Froggy Hub | UI Épica v22 (Nearest Kill + Halloween Event)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -45,7 +45,7 @@ local function download(names, key)
 end
 
 -- Descargamos los módulos
-local EspC, MoveC, HitC, CombC, CamC, AutoFarmC, KillC
+local EspC, MoveC, HitC, CombC, CamC, AutoFarmC, KillC, WaveCandyC
 
 if isBloxFruits then
     EspC = download({"Esp.lua"}, "BF_ESP_CONFIG")
@@ -60,6 +60,9 @@ else
     
     -- 🔥 NUEVO MÓDULO: NEAREST KILL (Botón Flotante)
     KillC = download({"NearestKill.lua"}, "BF_KILL_CONFIG")
+    
+    -- 🎃 NUEVO MÓDULO: EVENTO DE HALLOWEEN (Oleadas + Caramelos)
+    WaveCandyC = download({"WaveCandyFarm.lua"}, "BF_WAVEFARM_CONFIG")
 end
 
 -- ==========================================
@@ -128,6 +131,25 @@ if AutoFarmC then
     
     TabAutoFarm:AddToggle("AUTO-EQUIPAR ARMA (BETA)", AutoFarmC.AutoEquip, function(state)
         AutoFarmC.AutoEquip = state
+    end)
+end
+
+-- 🎃 SECCIÓN DEL EVENTO DE HALLOWEEN
+if WaveCandyC then
+    TabAutoFarm:AddToggle("AUTOFARM HALLOWEEN EVENT", WaveCandyC.Enabled, function(state)
+        WaveCandyC.Enabled = state
+        -- Si activas el evento, forzamos el Hitbox para que el glitch de la espada funcione
+        if state and HitC then
+            HitC.Enabled = true
+        end
+    end)
+    
+    TabAutoFarm:AddSlider("RADIO DE RECOLECCIÓN", 100, 1000, WaveCandyC.CandyRadius, function(val)
+        WaveCandyC.CandyRadius = val
+    end)
+    
+    TabAutoFarm:AddSlider("ESPERA ENTRE OLEADAS (SEG)", 1, 10, WaveCandyC.NoEnemyTimeout, function(val)
+        WaveCandyC.NoEnemyTimeout = val
     end)
 end
 
