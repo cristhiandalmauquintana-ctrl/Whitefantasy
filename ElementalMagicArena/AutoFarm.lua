@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AutoFarm.lua (V6 - Kamikaze Players + Fix Placa)
+--// Froggy Hub - ElementalMagicArena/AutoFarm.lua (V8 - Follow Enemies)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
@@ -14,11 +14,12 @@ local state = "FARMING"
 local waitTimer = 0
 local currentTarget = nil
 
--- Limpieza de física (Para que no te quedes flotando)
 local function resetPhysics()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
     if hum then hum.PlatformStand = false end
+    if root then root.Anchored = false end
     if char then
         for _, p in ipairs(char:GetDescendants()) do
             if p:IsA("BasePart") then p.CanCollide = true end
@@ -49,7 +50,6 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     state = "GOING_TO_PLATE"
 end)
 
--- Buscar almas (solo NPCs/Objetos)
 local function getClosestSoul()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
@@ -63,7 +63,6 @@ local function getClosestSoul()
     return closest
 end
 
--- 🔥 VOLVEMOS A BUSCAR JUGADORES
 local function getClosestPlayer()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
@@ -83,7 +82,6 @@ end
 
 RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
-        -- 🛑 FIX: Si lo apagas, te devuelve la gravedad al instante
         resetPhysics()
         currentTarget = nil
         return 
@@ -103,10 +101,7 @@ RunService.Heartbeat:Connect(function()
         return
     end
     
-    if tick() % 2 < 0.1 then autoEquipWeapon() end
-    
     if state == "GOING_TO_PLATE" then
-        -- 🛑 FIX PLACA: Nos aseguramos de tener gravedad para poder pisar la placa
         resetPhysics() 
         myRoot.CFrame = CFrame.new(PlatePos)
         state = "WAITING_PLATE"
@@ -117,9 +112,7 @@ RunService.Heartbeat:Connect(function()
         if os.clock() - waitTimer > 1.5 then state = "FARMING" end
         
     elseif state == "FARMING" then
-        -- Aquí sí flotamos para el Kamikaze
         hum.PlatformStand = true 
-        for _, p in ipairs(char:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
         
         local soul = getClosestSoul()
         if soul then
@@ -133,16 +126,16 @@ RunService.Heartbeat:Connect(function()
         local target = getClosestPlayer()
         if target then
             currentTarget = target
-            -- Se pega al jugador (3 studs arriba)
-            myRoot.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0), target.Position)
-            myRoot.AssemblyLinearVelocity = Vector3.zero
+            
+            -- 🔥 FIX: Seguimiento constante (Stick) al enemigo, sin anclarlo
+            myRoot.CFrame = CFrame.new(target.Position + Vector3.new(2, 2, 0), target.Position)
+            myRoot.AssemblyLinearVelocity = Vector3.zero 
             
             local humTarget = target.Parent and target.Parent:FindFirstChild("Humanoid")
             if humTarget and humTarget.Health <= 0 then 
                 state = "GOING_TO_PLATE" 
             end
         else
-            -- Si no hay jugadores cerca, esperamos un momento antes de ir a la placa
             if currentTarget then
                 local humTarget = currentTarget.Parent and currentTarget.Parent:FindFirstChild("Humanoid")
                 if not humTarget or humTarget.Health <= 0 then
