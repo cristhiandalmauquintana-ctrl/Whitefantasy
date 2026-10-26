@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V7 - Atacar NPCs, Ignorar Players)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V8 - Touch Fix)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -10,7 +10,7 @@ if env.__BF_WAVEFARM_CLEANUP then pcall(env.__BF_WAVEFARM_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    CandyRadius = 2000,     -- Rango largo para el mapa de Halloween
+    CandyRadius = 2000,
     NoEnemyTimeout = 3,
 }
 env.BF_WAVEFARM_CONFIG = Config
@@ -35,16 +35,13 @@ local function equipWeapon()
     end
 end
 
--- 🔥 FIX: Ataca a todo lo que tenga Humanoid, excepto a los jugadores reales
 local function getClosestNPC()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
     local closest, dist = nil, 2000 
-    
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= LocalPlayer.Character then
             local hum = obj:FindFirstChildOfClass("Humanoid")
-            -- Si tiene Humanidad, está vivo, y NO es un jugador
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
                 local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
                 if hrp then
@@ -57,18 +54,18 @@ local function getClosestNPC()
     return closest
 end
 
+-- 🔥 FIX: Búsqueda estricta de caramelos reales (MeshPart llamado "Candy")
 local function getCandies()
     local candies = {}
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return candies end
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            local name = obj.Name:lower()
-            if name:find("candy") or name:find("caramel") or name:find("dulce") or name:find("treat") or name:find("sweet") then
-                local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                if part and (part.Position - myRoot.Position).Magnitude <= Config.CandyRadius then
-                    table.insert(candies, part)
-                end
+    
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        -- Solo buscamos MeshParts llamados exactamente "Candy" en el Workspace
+        if obj:IsA("MeshPart") and obj.Name == "Candy" then
+            local d = (obj.Position - myRoot.Position).Magnitude
+            if d <= Config.CandyRadius then
+                table.insert(candies, obj)
             end
         end
     end
@@ -98,10 +95,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         lastEnemyTime = now
         
         myHum.PlatformStand = true
-        
-        -- Instakill: Nos lanzamos al centro del enemigo
-        local offsetCFrame = targetHrp.CFrame * CFrame.new(0, 1, 0)
-        myRoot.CFrame = offsetCFrame
+        myRoot.CFrame = targetHrp.CFrame * CFrame.new(0, 1, 0)
         myRoot.AssemblyLinearVelocity = Vector3.zero
         
         local tool = char:FindFirstChildOfClass("Tool")
@@ -128,21 +122,21 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
                 end
             end
             
-            myRoot.CFrame = CFrame.new(closestCandy.Position)
+            -- 🔥 FIX DE COLISIÓN: Nos ponemos un micro-pixel al lado y forzamos el toque
+            myRoot.CFrame = CFrame.new(closestCandy.Position + Vector3.new(0, 1, 0))
             myRoot.AssemblyLinearVelocity = Vector3.zero
             
-            local prompt = closestCandy:FindFirstChildWhichIsA("ProximityPrompt", true) 
+            -- Forzamos la colisión (Touch) simulando un pequeño empujón
+            myRoot.CFrame = myRoot.CFrame + Vector3.new(0.1, 0, 0.1)
             
-            if prompt then
-                pcall(function() fireproximityprompt(prompt) end)
-            else
-                pcall(function()
-                    firetouchinterest(myRoot, closestCandy, 0)
-                    task.wait(0.1)
-                    firetouchinterest(myRoot, closestCandy, 1)
-                end)
-            end
-            task.wait(0.1) 
+            pcall(function()
+                firetouchinterest(myRoot, closestCandy, 0)
+                task.wait(0.05) -- Esperar al servidor
+                firetouchinterest(myRoot, closestCandy, 1)
+            end)
+            
+            -- Delay para no saturar
+            task.wait(0.15) 
         else
             state = "WAITING"
             myHum.PlatformStand = false
