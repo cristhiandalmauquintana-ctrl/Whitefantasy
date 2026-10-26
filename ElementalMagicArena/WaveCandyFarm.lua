@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V1 - Halloween Event)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V2 - Táctico y Anti-Muerte)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -15,11 +15,10 @@ local Config = {
 }
 env.BF_WAVEFARM_CONFIG = Config
 
-local state = "WAITING" -- "WAITING", "KILLING", "COLLECTING"
+local state = "WAITING" 
 local lastEnemyTime = 0
 local connections = {}
 
--- Equipar espada automáticamente
 local function equipWeapon()
     local char = LocalPlayer.Character
     if not char or char:FindFirstChildOfClass("Tool") then return end
@@ -36,32 +35,21 @@ local function equipWeapon()
     end
 end
 
--- Buscar enemigo más cercano (Jugadores y NPCs)
-local function getClosestEnemy()
+-- 🔍 BUSCAR SOLO NPCs (Ignorar Jugadores)
+local function getClosestNPC()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
-    local closest, dist = nil, 300 -- Rango de búsqueda de enemigos
+    local closest, dist = nil, 300 
     
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local hum = p.Character:FindFirstChild("Humanoid")
-            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hum and hum.Health > 0 and hrp then
-                local d = (hrp.Position - myRoot.Position).Magnitude
-                if d < dist then dist = d; closest = p end
-            end
-        end
-    end
-    
-    -- Buscar NPCs de oleadas
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= LocalPlayer.Character then
             local hum = obj:FindFirstChildOfClass("Humanoid")
+            -- Si tiene humanidad, está vivo y NO es un jugador
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
-                local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
+                local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("UpperTorso")
                 if hrp then
                     local d = (hrp.Position - myRoot.Position).Magnitude
-                    if d < dist then dist = d; closest = obj end
+                    if d < dist then dist = d; closest = hrp end
                 end
             end
         end
@@ -69,7 +57,6 @@ local function getClosestEnemy()
     return closest
 end
 
--- Buscar caramelos en el mapa
 local function getCandies()
     local candies = {}
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -92,7 +79,6 @@ end
 -- Bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
-        -- Restaurar gravedad si se apaga
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
             LocalPlayer.Character.Humanoid.PlatformStand = false
         end
@@ -106,30 +92,34 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
 
     equipWeapon()
     local now = tick()
-    local enemy = getClosestEnemy()
+    
+    -- Buscamos solo NPCs (enemigos de las oleadas)
+    local targetHrp = getClosestNPC()
 
-    if enemy then
+    if targetHrp then
         state = "KILLING"
         lastEnemyTime = now
         
-        local targetHrp = enemy:IsA("Player") and enemy.Character:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso")
-        if targetHrp then
-            myHum.PlatformStand = true
-            -- GLITCH: Pegarse al enemigo para que la Hitbox gigante lo toque
-            myRoot.CFrame = CFrame.lookAt(targetHrp.Position - targetHrp.CFrame.LookVector * 2.5, targetHrp.Position)
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            
-            -- Atacar (M1)
-            local tool = char:FindFirstChildOfClass("Tool")
-            if tool then
-                pcall(function() tool:Activate() end)
-                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-            end
+        myHum.PlatformStand = true
+        
+        -- 🔥 SOLUCIÓN AL DAÑO Y POSICIÓN:
+        -- En lugar de ir al centro, usamos el CFrame del enemigo para posicionarnos
+        -- 3 studs a la derecha y 1 stud arriba.
+        local offsetCFrame = targetHrp.CFrame * CFrame.new(3, 1, 0)
+        myRoot.CFrame = offsetCFrame
+        myRoot.AssemblyLinearVelocity = Vector3.zero
+        
+        -- Atacar (M1)
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            pcall(function() tool:Activate() end)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
         end
+        
     else
         if state == "KILLING" and (now - lastEnemyTime) < Config.NoEnemyTimeout then
-            return -- Esperando a que termine la oleada
+            return -- Esperando a que termine la oleada o spawneen más
         end
         
         -- MODO RECOLECCIÓN
@@ -147,7 +137,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
             myRoot.CFrame = CFrame.new(closestCandy.Position)
             myRoot.AssemblyLinearVelocity = Vector3.zero
             
-            -- Intentar recoger con ProximityPrompt o por colisión (Touch)
             local prompt = closestCandy:FindFirstChildOfClass("ProximityPrompt") or (closestCandy.Parent and closestCandy.Parent:FindFirstChildOfClass("ProximityPrompt"))
             if prompt then
                 pcall(function() fireproximityprompt(prompt) end)
@@ -165,6 +154,16 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     end
 end))
 
+-- 🔄 AUTO-RESPAWN: Si mueres, el script se reinicia automáticamente
+table.insert(connections, LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(1) -- Esperar a que cargue el personaje
+    if Config.Enabled then
+        state = "WAITING"
+        lastEnemyTime = 0
+        -- El Heartbeat lo detectará automáticamente y empezará a atacar/recoger
+    end
+end))
+
 env.__BF_WAVEFARM_CLEANUP = function()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -174,4 +173,4 @@ env.__BF_WAVEFARM_CLEANUP = function()
     env.__BF_WAVEFARM_CLEANUP = nil
 end
 
-print("[WaveCandyFarm] Módulo de Halloween cargado.")
+print("[WaveCandyFarm] V2 Táctica cargada. Solo ataca NPCs y usa offset seguro.")
