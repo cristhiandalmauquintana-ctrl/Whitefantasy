@@ -164,4 +164,4 @@ env.__BF_WAVEFARM_CLEANUP = function()
     if root then root.Anchored = false end
     env.BF_WAVEFARM_CONFIG = nil
     env.__BF_WAVEFARM_CLEANUP = nil
-end)
+end
