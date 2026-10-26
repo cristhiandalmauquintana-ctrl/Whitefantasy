@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AutoFarm.lua (V8 - Follow Enemies)
+--// Froggy Hub - ElementalMagicArena/AutoFarm.lua (V9 - Filtro Anti-Lobby y Re-Equip)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
@@ -30,12 +30,15 @@ end
 local function autoEquipWeapon()
     if not Config.AutoEquip then return end
     local char = LocalPlayer.Character
+    -- Si ya tiene un arma equipada, no hacemos nada
     if not char or char:FindFirstChildOfClass("Tool") then return end
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then return end
+    
     for _, item in ipairs(backpack:GetChildren()) do
         if item:IsA("Tool") then
             local name = item.Name:lower()
+            -- Buscamos espadas, elementos de luz, energía, etc.
             if name:find("sword") or name:find("light") or name:find("energy") or name:find("knife") then
                 pcall(function() char.Humanoid:EquipTool(item) end)
                 break
@@ -67,13 +70,18 @@ local function getClosestPlayer()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
     local closest, dist = nil, 300 
+    
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             local hum = p.Character:FindFirstChild("Humanoid")
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
             if hum and hum.Health > 0 and hrp then
-                local d = (hrp.Position - myRoot.Position).Magnitude
-                if d < dist then dist = d; closest = hrp end
+                -- 🔥 FIX ANTI-LOBBY: Si el jugador está a menos de 100 studs de la placa, lo ignoramos (está en el lobby)
+                local distanceToLobby = (hrp.Position - PlatePos).Magnitude
+                if distanceToLobby > 100 then
+                    local d = (hrp.Position - myRoot.Position).Magnitude
+                    if d < dist then dist = d; closest = hrp end
+                end
             end
         end
     end
@@ -109,11 +117,19 @@ RunService.Heartbeat:Connect(function()
         
     elseif state == "WAITING_PLATE" then
         resetPhysics()
-        if os.clock() - waitTimer > 1.5 then state = "FARMING" end
+        -- Esperamos 1.5 segundos para que la placa haga su efecto (y nos quite el arma)
+        if os.clock() - waitTimer > 1.5 then 
+            -- 🔥 FIX RE-EQUIP: Justo después de la placa, nos volvemos a equipar el arma
+            autoEquipWeapon() 
+            state = "FARMING" 
+        end
         
     elseif state == "FARMING" then
         hum.PlatformStand = true 
         
+        -- Por si acaso perdemos el arma en el aire, intentamos equipar
+        autoEquipWeapon()
+
         local soul = getClosestSoul()
         if soul then
             myRoot.CFrame = CFrame.new(soul.Position)
@@ -127,7 +143,7 @@ RunService.Heartbeat:Connect(function()
         if target then
             currentTarget = target
             
-            -- 🔥 FIX: Seguimiento constante (Stick) al enemigo, sin anclarlo
+            -- Seguimiento constante (Stick) al enemigo
             myRoot.CFrame = CFrame.new(target.Position + Vector3.new(2, 2, 0), target.Position)
             myRoot.AssemblyLinearVelocity = Vector3.zero 
             
