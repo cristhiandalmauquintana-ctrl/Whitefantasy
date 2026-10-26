@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AutoFarm.lua (V9 - Filtro Anti-Lobby y Re-Equip)
+--// Froggy Hub - ElementalMagicArena/AutoFarm.lua (V11 - Kamikaze Full Fixes)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
@@ -9,11 +9,14 @@ local env = (getgenv and getgenv()) or _G
 getgenv().BF_AUTOFARM_CONFIG = { Enabled = false, AutoEquip = true }
 local Config = getgenv().BF_AUTOFARM_CONFIG
 
+-- Coordenadas de la placa (Ajusta la Y o X si es necesario)
 local PlatePos = Vector3.new(817.7621459960938, 1.33, 21.276567459106445)
+
 local state = "FARMING" 
 local waitTimer = 0
 local currentTarget = nil
 
+-- Limpieza de física para no quedarse flotando al apagar el script
 local function resetPhysics()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -27,10 +30,10 @@ local function resetPhysics()
     end
 end
 
+-- Equipar arma automáticamente (Solo si no tiene nada)
 local function autoEquipWeapon()
     if not Config.AutoEquip then return end
     local char = LocalPlayer.Character
-    -- Si ya tiene un arma equipada, no hacemos nada
     if not char or char:FindFirstChildOfClass("Tool") then return end
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then return end
@@ -38,7 +41,6 @@ local function autoEquipWeapon()
     for _, item in ipairs(backpack:GetChildren()) do
         if item:IsA("Tool") then
             local name = item.Name:lower()
-            -- Buscamos espadas, elementos de luz, energía, etc.
             if name:find("sword") or name:find("light") or name:find("energy") or name:find("knife") then
                 pcall(function() char.Humanoid:EquipTool(item) end)
                 break
@@ -47,12 +49,14 @@ local function autoEquipWeapon()
     end
 end
 
+-- Al morir/respawnear, volvemos a equipar y reiniciar estado
 LocalPlayer.CharacterAdded:Connect(function(char)
     task.wait(1)
     autoEquipWeapon()
     state = "GOING_TO_PLATE"
 end)
 
+-- Buscar almas (objetos)
 local function getClosestSoul()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
@@ -66,6 +70,7 @@ local function getClosestSoul()
     return closest
 end
 
+-- Buscar jugadores (CON FILTRO ANTI-LOBBY POR SUELO)
 local function getClosestPlayer()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
@@ -75,10 +80,27 @@ local function getClosestPlayer()
         if p ~= LocalPlayer and p.Character then
             local hum = p.Character:FindFirstChild("Humanoid")
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            
             if hum and hum.Health > 0 and hrp then
-                -- 🔥 FIX ANTI-LOBBY: Si el jugador está a menos de 100 studs de la placa, lo ignoramos (está en el lobby)
-                local distanceToLobby = (hrp.Position - PlatePos).Magnitude
-                if distanceToLobby > 100 then
+                local isInLobby = false
+                
+                -- 🔍 Raycast hacia abajo para ver qué piso está pisando el enemigo
+                local rayParams = RaycastParams.new()
+                rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                rayParams.FilterDescendantsInstances = {p.Character}
+                local ray = workspace:Raycast(hrp.Position, Vector3.new(0, -15, 0), rayParams)
+                
+                if ray and ray.Instance then
+                    local floorName = ray.Instance.Name:lower()
+                    
+                    -- 🛑 Ignorar si está en SpawnLocation, Part o Baseplate
+                    if floorName:find("spawnlocation") or floorName == "part" or floorName:find("baseplate") then
+                        isInLobby = true
+                    end
+                end
+                
+                -- Si no está en el lobby, es un objetivo válido
+                if not isInLobby then
                     local d = (hrp.Position - myRoot.Position).Magnitude
                     if d < dist then dist = d; closest = hrp end
                 end
@@ -88,6 +110,7 @@ local function getClosestPlayer()
     return closest
 end
 
+-- Bucle Principal
 RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         resetPhysics()
@@ -101,6 +124,7 @@ RunService.Heartbeat:Connect(function()
     
     if not myRoot or not hum then return end
     
+    -- Si caes al vacío, volvemos a la placa
     if myRoot.Position.Y < -50 then
         resetPhysics()
         myRoot.CFrame = CFrame.new(PlatePos)
@@ -117,19 +141,19 @@ RunService.Heartbeat:Connect(function()
         
     elseif state == "WAITING_PLATE" then
         resetPhysics()
-        -- Esperamos 1.5 segundos para que la placa haga su efecto (y nos quite el arma)
+        -- Esperamos 1.5 segundos en la placa
         if os.clock() - waitTimer > 1.5 then 
-            -- 🔥 FIX RE-EQUIP: Justo después de la placa, nos volvemos a equipar el arma
-            autoEquipWeapon() 
+            autoEquipWeapon() -- 🔥 Volvemos a equipar el elemento después de tocar la placa
             state = "FARMING" 
         end
         
     elseif state == "FARMING" then
         hum.PlatformStand = true 
         
-        -- Por si acaso perdemos el arma en el aire, intentamos equipar
+        -- Auto-equipar por si el juego nos lo quitó en el aire
         autoEquipWeapon()
 
+        -- 1. Prioridad: Almas
         local soul = getClosestSoul()
         if soul then
             myRoot.CFrame = CFrame.new(soul.Position)
@@ -139,11 +163,12 @@ RunService.Heartbeat:Connect(function()
             return 
         end
         
+        -- 2. Prioridad: Enemigos reales (Fuera del lobby)
         local target = getClosestPlayer()
         if target then
             currentTarget = target
             
-            -- Seguimiento constante (Stick) al enemigo
+            -- 🔥 Seguimiento fluido (Stick) sin anclarse
             myRoot.CFrame = CFrame.new(target.Position + Vector3.new(2, 2, 0), target.Position)
             myRoot.AssemblyLinearVelocity = Vector3.zero 
             
@@ -152,6 +177,7 @@ RunService.Heartbeat:Connect(function()
                 state = "GOING_TO_PLATE" 
             end
         else
+            -- Si no hay nadie, volvemos a la placa
             if currentTarget then
                 local humTarget = currentTarget.Parent and currentTarget.Parent:FindFirstChild("Humanoid")
                 if not humTarget or humTarget.Health <= 0 then
