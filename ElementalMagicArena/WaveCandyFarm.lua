@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V2 - Táctico y Anti-Muerte)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V4 - Follow NPCs)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -10,8 +10,8 @@ if env.__BF_WAVEFARM_CLEANUP then pcall(env.__BF_WAVEFARM_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    CandyRadius = 500,      -- Radio para buscar caramelos
-    NoEnemyTimeout = 3,     -- Segundos sin enemigos para pasar a recoger caramelos
+    CandyRadius = 500,
+    NoEnemyTimeout = 3,
 }
 env.BF_WAVEFARM_CONFIG = Config
 
@@ -27,7 +27,7 @@ local function equipWeapon()
     for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") then
             local name = tool.Name:lower()
-            if name:find("sword") or name:find("light") or name:find("energy") or name:find("knife") or name:find("espada") then
+            if name:find("sword") or name:find("light") or name:find("energy") or name:find("knife") then
                 pcall(function() char.Humanoid:EquipTool(tool) end)
                 break
             end
@@ -35,18 +35,15 @@ local function equipWeapon()
     end
 end
 
--- 🔍 BUSCAR SOLO NPCs (Ignorar Jugadores)
 local function getClosestNPC()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
     local closest, dist = nil, 300 
-    
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= LocalPlayer.Character then
             local hum = obj:FindFirstChildOfClass("Humanoid")
-            -- Si tiene humanidad, está vivo y NO es un jugador
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
-                local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("UpperTorso")
+                local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
                 if hrp then
                     local d = (hrp.Position - myRoot.Position).Magnitude
                     if d < dist then dist = d; closest = hrp end
@@ -61,7 +58,6 @@ local function getCandies()
     local candies = {}
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return candies end
-    
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Model") then
             local name = obj.Name:lower()
@@ -76,12 +72,13 @@ local function getCandies()
     return candies
 end
 
--- Bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.PlatformStand = false
-        end
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if hum then hum.PlatformStand = false end
+        if root then root.Anchored = false end
         return 
     end
 
@@ -90,10 +87,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myHum = char and char:FindFirstChildOfClass("Humanoid")
     if not myRoot or not myHum or myHum.Health <= 0 then return end
 
-    equipWeapon()
     local now = tick()
-    
-    -- Buscamos solo NPCs (enemigos de las oleadas)
     local targetHrp = getClosestNPC()
 
     if targetHrp then
@@ -102,14 +96,11 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         
         myHum.PlatformStand = true
         
-        -- 🔥 SOLUCIÓN AL DAÑO Y POSICIÓN:
-        -- En lugar de ir al centro, usamos el CFrame del enemigo para posicionarnos
-        -- 3 studs a la derecha y 1 stud arriba.
+        -- 🔥 FIX: Seguimiento (Stick) al NPC con offset táctico (sin anclar)
         local offsetCFrame = targetHrp.CFrame * CFrame.new(3, 1, 0)
         myRoot.CFrame = offsetCFrame
         myRoot.AssemblyLinearVelocity = Vector3.zero
         
-        -- Atacar (M1)
         local tool = char:FindFirstChildOfClass("Tool")
         if tool then
             pcall(function() tool:Activate() end)
@@ -119,14 +110,14 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         
     else
         if state == "KILLING" and (now - lastEnemyTime) < Config.NoEnemyTimeout then
-            return -- Esperando a que termine la oleada o spawneen más
+            return 
         end
         
-        -- MODO RECOLECCIÓN
         state = "COLLECTING"
         local candies = getCandies()
         if #candies > 0 then
             myHum.PlatformStand = true
+            
             local closestCandy = candies[1]
             for _, c in ipairs(candies) do
                 if (c.Position - myRoot.Position).Magnitude < (closestCandy.Position - myRoot.Position).Magnitude then
@@ -134,6 +125,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
                 end
             end
             
+            -- Viajamos al caramelo anulando la inercia
             myRoot.CFrame = CFrame.new(closestCandy.Position)
             myRoot.AssemblyLinearVelocity = Vector3.zero
             
@@ -150,27 +142,27 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         else
             state = "WAITING"
             myHum.PlatformStand = false
+            myRoot.Anchored = false
         end
     end
 end))
 
--- 🔄 AUTO-RESPAWN: Si mueres, el script se reinicia automáticamente
 table.insert(connections, LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(1) -- Esperar a que cargue el personaje
+    task.wait(1)
     if Config.Enabled then
+        equipWeapon()
         state = "WAITING"
         lastEnemyTime = 0
-        -- El Heartbeat lo detectará automáticamente y empezará a atacar/recoger
     end
 end))
 
 env.__BF_WAVEFARM_CLEANUP = function()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.PlatformStand = false
-    end
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if hum then hum.PlatformStand = false end
+    if root then root.Anchored = false end
     env.BF_WAVEFARM_CONFIG = nil
     env.__BF_WAVEFARM_CLEANUP = nil
 end
-
-print("[WaveCandyFarm] V2 Táctica cargada. Solo ataca NPCs y usa offset seguro.")
