@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V4 - Follow NPCs)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V5 - Instakill Passthrough)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -96,8 +96,8 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         
         myHum.PlatformStand = true
         
-        -- 🔥 FIX: Seguimiento (Stick) al NPC con offset táctico (sin anclar)
-        local offsetCFrame = targetHrp.CFrame * CFrame.new(3, 1, 0)
+        -- 🔥 FIX INSTAKILL: Nos lanzamos al centro (0, 1, 0) para atravesar la hitbox gigante
+        local offsetCFrame = targetHrp.CFrame * CFrame.new(0, 1, 0)
         myRoot.CFrame = offsetCFrame
         myRoot.AssemblyLinearVelocity = Vector3.zero
         
@@ -125,7 +125,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
                 end
             end
             
-            -- Viajamos al caramelo anulando la inercia
             myRoot.CFrame = CFrame.new(closestCandy.Position)
             myRoot.AssemblyLinearVelocity = Vector3.zero
             
@@ -165,4 +164,4 @@ env.__BF_WAVEFARM_CLEANUP = function()
     if root then root.Anchored = false end
     env.BF_WAVEFARM_CONFIG = nil
     env.__BF_WAVEFARM_CLEANUP = nil
-end
+end)
