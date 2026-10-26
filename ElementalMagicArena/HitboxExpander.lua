@@ -1,4 +1,4 @@
---// Froggy Hub - HitboxExpander.lua (V5 - Original Restaurado)
+--// Froggy Hub - HitboxExpander.lua (V7 - CanCollide True + Skeletons)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -23,10 +23,11 @@ local expandedParts = {}
 local connections = {}
 
 local function isFriend(player)
-    return false 
+    return false -- Puedes cambiarlo si quieres que ignore amigos reales
 end
 
 local function expandPart(part)
+    if not part or not part:IsA("BasePart") then return end
     if not expandedParts[part] then
         expandedParts[part] = {
             Size = part.Size, CanCollide = part.CanCollide, CanTouch = part.CanTouch,
@@ -39,8 +40,8 @@ local function expandPart(part)
         -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
-        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
-        part.CanCollide = false 
+        -- 🔥 FIX PVP: Colisión en TRUE para que la espada conecte el glitch
+        part.CanCollide = true 
         part.Massless = true                
         
         -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes detecten esta parte
@@ -71,27 +72,23 @@ end
 
 local function processCharacter(char)
     if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            expandPart(part)
-        end
-    end
+    -- Solo expandimos el RootPart y la Cabeza (Suficiente para M1 y Skills)
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
+    if hrp then expandPart(hrp) end
+    if head then expandPart(head) end
 end
 
 local function restoreCharacter(char)
     if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            restorePart(part)
-        end
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then restorePart(part) end
     end
 end
 
 local function restoreAll()
-    for part, _ in pairs(expandedParts) do
-        if part and part.Parent then
-            restorePart(part)
-        end
+    for part, _ in pairs(expandedParts) do 
+        if part and part.Parent then restorePart(part) end 
     end
     expandedParts = {}
 end
@@ -113,7 +110,7 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
--- 🛠️ El bucle principal (SIN PARCHES DE FÍSICA)
+-- Bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
@@ -145,12 +142,13 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- Escanear NPCs / Zombis
+    -- Escanear NPCs / Zombis / Esqueletos
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= myChar then
             local hum = obj:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
                 local name = obj.Name:lower()
+                -- 🔥 FIX: Añadidos los esqueletos y mobs de Halloween
                 if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("skeleton") or name:find("esqueleto") then
                     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
                     if root and (root.Position - myRoot.Position).Magnitude <= 150 then 
