@@ -122,7 +122,7 @@ end
 if AutoFarmC then
     TabAutoFarm:AddButton("⚠️ ADVERTENCIA: FUNCIÓN EN BETA", function() end)
     
-    TabAutoFarm:AddToggle("KAMIKAZE FARM (BETA)", AutoFarmC.Enabled, function(state)
+    TabAutoFarm:AddToggle("PLAYERS FARM (BETA)", AutoFarmC.Enabled, function(state)
         AutoFarmC.Enabled = state
         if state and HitC then
             HitC.Enabled = true
