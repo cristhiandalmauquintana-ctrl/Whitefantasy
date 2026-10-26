@@ -151,7 +151,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
             local hum = obj:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
                 local name = obj.Name:lower()
-                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") then
+                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("skeleton") or name:find("esqueleto") then
                     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
                     if root and (root.Position - myRoot.Position).Magnitude <= 150 then 
                         processCharacter(obj)
