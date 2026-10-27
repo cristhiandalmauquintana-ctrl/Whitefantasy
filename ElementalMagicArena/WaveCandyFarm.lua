@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V8 - Touch Fix)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V12 - Vuelo Suave)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -11,7 +11,9 @@ if env.__BF_WAVEFARM_CLEANUP then pcall(env.__BF_WAVEFARM_CLEANUP) end
 local Config = {
     Enabled = false,
     CandyRadius = 2000,
-    NoEnemyTimeout = 3,
+    MaxAttackDistance = 2000, -- Rango para buscar enemigos
+    FlySpeed = 60,            -- 🔥 Velocidad de vuelo (studs por segundo)
+    AttackDistance = 12,      -- Distancia a la que se considera que ya puede atacar
 }
 env.BF_WAVEFARM_CONFIG = Config
 
@@ -38,7 +40,8 @@ end
 local function getClosestNPC()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
-    local closest, dist = nil, 2000 
+    local closest, dist = nil, Config.MaxAttackDistance
+    
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= LocalPlayer.Character then
             local hum = obj:FindFirstChildOfClass("Humanoid")
@@ -54,14 +57,11 @@ local function getClosestNPC()
     return closest
 end
 
--- 🔥 FIX: Búsqueda estricta de caramelos reales (MeshPart llamado "Candy")
 local function getCandies()
     local candies = {}
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return candies end
-    
     for _, obj in ipairs(Workspace:GetChildren()) do
-        -- Solo buscamos MeshParts llamados exactamente "Candy" en el Workspace
         if obj:IsA("MeshPart") and obj.Name == "Candy" then
             local d = (obj.Position - myRoot.Position).Magnitude
             if d <= Config.CandyRadius then
@@ -72,13 +72,11 @@ local function getCandies()
     return candies
 end
 
-table.insert(connections, RunService.Heartbeat:Connect(function()
+table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     if not Config.Enabled then 
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChild("Humanoid")
-        local root = char and char:FindFirstChild("HumanoidRootPart")
         if hum then hum.PlatformStand = false end
-        if root then root.Anchored = false end
         return 
     end
 
@@ -87,6 +85,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myHum = char and char:FindFirstChildOfClass("Humanoid")
     if not myRoot or not myHum or myHum.Health <= 0 then return end
 
+    equipWeapon()
     local now = tick()
     local targetHrp = getClosestNPC()
 
@@ -95,21 +94,32 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         lastEnemyTime = now
         
         myHum.PlatformStand = true
-        myRoot.CFrame = targetHrp.CFrame * CFrame.new(0, 1, 0)
-        myRoot.AssemblyLinearVelocity = Vector3.zero
         
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool then
-            pcall(function() tool:Activate() end)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+        -- Calculamos la distancia al enemigo
+        local targetPos = targetHrp.Position
+        local distance = (targetPos - myRoot.Position).Magnitude
+        
+        if distance > Config.AttackDistance then
+            -- 🔥 VUELO SUAVE: Nos movemos hacia el enemigo a velocidad media
+            local direction = (targetPos - myRoot.Position).Unit
+            -- Avanzamos a la velocidad configurada multiplicada por el delta time (dt)
+            myRoot.CFrame = CFrame.lookAt(myRoot.Position + (direction * Config.FlySpeed * dt), targetPos)
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+        else
+            -- 🔥 ATAQUE: Solo disparamos si ya estamos lo suficientemente cerca
+            myRoot.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0), targetPos)
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                pcall(function() tool:Activate() end)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end
         end
         
     else
-        if state == "KILLING" and (now - lastEnemyTime) < Config.NoEnemyTimeout then
-            return 
-        end
-        
+        -- Si no hay enemigos, pasamos a recoger caramelos
         state = "COLLECTING"
         local candies = getCandies()
         if #candies > 0 then
@@ -122,21 +132,31 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
                 end
             end
             
-            -- 🔥 FIX DE COLISIÓN: Nos ponemos un micro-pixel al lado y forzamos el toque
-            myRoot.CFrame = CFrame.new(closestCandy.Position + Vector3.new(0, 1, 0))
-            myRoot.AssemblyLinearVelocity = Vector3.zero
+            local candyPos = closestCandy.Position
+            local distToCandy = (candyPos - myRoot.Position).Magnitude
             
-            -- Forzamos la colisión (Touch) simulando un pequeño empujón
-            myRoot.CFrame = myRoot.CFrame + Vector3.new(0.1, 0, 0.1)
-            
-            pcall(function()
-                firetouchinterest(myRoot, closestCandy, 0)
-                task.wait(0.05) -- Esperar al servidor
-                firetouchinterest(myRoot, closestCandy, 1)
-            end)
-            
-            -- Delay para no saturar
-            task.wait(0.15) 
+            if distToCandy > Config.AttackDistance then
+                -- Vuelo suave hacia el caramelo
+                local direction = (candyPos - myRoot.Position).Unit
+                myRoot.CFrame = CFrame.lookAt(myRoot.Position + (direction * (Config.FlySpeed * 1.5) * dt), candyPos)
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+            else
+                -- Recoger caramelo
+                myRoot.CFrame = CFrame.new(candyPos)
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+                
+                local prompt = closestCandy:FindFirstChildWhichIsA("ProximityPrompt", true) 
+                if prompt then
+                    pcall(function() fireproximityprompt(prompt) end)
+                else
+                    pcall(function()
+                        firetouchinterest(myRoot, closestCandy, 0)
+                        task.wait(0.1)
+                        firetouchinterest(myRoot, closestCandy, 1)
+                    end)
+                end
+                task.wait(0.1)
+            end
         else
             state = "WAITING"
             myHum.PlatformStand = false
@@ -158,9 +178,7 @@ env.__BF_WAVEFARM_CLEANUP = function()
     for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChild("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
     if hum then hum.PlatformStand = false end
-    if root then root.Anchored = false end
     env.BF_WAVEFARM_CONFIG = nil
     env.__BF_WAVEFARM_CLEANUP = nil
 end
