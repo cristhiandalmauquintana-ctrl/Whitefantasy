@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/HitboxExpander.lua (V9 - Sólido)
+--// Froggy Hub - ElementalMagicArena/HitboxExpander.lua (V10 - Auto-Limpiador de Fantasmas)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -90,15 +90,38 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
+-- 🔥 BUCLE DE LIMPIEZA DE FANTASMAS (Cada 2 segundos)
+task.spawn(function()
+    while task.wait(2) do
+        if not Config.Enabled then continue end
+        
+        for part, data in pairs(expandedParts) do
+            -- Si la parte ya no existe en el juego, la borramos de la lista
+            if not part or not part.Parent then
+                expandedParts[part] = nil
+            else
+                -- Si la parte pertenece a un Humanoid que ya murió o desapareció, la restauramos
+                local hum = part.Parent:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health <= 0 then
+                    restorePart(part)
+                end
+            end
+        end
+    end
+end)
+
+-- Bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
         return 
     end
+
     local myChar = LocalPlayer.Character
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
+    -- Escanear Jugadores
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -115,6 +138,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
+    -- Escanear NPCs / Zombis / Esqueletos
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= myChar then
             local hum = obj:FindFirstChildOfClass("Humanoid")
