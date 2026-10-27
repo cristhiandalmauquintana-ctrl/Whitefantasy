@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Pond Edition + Assets)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Pond Edition + 5 Modules)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -21,7 +21,6 @@ local Window = UI_Library.CreateWindow({
     Subtitle = "Elemental Arena | Pond Edition"
 })
 
--- Extendemos la ventana con los nuevos componentes (Textbox, Notify, etc.)
 Assets.Extend(Window)
 
 -- 3. CREAMOS LAS PESTAÑAS
@@ -33,7 +32,7 @@ local TabAutoFarm = Window:CreateTab("AUTO FARM")
 local TabConfig = Window:CreateTab("CONFIG")
 
 -- ==========================================
--- 4. DETECCIÓN Y DESCARGA DE MÓDULOS
+-- 4. DESCARGA DE MÓDULOS (Solo los 5 actuales)
 -- ==========================================
 local folder = "ElementalMagicArena/"
 
@@ -50,29 +49,20 @@ local function download(names, key)
     return env[key] or _G[key]
 end
 
--- Descargamos los módulos
-local EspC = download({"EspElemental.lua"}, "BF_ESP_CONFIG")
-local MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
-local HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
 local CombC = download({"AutoCombat.lua"}, "BF_COMBAT_CONFIG")
-local CamC = download({"Camlock.lua"}, "BF_CAM_CONFIG")
-local KillC = download({"NearestKill.lua"}, "BF_KILL_CONFIG")
+local EspC = download({"EspElemental.lua"}, "BF_ESP_CONFIG")
+local HitC = download({"HitboxExpander.lua"}, "BF_HITBOX_CONFIG")
+local MoveC = download({"Movement.lua"}, "BF_MOVE_CONFIG")
 local WaveCandyC = download({"WaveCandyFarm.lua"}, "BF_WAVEFARM_CONFIG")
 
 -- ==========================================
--- 5. CONECTAMOS LOS BOTONES
+-- 5. CONECTAMOS LOS BOTONES A LA UI
 -- ==========================================
 
 -- === PESTAÑA MAIN ===
 TabMain:AddButton("REJOIN SERVER", function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
 end)
-
-if KillC then
-    TabMain:AddToggle("NEAREST KILL (BOTÓN FLOTANTE)", KillC.Enabled, function(state)
-        KillC.Enabled = state
-    end)
-end
 
 -- === PESTAÑA COMBATE ===
 if CombC then
@@ -84,37 +74,21 @@ if CombC then
     end)
 end
 
-if CamC then
-    TabCombat:AddToggle("CAMLOCK", CamC.Enabled, function(state)
-        CamC.Enabled = state
-    end)
-    TabCombat:AddSlider("FOV DEL CAMLOCK", 50, 600, CamC.FOV, function(val)
-        CamC.FOV = val
-    end)
-end
-
--- === SECCIÓN HITBOX (NORMAL + BETA) ===
+-- Sección Hitbox con Contraseña
 if HitC then
-    -- 1. El botón normal (Seguro para todos)
     TabCombat:AddToggle("HITBOX EXPANDER (35 STUDS)", HitC.Enabled, function(state)
         HitC.Enabled = state
     end)
 
-    -- 2. Separador visual para la zona de pruebas
     TabCombat:AddSection("HITBOX EXPERIMENTAL (BETA)")
 
-    -- 3. Caja de texto para la contraseña
     local passBox = TabCombat:AddTextBox("CONTRASEÑA DE PRUEBAS", "Clave de desarrollador...", function() end, { ClearButton = true })
     
-    -- 4. Botón para verificar
     local unlockBtn = TabCombat:AddButtonEx("DESBLOQUEAR PRUEBA", function()
-        -- 🔑 AQUÍ PONES TU CONTRASEÑA SECRETA:
         if passBox:Get() == "froggy_testing_2026" then
             Assets.Notify({Title = "Modo Pruebas Activado", Text = "Cuidado, el tamaño excesivo puede causar lag.", Type = "warn"})
-            -- Ocultamos la caja y el botón
             passBox.Instance.Visible = false
             unlockBtn.Instance.Visible = false
-            -- Mostramos el slider
             hitboxSlider.Instance.Visible = true
         else
             Assets.Notify({Title = "Acceso Denegado", Text = "Clave de pruebas incorrecta.", Type = "danger"})
@@ -122,12 +96,10 @@ if HitC then
         end
     end, "wood", "md")
 
-    -- 5. El Slider gigante (Oculto por defecto)
     local hitboxSlider = TabCombat:AddSliderEx("TAMAÑO DE HITBOX (PELIGRO)", 35, 500, 35, function(val)
         HitC.Size = val
     end, "lily")
     
-    -- Ocultamos el slider al iniciar
     hitboxSlider.Instance.Visible = false 
 end
 
@@ -135,6 +107,15 @@ end
 if EspC then
     TabVisual:AddToggle("ESP JUGADORES", EspC.Enabled, function(state)
         EspC.Enabled = state
+    end)
+    TabVisual:AddToggle("CAJAS 2D", EspC.Boxes, function(state)
+        EspC.Boxes = state
+    end)
+    TabVisual:AddToggle("TRACERS", EspC.Tracers, function(state)
+        EspC.Tracers = state
+    end)
+    TabVisual:AddToggle("BARRA DE VIDA", EspC.HealthBar, function(state)
+        EspC.HealthBar = state
     end)
 end
 
@@ -156,11 +137,9 @@ end
 
 -- === PESTAÑA AUTO FARM ===
 if WaveCandyC then
-    local toggleHalloween
-    
-    toggleHalloween = TabAutoFarm:AddToggle("AUTOFARM HALLOWEEN EVENT", WaveCandyC.Enabled, function(state)
+    TabAutoFarm:AddToggle("AUTOFARM HALLOWEEN EVENT", WaveCandyC.Enabled, function(state)
         WaveCandyC.Enabled = state
-        -- Si se activa el evento, forzamos el Hitbox normal
+        -- Si se activa el evento, forzamos la Hitbox normal
         if state and HitC then
             HitC.Enabled = true 
         end
@@ -176,4 +155,4 @@ TabConfig:AddButton("DESTRUIR UI", function()
     Window:Destroy()
 end)
 
-print("[Main] Froggy Hub (Pond Edition) cargado con éxito en Elemental Arena.")
+print("[Main] Froggy Hub cargado con éxito. Solo los 5 módulos activos.")
