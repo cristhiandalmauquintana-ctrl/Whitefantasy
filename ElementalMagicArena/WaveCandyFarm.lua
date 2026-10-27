@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V12 - Vuelo Suave)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V15 - Colisión Sólida)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -11,9 +11,9 @@ if env.__BF_WAVEFARM_CLEANUP then pcall(env.__BF_WAVEFARM_CLEANUP) end
 local Config = {
     Enabled = false,
     CandyRadius = 2000,
-    MaxAttackDistance = 2000, -- Rango para buscar enemigos
-    FlySpeed = 60,            -- 🔥 Velocidad de vuelo (studs por segundo)
-    AttackDistance = 12,      -- Distancia a la que se considera que ya puede atacar
+    MaxAttackDistance = 2000, 
+    FlySpeed = 200,           -- Velocidad de vuelo
+    AttackDistance = 20,      -- Distancia a la que choca con la hitbox (17.5 es el radio de la caja)
 }
 env.BF_WAVEFARM_CONFIG = Config
 
@@ -95,20 +95,19 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         
         myHum.PlatformStand = true
         
-        -- Calculamos la distancia al enemigo
         local targetPos = targetHrp.Position
         local distance = (targetPos - myRoot.Position).Magnitude
         
         if distance > Config.AttackDistance then
-            -- 🔥 VUELO SUAVE: Nos movemos hacia el enemigo a velocidad media
+            -- 🔥 VOLAR HACIA EL ENEMIGO (Hasta chocar con la caja)
             local direction = (targetPos - myRoot.Position).Unit
-            -- Avanzamos a la velocidad configurada multiplicada por el delta time (dt)
             myRoot.CFrame = CFrame.lookAt(myRoot.Position + (direction * Config.FlySpeed * dt), targetPos)
             myRoot.AssemblyLinearVelocity = Vector3.zero
         else
-            -- 🔥 ATAQUE: Solo disparamos si ya estamos lo suficientemente cerca
-            myRoot.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0), targetPos)
-            myRoot.AssemblyLinearVelocity = Vector3.zero
+            -- 🔥 CHOCANDO CON LA HITBOX: Mantenemos la posición y atacamos
+            -- Empujamos un poquito hacia adentro para mantener la presión sobre la caja roja
+            local direction = (targetPos - myRoot.Position).Unit
+            myRoot.AssemblyLinearVelocity = direction * 10 
             
             local tool = char:FindFirstChildOfClass("Tool")
             if tool then
@@ -119,7 +118,6 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         end
         
     else
-        -- Si no hay enemigos, pasamos a recoger caramelos
         state = "COLLECTING"
         local candies = getCandies()
         if #candies > 0 then
@@ -135,13 +133,11 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
             local candyPos = closestCandy.Position
             local distToCandy = (candyPos - myRoot.Position).Magnitude
             
-            if distToCandy > Config.AttackDistance then
-                -- Vuelo suave hacia el caramelo
+            if distToCandy > 3 then
                 local direction = (candyPos - myRoot.Position).Unit
                 myRoot.CFrame = CFrame.lookAt(myRoot.Position + (direction * (Config.FlySpeed * 1.5) * dt), candyPos)
                 myRoot.AssemblyLinearVelocity = Vector3.zero
             else
-                -- Recoger caramelo
                 myRoot.CFrame = CFrame.new(candyPos)
                 myRoot.AssemblyLinearVelocity = Vector3.zero
                 
