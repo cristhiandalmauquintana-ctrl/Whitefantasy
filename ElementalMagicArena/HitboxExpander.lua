@@ -1,4 +1,4 @@
---// Froggy Hub - HitboxExpander.lua (V7 - CanCollide True + Skeletons)
+--// Froggy Hub - HitboxExpander.lua (V9 - Sólido y Todo el Cuerpo)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -22,10 +22,6 @@ local Config = getgenv().BF_HITBOX_CONFIG
 local expandedParts = {}
 local connections = {}
 
-local function isFriend(player)
-    return false -- Puedes cambiarlo si quieres que ignore amigos reales
-end
-
 local function expandPart(part)
     if not part or not part:IsA("BasePart") then return end
     if not expandedParts[part] then
@@ -40,11 +36,11 @@ local function expandPart(part)
         -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
-        -- 🔥 FIX PVP: Colisión en TRUE para que la espada conecte el glitch
+        -- 🔥 FIX: Colisión en TRUE para que la espada choque y active el glitch
         part.CanCollide = true 
         part.Massless = true                
         
-        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes detecten esta parte
+        -- Forzamos a que los golpes detecten esta parte
         part.CanQuery = true 
         part.CanTouch = true
         
@@ -70,25 +66,30 @@ local function restorePart(part)
     end
 end
 
+-- 🔥 RESTAURADO: Expandimos TODAS las partes del Humanoid
 local function processCharacter(char)
     if not char then return end
-    -- Solo expandimos el RootPart y la Cabeza (Suficiente para M1 y Skills)
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local head = char:FindFirstChild("Head")
-    if hrp then expandPart(hrp) end
-    if head then expandPart(head) end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            expandPart(part)
+        end
+    end
 end
 
 local function restoreCharacter(char)
     if not char then return end
-    for _, part in ipairs(char:GetChildren()) do
-        if part:IsA("BasePart") then restorePart(part) end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            restorePart(part)
+        end
     end
 end
 
 local function restoreAll()
-    for part, _ in pairs(expandedParts) do 
-        if part and part.Parent then restorePart(part) end 
+    for part, _ in pairs(expandedParts) do
+        if part and part.Parent then
+            restorePart(part)
+        end
     end
     expandedParts = {}
 end
@@ -128,11 +129,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
             if hum and hum.Health > 0 then
                 local root = player.Character:FindFirstChild("HumanoidRootPart")
                 if root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                    if Config.IgnoreFriends and isFriend(player) then
-                        restoreCharacter(player.Character)
-                    else
-                        processCharacter(player.Character)
-                    end
+                    processCharacter(player.Character)
                 else
                     restoreCharacter(player.Character)
                 end
@@ -148,10 +145,9 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
             local hum = obj:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
                 local name = obj.Name:lower()
-                -- 🔥 FIX: Añadidos los esqueletos y mobs de Halloween
                 if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("skeleton") or name:find("esqueleto") then
                     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
-                    if root and (root.Position - myRoot.Position).Magnitude <= 150 then 
+                    if root and (root.Position - myRoot.Position).Magnitude <= 250 then 
                         processCharacter(obj)
                     else
                         restoreCharacter(obj)
