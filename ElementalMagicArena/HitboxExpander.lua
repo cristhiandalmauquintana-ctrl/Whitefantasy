@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/HitboxExpander.lua (V10 - Auto-Limpiador de Fantasmas)
+--// Froggy Hub - HitboxExpander.lua (V5 - Original Restaurado)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -7,6 +7,7 @@ local env = (getgenv and getgenv()) or _G
 
 if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
+-- CONFIGURACIÓN
 if not getgenv().BF_HITBOX_CONFIG then
     getgenv().BF_HITBOX_CONFIG = {
         Enabled = false,
@@ -17,20 +18,36 @@ if not getgenv().BF_HITBOX_CONFIG then
     }
 end
 local Config = getgenv().BF_HITBOX_CONFIG
+
 local expandedParts = {}
 local connections = {}
 
+local function isFriend(player)
+    return false 
+end
+
 local function expandPart(part)
-    if not part or not part:IsA("BasePart") then return end
     if not expandedParts[part] then
-        expandedParts[part] = { Size = part.Size, CanCollide = part.CanCollide, CanTouch = part.CanTouch, CanQuery = part.CanQuery, Massless = part.Massless, Transparency = part.Transparency, Color = part.Color }
+        expandedParts[part] = {
+            Size = part.Size, CanCollide = part.CanCollide, CanTouch = part.CanTouch,
+            CanQuery = part.CanQuery, Massless = part.Massless,
+            Transparency = part.Transparency, Color = part.Color
+        }
     end
+
     pcall(function()
+        -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
-        part.CanCollide = true 
+        
+        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
+        part.CanCollide = false 
         part.Massless = true                
+        
+        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes detecten esta parte
         part.CanQuery = true 
         part.CanTouch = true
+        
+        -- VISUALES
         part.Transparency = Config.Transparency
         part.Color = Config.Color
     end)
@@ -55,20 +72,26 @@ end
 local function processCharacter(char)
     if not char then return end
     for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then expandPart(part) end
+        if part:IsA("BasePart") then
+            expandPart(part)
+        end
     end
 end
 
 local function restoreCharacter(char)
     if not char then return end
     for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then restorePart(part) end
+        if part:IsA("BasePart") then
+            restorePart(part)
+        end
     end
 end
 
 local function restoreAll()
-    for part, _ in pairs(expandedParts) do 
-        if part and part.Parent then restorePart(part) end 
+    for part, _ in pairs(expandedParts) do
+        if part and part.Parent then
+            restorePart(part)
+        end
     end
     expandedParts = {}
 end
@@ -90,27 +113,7 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
--- 🔥 BUCLE DE LIMPIEZA DE FANTASMAS (Cada 2 segundos)
-task.spawn(function()
-    while task.wait(2) do
-        if not Config.Enabled then continue end
-        
-        for part, data in pairs(expandedParts) do
-            -- Si la parte ya no existe en el juego, la borramos de la lista
-            if not part or not part.Parent then
-                expandedParts[part] = nil
-            else
-                -- Si la parte pertenece a un Humanoid que ya murió o desapareció, la restauramos
-                local hum = part.Parent:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health <= 0 then
-                    restorePart(part)
-                end
-            end
-        end
-    end
-end)
-
--- Bucle principal
+-- 🛠️ El bucle principal (SIN PARCHES DE FÍSICA)
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
@@ -128,7 +131,11 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
             if hum and hum.Health > 0 then
                 local root = player.Character:FindFirstChild("HumanoidRootPart")
                 if root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                    processCharacter(player.Character)
+                    if Config.IgnoreFriends and isFriend(player) then
+                        restoreCharacter(player.Character)
+                    else
+                        processCharacter(player.Character)
+                    end
                 else
                     restoreCharacter(player.Character)
                 end
@@ -138,15 +145,15 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- Escanear NPCs / Zombis / Esqueletos
+    -- Escanear NPCs / Zombis
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= myChar then
             local hum = obj:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
                 local name = obj.Name:lower()
-                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("skeleton") or name:find("esqueleto") then
+                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") then
                     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
-                    if root and (root.Position - myRoot.Position).Magnitude <= 250 then 
+                    if root and (root.Position - myRoot.Position).Magnitude <= 150 then 
                         processCharacter(obj)
                     else
                         restoreCharacter(obj)
@@ -157,6 +164,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     end
 end))
 
+-- Limpieza al recargar
 env.__BF_HITBOX_CLEANUP = function()
     restoreAll()
     for _, conn in ipairs(connections) do
