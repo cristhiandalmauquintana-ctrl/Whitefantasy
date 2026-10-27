@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Pond Edition Final)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Pond Edition Final Fix)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -39,10 +39,24 @@ local folder = "ElementalMagicArena/"
 local function download(name, key)
     local url = ROOT .. folder .. name .. "?v=" .. os.time()
     local ok, res = pcall(game.HttpGet, game, url)
+    
     if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
         local fnOk, fn = pcall(loadstring, res)
-        if fnOk and type(fn) == "function" then pcall(fn) end
+        if fnOk and type(fn) == "function" then 
+            local runOk, runErr = pcall(fn)
+            if not runOk then
+                warn("❌ Error al ejecutar " .. name .. ": " .. tostring(runErr))
+                Assets.Notify({Title = "Error de Módulo", Text = name .. " falló. Revisa la consola.", Type = "danger", Duration = 10})
+            end
+        else
+            warn("❌ Error de sintaxis en " .. name .. ": " .. tostring(fn))
+            Assets.Notify({Title = "Error de Sintaxis", Text = name .. " tiene un error de código.", Type = "danger", Duration = 10})
+        end
+    else
+        warn("❌ No se pudo descargar " .. name .. " de GitHub.")
+        Assets.Notify({Title = "Error 404", Text = "No se encontró " .. name, Type = "danger", Duration = 10})
     end
+    
     task.wait(0.1)
     return env[key] or _G[key]
 end
@@ -72,7 +86,6 @@ if CombC then
     end)
 end
 
--- Variable global para que la Config pueda activar el slider
 local hitboxSlider = nil
 
 if HitC then
@@ -80,7 +93,6 @@ if HitC then
         HitC.Enabled = state
     end)
 
-    -- El slider se crea aquí, pero nace invisible
     hitboxSlider = TabCombat:AddSliderEx("TAMAÑO DE HITBOX (PELIGRO)", 35, 500, 35, function(val)
         HitC.Size = val
     end, "lily")
@@ -141,13 +153,10 @@ TabConfig:AddSection("ZONA DE DESARROLLADOR")
 local passBox = TabConfig:AddTextBox("CONTRASEÑA DE PRUEBAS", "Clave de desarrollador...", function() end, { ClearButton = true })
 
 local unlockBtn = TabConfig:AddButtonEx("DESBLOQUEAR PRUEBA", function()
-    -- 🔑 AQUÍ PONES TU CONTRASEÑA SECRETA:
     if passBox:Get() == "froggy_testing_2026" then
         Assets.Notify({Title = "Modo Pruebas Activado", Text = "Ve a la pestaña COMBATE para ver el slider.", Type = "warn"})
-        -- Ocultamos la caja y el botón
         passBox.Instance.Visible = false
         unlockBtn.Instance.Visible = false
-        -- Mostramos el slider en la pestaña de Combate
         if hitboxSlider then
             hitboxSlider.Instance.Visible = true
         end
@@ -161,4 +170,4 @@ TabConfig:AddButton("DESTRUIR UI", function()
     Window:Destroy()
 end)
 
-print("[Main] Froggy Hub cargado. Contraseña de pruebas lista.")
+print("[Main] Froggy Hub cargado. Módulos listos.")
