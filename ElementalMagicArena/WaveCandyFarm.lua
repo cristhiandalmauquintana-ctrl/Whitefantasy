@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V15 - Colisión Sólida)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V16 - Noclip Local + Offset)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -12,8 +12,8 @@ local Config = {
     Enabled = false,
     CandyRadius = 2000,
     MaxAttackDistance = 2000, 
-    FlySpeed = 200,           -- Velocidad de vuelo
-    AttackDistance = 20,      -- Distancia a la que choca con la hitbox (17.5 es el radio de la caja)
+    FlySpeed = 200,           
+    AttackDistance = 4,       -- Distancia para atacar (una vez llegamos al offset)
 }
 env.BF_WAVEFARM_CONFIG = Config
 
@@ -72,11 +72,23 @@ local function getCandies()
     return candies
 end
 
+-- 🔥 NOCLIP LOCAL: Desactiva la colisión solo para tu personaje
+local function setNoclip(enabled)
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not enabled
+        end
+    end
+end
+
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     if not Config.Enabled then 
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChild("Humanoid")
         if hum then hum.PlatformStand = false end
+        setNoclip(false) -- Al apagar, restauramos la colisión
         return 
     end
 
@@ -94,20 +106,23 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         lastEnemyTime = now
         
         myHum.PlatformStand = true
+        setNoclip(true) -- 🔥 Activamos el noclip mientras vuela y ataca
         
-        local targetPos = targetHrp.Position
+        -- 🎯 CALCULAMOS EL OFFSET: 3 studs derecha, 1 arriba
+        local offsetCFrame = targetHrp.CFrame * CFrame.new(3, 1, 0)
+        local targetPos = offsetCFrame.Position
+        
         local distance = (targetPos - myRoot.Position).Magnitude
         
         if distance > Config.AttackDistance then
-            -- 🔥 VOLAR HACIA EL ENEMIGO (Hasta chocar con la caja)
+            -- VOLAR HACIA EL OFFSET
             local direction = (targetPos - myRoot.Position).Unit
-            myRoot.CFrame = CFrame.lookAt(myRoot.Position + (direction * Config.FlySpeed * dt), targetPos)
+            myRoot.CFrame = CFrame.lookAt(myRoot.Position + (direction * Config.FlySpeed * dt), targetHrp.Position)
             myRoot.AssemblyLinearVelocity = Vector3.zero
         else
-            -- 🔥 CHOCANDO CON LA HITBOX: Mantenemos la posición y atacamos
-            -- Empujamos un poquito hacia adentro para mantener la presión sobre la caja roja
-            local direction = (targetPos - myRoot.Position).Unit
-            myRoot.AssemblyLinearVelocity = direction * 10 
+            -- ATACAR EN EL OFFSET
+            myRoot.CFrame = offsetCFrame
+            myRoot.AssemblyLinearVelocity = Vector3.zero
             
             local tool = char:FindFirstChildOfClass("Tool")
             if tool then
@@ -122,6 +137,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         local candies = getCandies()
         if #candies > 0 then
             myHum.PlatformStand = true
+            setNoclip(true) -- Noclip también para recoger caramelos
             
             local closestCandy = candies[1]
             for _, c in ipairs(candies) do
@@ -156,6 +172,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         else
             state = "WAITING"
             myHum.PlatformStand = false
+            setNoclip(false) -- Restauramos colisión si no hay nada
             myRoot.Anchored = false
         end
     end
@@ -175,6 +192,7 @@ env.__BF_WAVEFARM_CLEANUP = function()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChild("Humanoid")
     if hum then hum.PlatformStand = false end
+    setNoclip(false)
     env.BF_WAVEFARM_CONFIG = nil
     env.__BF_WAVEFARM_CLEANUP = nil
 end
