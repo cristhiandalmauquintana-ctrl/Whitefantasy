@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Pond Edition Final Fix v2)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Pond Edition Final Fix v3)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -18,15 +18,22 @@ local Window = UI_Library.CreateWindow({
     Subtitle = "Elemental Arena | Pond Edition"
 })
 
-Assets.Extend(Window)
+pcall(Assets.Extend, Window)
 
--- 3. PESTAÑAS
+-- 3. PESTAÑAS (cada una se extiende por separado)
 local TabMain = Window:CreateTab("MAIN")
 local TabCombat = Window:CreateTab("COMBATE")
 local TabVisual = Window:CreateTab("VISUAL")
 local TabMovement = Window:CreateTab("MOVEMENT")
 local TabAutoFarm = Window:CreateTab("AUTO FARM")
 local TabConfig = Window:CreateTab("CONFIG")
+
+for _, tab in ipairs({TabMain, TabCombat, TabVisual, TabMovement, TabAutoFarm, TabConfig}) do
+    local ok, err = pcall(Assets.Extend, tab)
+    if not ok then
+        warn("Extend falló en una pestaña: " .. tostring(err))
+    end
+end
 
 -- Helper: ejecuta una sección sin que un error rompa las demás
 local function section(name, fn)
@@ -42,7 +49,6 @@ end
 -- ==========================================
 local folder = "ElementalMagicArena/"
 
--- keys = lista de nombres posibles de la variable global de config
 local function download(name, keys)
     local url = ROOT .. folder .. name .. "?v=" .. os.time()
     local ok, res = pcall(game.HttpGet, game, url)
@@ -50,7 +56,6 @@ local function download(name, keys)
     if ok and type(res) == "string" and #res > 0 and res:sub(1, 3) ~= "404" then
         local fnOk, fn = pcall(loadstring, res)
         if fnOk and type(fn) == "function" then
-            -- task.spawn para que un yield dentro del módulo no bloquee el Main
             task.spawn(function()
                 local runOk, runErr = pcall(fn)
                 if not runOk then
@@ -69,7 +74,6 @@ local function download(name, keys)
         return nil
     end
 
-    -- esperar hasta 6s a que el módulo cree su config
     local t = 0
     while t < 6 do
         for _, key in ipairs(keys) do
@@ -88,11 +92,11 @@ local function download(name, keys)
     return nil
 end
 
-local CombC       = download("AutoCombat.lua",     {"BF_COMBAT_CONFIG"})
-local EspC        = download("EspElemental.lua",   {"BF_ESP_CONFIG", "BF_ESP"})
-local HitC        = download("HitboxExpander.lua", {"BF_HITBOX_CONFIG"})
-local MoveC       = download("Movement.lua",       {"BF_MOVE_CONFIG", "BF_MOVEMENT_CONFIG", "BF_MOVEMENT"})
-local WaveCandyC  = download("WaveCandyFarm.lua",  {"BF_WAVEFARM_CONFIG", "BF_WAVECANDY_CONFIG", "BF_WAVEFARM"})
+local CombC      = download("AutoCombat.lua",     {"BF_COMBAT_CONFIG"})
+local EspC       = download("EspElemental.lua",   {"BF_ESP_CONFIG", "BF_ESP"})
+local HitC       = download("HitboxExpander.lua", {"BF_HITBOX_CONFIG"})
+local MoveC      = download("Movement.lua",       {"BF_MOVE_CONFIG", "BF_MOVEMENT_CONFIG", "BF_MOVEMENT"})
+local WaveCandyC = download("WaveCandyFarm.lua",  {"BF_WAVEFARM_CONFIG", "BF_WAVECANDY_CONFIG", "BF_WAVEFARM"})
 
 -- ==========================================
 -- 5. CONECTAMOS LOS BOTONES A LA UI
@@ -198,7 +202,7 @@ section("CONFIG", function()
 
     local passBox = TabConfig:AddTextBox("CONTRASEÑA DE PRUEBAS", "Clave de desarrollador...", function() end, { ClearButton = true })
 
-    local unlockBtn -- declarado antes para poder usarlo dentro del callback
+    local unlockBtn
     unlockBtn = TabConfig:AddButtonEx("DESBLOQUEAR PRUEBA", function()
         if passBox:Get() == "froggy_testing_2026" then
             Assets.Notify({Title = "Modo Pruebas Activado", Text = "Ve a la pestaña COMBATE para ver el slider.", Type = "warn"})
