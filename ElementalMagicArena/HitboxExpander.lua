@@ -40,7 +40,7 @@ local function expandPart(part)
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
         
         -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
-        part.CanCollide = false 
+        part.CanCollide = true
         part.Massless = true                
         
         -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes detecten esta parte
