@@ -1,4 +1,4 @@
---// Froggy Hub - HitboxExpander.lua (V5 Original Restaurado - Sin Optimizaciones)
+--// Froggy Hub - HitboxExpander.lua (V5 - Con Soporte para Slider)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -7,7 +7,6 @@ local env = (getgenv and getgenv()) or _G
 
 if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
--- CONFIGURACIÓN
 if not getgenv().BF_HITBOX_CONFIG then
     getgenv().BF_HITBOX_CONFIG = {
         Enabled = false,
@@ -26,7 +25,7 @@ local function isFriend(player)
     return false 
 end
 
-local function expandPart(part)
+local function expandPart(part, currentSize)
     if not expandedParts[part] then
         expandedParts[part] = {
             Size = part.Size, CanCollide = part.CanCollide, CanTouch = part.CanTouch,
@@ -35,22 +34,18 @@ local function expandPart(part)
         }
     end
 
-    pcall(function()
-        -- Hacemos la parte gigante
-        part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
-        
-        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen al vacío)
-        part.CanCollide = false 
-        part.Massless = true                
-        
-        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes detecten esta parte
-        part.CanQuery = true 
-        part.CanTouch = true
-        
-        -- VISUALES
-        part.Transparency = Config.Transparency
-        part.Color = Config.Color
-    end)
+    -- 🔥 SOPORTE PARA EL SLIDER: Si el tamaño cambió, lo actualizamos
+    if part.Size ~= Vector3.new(currentSize, currentSize, currentSize) then
+        pcall(function()
+            part.Size = Vector3.new(currentSize, currentSize, currentSize)
+            part.CanCollide = false 
+            part.Massless = true                
+            part.CanQuery = true 
+            part.CanTouch = true
+            part.Transparency = Config.Transparency
+            part.Color = Config.Color
+        end)
+    end
 end
 
 local function restorePart(part)
@@ -69,12 +64,11 @@ local function restorePart(part)
     end
 end
 
-local function processCharacter(char)
+local function processCharacter(char, currentSize)
     if not char then return end
-    -- Expandimos TODAS las partes del cuerpo (brazos, piernas, torso, cabeza)
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
-            expandPart(part)
+            expandPart(part, currentSize)
         end
     end
 end
@@ -105,7 +99,7 @@ local function onPlayerAdded(player)
             local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             local root = char:FindFirstChild("HumanoidRootPart")
             if myRoot and root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                processCharacter(char)
+                processCharacter(char, Config.Size)
             end
         end
     end))
@@ -114,7 +108,7 @@ end
 for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
 table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
 
--- 🛠️ El bucle principal (SIN PARCHES DE FÍSICA, SIN CANDADOS)
+-- 🛠️ Bucle principal
 table.insert(connections, RunService.Heartbeat:Connect(function()
     if not Config.Enabled then 
         if next(expandedParts) then restoreAll() end
@@ -124,6 +118,8 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     local myChar = LocalPlayer.Character
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
+
+    local currentSize = Config.Size -- 🔥 Lee el tamaño actual del slider en cada frame
 
     -- Escanear Jugadores
     for _, player in ipairs(Players:GetPlayers()) do
@@ -135,7 +131,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
                     if Config.IgnoreFriends and isFriend(player) then
                         restoreCharacter(player.Character)
                     else
-                        processCharacter(player.Character)
+                        processCharacter(player.Character, currentSize)
                     end
                 else
                     restoreCharacter(player.Character)
@@ -155,7 +151,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
                 if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("skeleton") or name:find("esqueleto") then
                     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
                     if root and (root.Position - myRoot.Position).Magnitude <= 250 then 
-                        processCharacter(obj)
+                        processCharacter(obj, currentSize)
                     else
                         restoreCharacter(obj)
                     end
