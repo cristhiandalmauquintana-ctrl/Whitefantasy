@@ -1,76 +1,64 @@
---// Froggy Hub - HitboxExpander.lua (V5 - Original Restaurado)
+--// Froggy Hub - Hitbox Expander (Elemental Magic Arena Edition)
+--// Expande a jugadores y NPCs (Enemies) sin crashear la física.
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-local env = (getgenv and getgenv()) or _G
 
+local env = (getgenv and getgenv()) or _G
 if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
 
--- CONFIGURACIÓN
-if not getgenv().BF_HITBOX_CONFIG then
-    getgenv().BF_HITBOX_CONFIG = {
-        Enabled = false,
-        Size = 55,             
-        Transparency = 0.7,
-        Color = Color3.fromRGB(255, 0, 0),
-        IgnoreFriends = true,
-    }
-end
-local Config = getgenv().BF_HITBOX_CONFIG
+local Config = {
+    Enabled = false,
+    Size = 35,             -- 35 es perfecto para agarrar desde lejos sin crashear
+    IgnoreFriends = true,
+    Version = "v4.0"
+}
+env.BF_HITBOX_CONFIG = Config
 
 local expandedParts = {}
 local connections = {}
 
 local function isFriend(player)
-    return false 
+    local ok, result = pcall(function() return LocalPlayer:IsFriendsWith(player.UserId) end)
+    return ok and result
 end
 
 local function expandPart(part)
-    if not expandedParts[part] then
-        expandedParts[part] = {
-            Size = part.Size, CanCollide = part.CanCollide, CanTouch = part.CanTouch,
-            CanQuery = part.CanQuery, Massless = part.Massless,
-            Transparency = part.Transparency, Color = part.Color
-        }
-    end
-
+    if not part or expandedParts[part] then return end
+    
+    -- Guardar el estado original
+    expandedParts[part] = { 
+        Size = part.Size, 
+        CanCollide = part.CanCollide, 
+        Massless = part.Massless 
+    }
+    
     pcall(function()
-        -- Hacemos la parte gigante
         part.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
-        
-        -- PROPIEDADES ANTI-FÍSICA (Para que no te empujen)
-        part.CanCollide = true
-        part.Massless = true                
-        
-        -- 🔥 LA CLAVE DEL DAÑO: Forzamos a que los golpes detecten esta parte
-        part.CanQuery = true 
-        part.CanTouch = true
-        
-        -- VISUALES
-        part.Transparency = Config.Transparency
-        part.Color = Config.Color
+        part.CanCollide = false -- 🔥 Evita el crash de física
+        part.Massless = true    -- 🔥 Evita que salgan volando
     end)
 end
 
 local function restorePart(part)
+    if not part or not expandedParts[part] then return end
     local data = expandedParts[part]
-    if data then
-        pcall(function()
+    
+    pcall(function()
+        if part and part.Parent then
             part.Size = data.Size
             part.CanCollide = data.CanCollide
-            part.CanTouch = data.CanTouch
-            part.CanQuery = data.CanQuery
             part.Massless = data.Massless
-            part.Transparency = data.Transparency
-            part.Color = data.Color
-        end)
-        expandedParts[part] = nil
-    end
+        end
+    end)
+    expandedParts[part] = nil
 end
 
 local function processCharacter(char)
     if not char then return end
+    -- Expande TODO el cuerpo (Torso, Brazos, Piernas, Cabeza)
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             expandPart(part)
@@ -89,55 +77,32 @@ end
 
 local function restoreAll()
     for part, _ in pairs(expandedParts) do
-        if part and part.Parent then
+        restorePart(part)
+    end
+end
+
+table.insert(connections, RunService.Heartbeat:Connect(function()
+    -- Limpieza de partes rotas (Jugadores que mueren o NPCs que desaparecen)
+    for part, _ in pairs(expandedParts) do
+        if not part or not part.Parent then
             restorePart(part)
         end
     end
-    expandedParts = {}
-end
 
-local function onPlayerAdded(player)
-    if player == LocalPlayer then return end
-    table.insert(connections, player.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
-        if Config.Enabled then
-            local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if myRoot and root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                processCharacter(char)
-            end
+    if not Config.Enabled then
+        if next(expandedParts) ~= nil then
+            restoreAll()
         end
-    end))
-end
-
-for _, player in ipairs(Players:GetPlayers()) do onPlayerAdded(player) end
-table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
-
--- 🛠️ El bucle principal (SIN PARCHES DE FÍSICA)
-table.insert(connections, RunService.Heartbeat:Connect(function()
-    if not Config.Enabled then 
-        if next(expandedParts) then restoreAll() end
-        return 
+        return
     end
 
-    local myChar = LocalPlayer.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-
-    -- Escanear Jugadores
+    -- 1. Expandir Jugadores
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
-                local root = player.Character:FindFirstChild("HumanoidRootPart")
-                if root and (root.Position - myRoot.Position).Magnitude <= 1000 then
-                    if Config.IgnoreFriends and isFriend(player) then
-                        restoreCharacter(player.Character)
-                    else
-                        processCharacter(player.Character)
-                    end
-                else
-                    restoreCharacter(player.Character)
+                if not (Config.IgnoreFriends and isFriend(player)) then
+                    processCharacter(player.Character)
                 end
             else
                 restoreCharacter(player.Character)
@@ -145,30 +110,29 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- Escanear NPCs / Zombis / Esqueletos
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if obj:IsA("Model") and obj ~= myChar then
-            local hum = obj:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
-                local name = obj.Name:lower()
-                -- 🔥 ÚNICO CAMBIO: Agregados los esqueletos
-                if name:find("zombie") or name:find("boss") or name:find("enemy") or name:find("dummy") or name:find("skeleton") or name:find("esqueleto") then
-                    local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
-                    if root and (root.Position - myRoot.Position).Magnitude <= 250 then 
-                        processCharacter(obj)
-                    else
-                        restoreCharacter(obj)
-                    end
-                end
+    -- 2. Expandir NPCs (Carpeta Enemies)
+    local enemiesFolder = Workspace:FindFirstChild("Enemies")
+    if enemiesFolder then
+        for _, npc in ipairs(enemiesFolder:GetChildren()) do
+            local hum = npc:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                processCharacter(npc)
+            else
+                restoreCharacter(npc)
             end
         end
     end
 end))
 
--- Limpieza al recargar
-env.__BF_HITBOX_CLEANUP = function()
+-- Si tu personaje muere, restaurar todo
+table.insert(connections, LocalPlayer.CharacterRemoving:Connect(function()
     restoreAll()
-    for _, conn in ipairs(connections) do
-        if conn then conn:Disconnect() end
-    end
+end))
+
+env.__BF_HITBOX_CLEANUP = function()
+    Config.Enabled = false
+    restoreAll()
+    for _, c in ipairs(connections) do c:Disconnect() end
+    env.BF_HITBOX_CONFIG = nil
+    env.__BF_HITBOX_CLEANUP = nil
 end
