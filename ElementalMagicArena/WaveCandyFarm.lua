@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V26 - Anti-Hundimiento)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V28 - Sin AutoClick)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -11,21 +11,21 @@ local Config = {
     Enabled = false,
     SearchRadius = 2000,     
     SelectedElement = "Light", 
-    HandleSize = 6000,       
-    FloatHeight = 25,        -- Lo subimos un poco más para evitar el piso
-    AutoClickRate = 3.0,     -- 1 clic por segundo
-    FlySpeed = 90,           
+    HandleSize = 3000,       
+    FloatHeight = 50,        -- Sube 50 studs
+    FlySpeed = 60,           
     CollectDistance = 5,     
 }
 env.BF_WAVEFARM_CONFIG = Config
 
 local connections = {}
 local originalHandleData = {}
-local autoClickThread = nil
-local startPosition = nil
-local arenaCenter = nil
+local anchorPosition = nil
 local currentTarget = nil
 
+-- ==========================================
+-- NOCLIP SEGURO
+-- ==========================================
 local function setLocalNoclip(enabled)
     local char = LocalPlayer.Character
     if not char then return end
@@ -36,6 +36,9 @@ local function setLocalNoclip(enabled)
     end
 end
 
+-- ==========================================
+-- FUNCIONES DE ARMA
+-- ==========================================
 local function equipWeapon()
     local char = LocalPlayer.Character
     if not char or char:FindFirstChildOfClass("Tool") then return end
@@ -80,9 +83,11 @@ local function restoreHandle(tool)
     originalHandleData[handle] = nil
 end
 
+-- ==========================================
+-- ESTADO DEL FARM
+-- ==========================================
 local function stopFarm()
     Config.Enabled = false
-    if autoClickThread then task.cancel(autoClickThread) autoClickThread = nil end
 
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -92,7 +97,6 @@ local function stopFarm()
     if root then root.Anchored = false end
     setLocalNoclip(false)
     if hum then hum.PlatformStand = false end
-    if root and startPosition then root.CFrame = startPosition end
     if tool then restoreHandle(tool) end
 end
 
@@ -103,42 +107,26 @@ local function startFarm()
     
     if not hum or not root then return end
 
-    startPosition = root.CFrame
-    
-    -- 🔥 RAYCAST: Buscar el suelo real para no spawnear debajo del mapa
-    local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {char}
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    local ray = Workspace:Raycast(root.Position, Vector3.new(0, -500, 0), rayParams)
-    
-    local floorY = ray and ray.Position.Y or root.Position.Y
-    arenaCenter = CFrame.new(root.Position.X, floorY + Config.FloatHeight, root.Position.Z)
+    -- 🔥 FIJAR POSICIÓN 50 STUDS ARRIBA
+    anchorPosition = root.Position + Vector3.new(0, Config.FloatHeight, 0)
     
     hum.PlatformStand = true
-    root.CFrame = arenaCenter
-    root.Anchored = true -- 🔥 ANCLADO: Evita que se hunda
     setLocalNoclip(true)
+    
+    root.CFrame = CFrame.new(anchorPosition)
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.Anchored = true -- 🔥 Clavado en el aire
 
     equipWeapon()
     task.wait(0.2)
     
     local tool = char:FindFirstChildOfClass("Tool")
     if tool then expandHandle(tool) end
-
-    if autoClickThread then task.cancel(autoClickThread) end
-    autoClickThread = task.spawn(function()
-        while Config.Enabled do
-            local c = LocalPlayer.Character
-            local t = c and c:FindFirstChildOfClass("Tool")
-            if t then 
-                t.Enabled = true
-                pcall(function() t:Activate() end) 
-            end
-            task.wait(Config.AutoClickRate)
-        end
-    end)
 end
 
+-- ==========================================
+-- BÚSQUEDA ESTRICTA DE DROPS
+-- ==========================================
 local function findClosestDrop()
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
@@ -150,26 +138,25 @@ local function findClosestDrop()
     for _, obj in ipairs(Workspace:GetDescendants()) do
         local isDrop = false
         local part = nil
-        if obj:IsA("BasePart") or obj:IsA("MeshPart") then
-            local parent = obj.Parent
-            local isCharacter = parent:FindFirstChildOfClass("Humanoid") ~= nil
-            local isLocalChar = parent == char
-            local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+        
+        local objName = string.lower(obj.Name)
+        local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
+
+        -- 🛑 Evitar tiendas, gacha, cofres de la base
+        if not objName:find("shop") and not objName:find("gacha") and not parentName:find("shop") and not parentName:find("gacha") then
             
-            if not isCharacter and not isLocalChar then
-                if not obj.Anchored or hasPrompt then
-                    if obj.Size.Magnitude < 20 then
-                        isDrop = true
-                        part = obj
+            if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+                local isCharacter = obj.Parent:FindFirstChildOfClass("Humanoid") ~= nil
+                
+                if not isCharacter and obj ~= myRoot then
+                    local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+                    if not obj.Anchored or (hasPrompt and (objName:find("soul") or objName:find("alma") or objName:find("candy"))) then
+                        if obj.Size.Magnitude < 20 then
+                            isDrop = true
+                            part = obj
+                        end
                     end
                 end
-            end
-        elseif obj:IsA("Model") then
-            local primary = obj.PrimaryPart
-            local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
-            if primary and (not primary.Anchored or hasPrompt) then
-                isDrop = true
-                part = primary
             end
         end
 
@@ -184,6 +171,9 @@ local function findClosestDrop()
     return closest
 end
 
+-- ==========================================
+-- RESPAWN Y BUCLE
+-- ==========================================
 table.insert(connections, LocalPlayer.CharacterRemoving:Connect(function() stopFarm() end))
 
 table.insert(connections, LocalPlayer.CharacterAdded:Connect(function(char)
@@ -204,6 +194,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
 
     if not char or not hum or not root then return end
 
+    -- Mantener Handle
     if tool then
         local handle = getHandle(tool)
         if handle and handle.Size ~= Vector3.new(Config.HandleSize, Config.HandleSize, Config.HandleSize) then
@@ -216,8 +207,8 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     end
 
     if currentTarget then
-        -- 🔥 SI HAY UN DROP: Desanclar para volar
         root.Anchored = false
+        
         local dist = (currentTarget.Position - root.Position).Magnitude
         if dist > Config.CollectDistance then
             local direction = (currentTarget.Position - root.Position).Unit
@@ -228,22 +219,24 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
                 task.wait(0.05)
                 firetouchinterest(root, currentTarget, 1)
             end)
+            
             local prompt = currentTarget:FindFirstChildWhichIsA("ProximityPrompt", true)
-            if prompt and prompt.Enabled then
+            if prompt and prompt.Enabled and (string.lower(currentTarget.Name):find("soul") or string.lower(currentTarget.Name):find("alma")) then
                 pcall(function() fireproximityprompt(prompt) end)
             end
+            
             currentTarget = nil 
         end
     else
-        -- 🔥 SI NO HAY DROP: Volver al centro y ANCLARSE
-        local distToCenter = (arenaCenter.Position - root.Position).Magnitude
-        if distToCenter > 5 then
-            root.Anchored = false
-            local direction = (arenaCenter.Position - root.Position).Unit
-            root.CFrame = CFrame.lookAt(root.Position + (direction * Config.FlySpeed * dt), arenaCenter.Position)
+        local distToAnchor = (anchorPosition - root.Position).Magnitude
+        if distToAnchor > 2 then
+            root.Anchored = false 
+            local direction = (anchorPosition - root.Position).Unit
+            root.CFrame = CFrame.lookAt(root.Position + (direction * Config.FlySpeed * dt), anchorPosition)
         else
-            root.Anchored = true -- Se ancla en el centro para no caer
-            root.CFrame = arenaCenter
+            root.Anchored = true 
+            root.CFrame = CFrame.new(anchorPosition)
+            root.AssemblyLinearVelocity = Vector3.zero
         end
     end
 end))
