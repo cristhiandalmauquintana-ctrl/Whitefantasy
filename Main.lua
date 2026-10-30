@@ -38,7 +38,7 @@ local Translations = {
         lang_desc = "Selecciona un idioma y vuelve a ejecutar el script."
     },
     ["en"] = {
-        title = "FROGGY HUB",
+        title = "FroggyHub",
         subtitle = "Elemental Arena | Attack All Update",
         tab_main = "MAIN",
         tab_combat = "COMBAT",
@@ -125,7 +125,7 @@ local Window = UI_Library.CreateWindow({
 Assets.Extend(Window)
 
 -- 4. CREAMOS LAS PESTAÑAS
-local TabMain = Window:CreateTab(L("tab_main"))
+local TabMain = Window:CreateTab(L("tab_Main"))
 local TabCombat = Window:CreateTab(L("tab_combat"))
 local TabVisual = Window:CreateTab(L("tab_visual"))
 local TabMovement = Window:CreateTab(L("tab_movement"))
