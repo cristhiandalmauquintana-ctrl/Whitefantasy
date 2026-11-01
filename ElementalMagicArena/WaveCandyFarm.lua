@@ -1,255 +1,238 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V28 - Sin AutoClick)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Full Auto + Element Selector)
+local GITHUB_USER = "cristhiandalmauquintana-ctrl"
+local GITHUB_REPO = "Whitefantasy"
+local BRANCH = "main"
+local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
+
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-
 local env = (getgenv and getgenv()) or _G
-if env.__BF_WAVEFARM_CLEANUP then pcall(env.__BF_WAVEFARM_CLEANUP) end
 
-local Config = {
-    Enabled = false,
-    SearchRadius = 2000,     
-    SelectedElement = "Light", 
-    HandleSize = 3000,       
-    FloatHeight = 50,        -- Sube 50 studs
-    FlySpeed = 60,           
-    CollectDistance = 5,     
+-- ==========================================
+-- 1. SISTEMA INTELIGENTE DE IDIOMAS
+-- ==========================================
+local Translations = {
+    ["es"] = {
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Full Auto Update",
+        tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_autofarm = "AUTO FARM", tab_config = "CONFIG",
+        rejoin = "RECONECTAR SERVIDOR", auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1",
+        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "TAMAÑO HITBOX (PELIGRO)",
+        god_mode = "MODO DIOS", attack_all = "ATTACK ALL (AUTO)", 
+        attack_all_warn = "¡IMPORTANTE! El Attack All equipará automáticamente este elemento al morir.", 
+        attack_all_notify = "Recuerda usar la Guadaña para máximo daño.",
+        select_element = "SELECCIONA TU ELEMENTO",
+        esp = "ESP JUGADORES", boxes = "CAJAS 2D", tracers = "TRACERS", health = "BARRA DE VIDA",
+        speed = "SPEED HACK", speed_val = "VELOCIDAD", jump = "SUPER JUMP", jump_val = "ALTURA DE SALTO",
+        autofarm = "AUTOFARM HALLOWEEN", candy_rad = "RADIO DE CARROÑEO", 
+        utilities = "UTILIDADES", silent_collect = "AUTO-RECOLECCIÓN SILENCIOSA",
+        dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA DE PRUEBAS", unlock = "DESBLOQUEAR PRUEBA", destroy_ui = "DESTRUIR UI", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar."
+    },
+    ["en"] = {
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Full Auto Update",
+        tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_autofarm = "AUTO FARM", tab_config = "CONFIG",
+        rejoin = "REJOIN SERVER", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
+        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "HITBOX SIZE (DANGER)",
+        god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
+        attack_all_warn = "IMPORTANT! Attack All will auto-equip this element upon death.", 
+        attack_all_notify = "Remember to use the Scythe for max damage.",
+        select_element = "SELECT YOUR ELEMENT",
+        esp = "PLAYER ESP", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
+        speed = "SPEED HACK", speed_val = "SPEED", jump = "SUPER JUMP", jump_val = "JUMP POWER",
+        autofarm = "AUTOFARM HALLOWEEN", candy_rad = "CANDY RADIUS", 
+        utilities = "UTILITIES", silent_collect = "SILENT AUTO-COLLECT",
+        dev_zone = "DEVELOPER ZONE", pass = "TEST PASSWORD", unlock = "UNLOCK TEST", destroy_ui = "DESTROY UI", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute."
+    },
+    ["fil"] = {
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Full Auto Update",
+        tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_autofarm = "AUTO FARM", tab_config = "KONFIG",
+        rejoin = "SUMALI ULIT", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
+        hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX",
+        god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
+        attack_all_warn = "MAHALAGA! Awtomatikong i-e-equip ang elementong ito kapag namatay.", 
+        attack_all_notify = "Tandaan na gumamit ng Scythe para sa max damage.",
+        select_element = "PUMILI NG ELEMENTO",
+        esp = "ESP NG PLAYERS", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
+        speed = "SPEED HACK", speed_val = "BILIS", jump = "SUPER JUMP", jump_val = "TAAS NG TALON",
+        autofarm = "AUTOFARM HALLOWEEN", candy_rad = "RADYO NG CANDY", 
+        utilities = "MGA GAMIT", silent_collect = "SILENT AUTO-COLLECT",
+        dev_zone = "DEV ZONE", pass = "PASSWORD", unlock = "I-UNLOCK", destroy_ui = "IRISAN ANG UI", lang_sel = "PALITAN ANG WIKA", lang_desc = "Pumili ng wika at i-execute ulit."
+    }
 }
-env.BF_WAVEFARM_CONFIG = Config
 
-local connections = {}
-local originalHandleData = {}
-local anchorPosition = nil
-local currentTarget = nil
-
--- ==========================================
--- NOCLIP SEGURO
--- ==========================================
-local function setLocalNoclip(enabled)
-    local char = LocalPlayer.Character
-    if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not enabled
-        end
-    end
+local function getSystemLanguage()
+    local locale = "en"
+    pcall(function()
+        local id = LocalPlayer.LocaleId:lower()
+        if id:find("es") then locale = "es"
+        elseif id:find("fil") or id:find("tl") then locale = "fil"
+        else locale = "en" end
+    end)
+    return locale
 end
 
--- ==========================================
--- FUNCIONES DE ARMA
--- ==========================================
-local function equipWeapon()
-    local char = LocalPlayer.Character
-    if not char or char:FindFirstChildOfClass("Tool") then return end
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not backpack then return end
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            local name = tool.Name:lower()
-            if name:find("sword") or name:find("light") or name:find("energy") or name:find("knife") or name:find("dark") then
-                pcall(function() char.Humanoid:EquipTool(tool) end)
-                break
-            end
-        end
-    end
+local currentLang = getSystemLanguage()
+if isfile and readfile then
+    local ok, savedLang = pcall(function() return readfile("FroggyLang.txt") end)
+    if ok and Translations[savedLang] then currentLang = savedLang end
 end
 
-local function getHandle(tool)
-    if not tool or not tool:IsA("Tool") then return nil end
-    return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-end
+local function L(key) return Translations[currentLang][key] or Translations["en"][key] or key end
 
-local function expandHandle(tool)
-    local handle = getHandle(tool)
-    if not handle then return end
-    if not originalHandleData[handle] then
-        originalHandleData[handle] = { Size = handle.Size, Transparency = handle.Transparency, CanCollide = handle.CanCollide, Massless = handle.Massless }
-    end
-    handle.Size = Vector3.new(Config.HandleSize, Config.HandleSize, Config.HandleSize)
-    handle.Transparency = 1 
-    handle.CanCollide = false 
-    handle.Massless = true
-end
-
-local function restoreHandle(tool)
-    local handle = getHandle(tool)
-    if not handle or not originalHandleData[handle] then return end
-    local data = originalHandleData[handle]
-    handle.Size = data.Size
-    handle.Transparency = data.Transparency
-    handle.CanCollide = data.CanCollide
-    handle.Massless = data.Massless
-    originalHandleData[handle] = nil
-end
+-- Lista compartida de elementos
+local SharedElements = {
+    "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
+    "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", 
+    "aurora", "fenix", "caos", "tecnología", "diamante", "amor", "demon", 
+    "ilusion", "campos de fuerza", "relampago", "telequinesis", "life", "mirror", 
+    "time", "sueño", "creacion", "espacio", "realidad", "dios de elementos"
+}
 
 -- ==========================================
--- ESTADO DEL FARM
+-- 2. CARGAMOS DISEÑO Y ASSETS
 -- ==========================================
-local function stopFarm()
-    Config.Enabled = false
+local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua"))()
+local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua"))()
 
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local tool = char and char:FindFirstChildOfClass("Tool")
+local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle") })
+Assets.Extend(Window)
 
-    if root then root.Anchored = false end
-    setLocalNoclip(false)
-    if hum then hum.PlatformStand = false end
-    if tool then restoreHandle(tool) end
-end
-
-local function startFarm()
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then return end
-
-    -- 🔥 FIJAR POSICIÓN 50 STUDS ARRIBA
-    anchorPosition = root.Position + Vector3.new(0, Config.FloatHeight, 0)
-    
-    hum.PlatformStand = true
-    setLocalNoclip(true)
-    
-    root.CFrame = CFrame.new(anchorPosition)
-    root.AssemblyLinearVelocity = Vector3.zero
-    root.Anchored = true -- 🔥 Clavado en el aire
-
-    equipWeapon()
-    task.wait(0.2)
-    
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then expandHandle(tool) end
-end
+-- 3. CREAMOS LAS PESTAÑAS
+local TabMain = Window:CreateTab(L("tab_main"))
+local TabCombat = Window:CreateTab(L("tab_combat"))
+local TabVisual = Window:CreateTab(L("tab_visual"))
+local TabMovement = Window:CreateTab(L("tab_movement"))
+local TabAutoFarm = Window:CreateTab(L("tab_autofarm"))
+local TabConfig = Window:CreateTab(L("tab_config"))
 
 -- ==========================================
--- BÚSQUEDA ESTRICTA DE DROPS
+-- 4. DESCARGA DE MÓDULOS
 -- ==========================================
-local function findClosestDrop()
-    local char = LocalPlayer.Character
-    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil end
+local folder = "ElementalMagicArena/"
 
-    local closest = nil
-    local shortestDist = math.huge
-
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local isDrop = false
-        local part = nil
-        
-        local objName = string.lower(obj.Name)
-        local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
-
-        -- 🛑 Evitar tiendas, gacha, cofres de la base
-        if not objName:find("shop") and not objName:find("gacha") and not parentName:find("shop") and not parentName:find("gacha") then
-            
-            if obj:IsA("BasePart") or obj:IsA("MeshPart") then
-                local isCharacter = obj.Parent:FindFirstChildOfClass("Humanoid") ~= nil
-                
-                if not isCharacter and obj ~= myRoot then
-                    local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
-                    if not obj.Anchored or (hasPrompt and (objName:find("soul") or objName:find("alma") or objName:find("candy"))) then
-                        if obj.Size.Magnitude < 20 then
-                            isDrop = true
-                            part = obj
-                        end
-                    end
-                end
-            end
-        end
-
-        if isDrop and part then
-            local dist = (part.Position - myRoot.Position).Magnitude
-            if dist <= Config.SearchRadius and dist < shortestDist then
-                shortestDist = dist
-                closest = part
-            end
-        end
-    end
-    return closest
-end
-
--- ==========================================
--- RESPAWN Y BUCLE
--- ==========================================
-table.insert(connections, LocalPlayer.CharacterRemoving:Connect(function() stopFarm() end))
-
-table.insert(connections, LocalPlayer.CharacterAdded:Connect(function(char)
-    if Config.Enabled then
-        stopFarm()
-        task.wait(1.5) 
-        startFarm()
-    end
-end))
-
-table.insert(connections, RunService.Heartbeat:Connect(function(dt)
-    if not Config.Enabled then return end
-
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local tool = char and char:FindFirstChildOfClass("Tool")
-
-    if not char or not hum or not root then return end
-
-    -- Mantener Handle
-    if tool then
-        local handle = getHandle(tool)
-        if handle and handle.Size ~= Vector3.new(Config.HandleSize, Config.HandleSize, Config.HandleSize) then
-            expandHandle(tool)
-        end
-    end
-
-    if not currentTarget or not currentTarget.Parent then
-        currentTarget = findClosestDrop()
-    end
-
-    if currentTarget then
-        root.Anchored = false
-        
-        local dist = (currentTarget.Position - root.Position).Magnitude
-        if dist > Config.CollectDistance then
-            local direction = (currentTarget.Position - root.Position).Unit
-            root.CFrame = CFrame.lookAt(root.Position + (direction * Config.FlySpeed * dt), currentTarget.Position)
-        else
-            pcall(function()
-                firetouchinterest(root, currentTarget, 0)
-                task.wait(0.05)
-                firetouchinterest(root, currentTarget, 1)
-            end)
-            
-            local prompt = currentTarget:FindFirstChildWhichIsA("ProximityPrompt", true)
-            if prompt and prompt.Enabled and (string.lower(currentTarget.Name):find("soul") or string.lower(currentTarget.Name):find("alma")) then
-                pcall(function() fireproximityprompt(prompt) end)
-            end
-            
-            currentTarget = nil 
-        end
+local function download(name, key)
+    local url = ROOT .. folder .. name .. "?v=" .. os.time()
+    local ok, res = pcall(game.HttpGet, game, url)
+    if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
+        local fnOk, fn = pcall(loadstring, res)
+        if fnOk and type(fn) == "function" then pcall(fn) end
     else
-        local distToAnchor = (anchorPosition - root.Position).Magnitude
-        if distToAnchor > 2 then
-            root.Anchored = false 
-            local direction = (anchorPosition - root.Position).Unit
-            root.CFrame = CFrame.lookAt(root.Position + (direction * Config.FlySpeed * dt), anchorPosition)
-        else
-            root.Anchored = true 
-            root.CFrame = CFrame.new(anchorPosition)
-            root.AssemblyLinearVelocity = Vector3.zero
-        end
+        warn("❌ Could not download " .. name)
     end
-end))
-
-function Config.Start()
-    if Config.Enabled then return end
-    Config.Enabled = true
-    startFarm()
+    task.wait(0.1)
+    return env[key] or _G[key]
 end
 
-env.__BF_WAVEFARM_CLEANUP = function()
-    stopFarm()
-    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
-    env.BF_WAVEFARM_CONFIG = nil
-    env.__BF_WAVEFARM_CLEANUP = nil
+local CombC = download("AutoCombat.lua", "BF_COMBAT_CONFIG")
+local EspC = download("EspElemental.lua", "BF_ESP_CONFIG")
+local HitC = download("HitboxExpander.lua", "BF_HITBOX_CONFIG")
+local MoveC = download("Movement.lua", "BF_MOVE_CONFIG")
+local WaveCandyC = download("WaveCandyFarm.lua", "BF_WAVEFARM_CONFIG")
+local AttackAllC = download("AttackAll.lua", "BF_ATTACKALL_CONFIG")
+local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
+
+-- ==========================================
+-- 5. CONECTAMOS LOS BOTONES A LA UI
+-- ==========================================
+
+-- === MAIN ===
+TabMain:AddButton(L("rejoin"), function()
+    game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+end)
+
+-- === COMBAT ===
+if CombC then
+    TabCombat:AddToggle(L("auto_combat"), CombC.Enabled, function(state) CombC.Enabled = state end)
+    TabCombat:AddSlider(L("m1_delay"), 0.1, 1.0, CombC.M1Delay or 0.3, function(val) CombC.M1Delay = val end)
 end
+
+local hitboxSlider = nil
+if HitC then
+    TabCombat:AddToggle(L("hitbox"), HitC.Enabled, function(state) HitC.Enabled = state end)
+    hitboxSlider = TabCombat:AddSliderEx(L("hitbox_size"), 35, 500, 35, function(val) HitC.Size = val end, "lily")
+    if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = false end
+end
+
+-- 🔥 ATTACK ALL MODULE
+if AttackAllC then
+    TabCombat:AddSection(L("god_mode"))
+    TabCombat:AddToggle(L("attack_all"), AttackAllC.Enabled, function(state)
+        AttackAllC.Enabled = state
+        if state then Assets.Notify({Title = L("god_mode"), Text = L("attack_all_notify"), Type = "warn"}) end
+    end)
+    
+    TabCombat:AddDropdown(L("select_element"), SharedElements, AttackAllC.SelectedElement, function(val)
+        AttackAllC.SelectedElement = val
+        Assets.Notify({Title = "Element Selected", Text = val, Type = "success"})
+    end)
+    
+    TabCombat:AddInfo(L("attack_all_warn"), "danger")
+end
+
+-- === VISUAL ===
+if EspC then
+    TabVisual:AddToggle(L("esp"), EspC.Enabled, function(state) EspC.Enabled = state end)
+    TabVisual:AddToggle(L("boxes"), EspC.Boxes, function(state) EspC.Boxes = state end)
+    TabVisual:AddToggle(L("tracers"), EspC.Tracers, function(state) EspC.Tracers = state end)
+    TabVisual:AddToggle(L("health"), EspC.HealthBar, function(state) EspC.HealthBar = state end)
+end
+
+-- === MOVEMENT ===
+if MoveC then
+    TabMovement:AddToggle(L("speed"), MoveC.SpeedEnabled, function(state) MoveC.SpeedEnabled = state end)
+    TabMovement:AddSlider(L("speed_val"), 16, 200, MoveC.Speed or 60, function(val) MoveC.Speed = val end)
+    TabMovement:AddToggle(L("jump"), MoveC.JumpEnabled, function(state) MoveC.JumpEnabled = state end)
+    TabMovement:AddSlider(L("jump_val"), 50, 300, MoveC.JumpPower or 100, function(val) MoveC.JumpPower = val end)
+end
+
+-- === AUTO FARM ===
+if WaveCandyC then
+    TabAutoFarm:AddToggle(L("autofarm"), WaveCandyC.Enabled, function(state)
+        WaveCandyC.Enabled = state
+        if state then WaveCandyC.Start() end
+    end)
+    
+    TabAutoFarm:AddDropdown(L("select_element"), SharedElements, WaveCandyC.SelectedElement, function(val)
+        WaveCandyC.SelectedElement = val
+        Assets.Notify({Title = "Element Selected", Text = val, Type = "success"})
+    end)
+
+    TabAutoFarm:AddSlider(L("candy_rad"), 100, 2000, WaveCandyC.SearchRadius or 500, function(val) WaveCandyC.SearchRadius = val end)
+end
+
+-- === CONFIG ===
+-- AUTO-COLLECT SILENCIOSO
+if SilentCollectC then
+    TabConfig:AddSection(L("utilities"))
+    TabConfig:AddToggle(L("silent_collect"), true, function(state)
+        SilentCollectC.Enabled = state
+        if state then Assets.Notify({Title = L("utilities"), Text = L("silent_collect") .. ": ON", Type = "success"})
+        else Assets.Notify({Title = L("utilities"), Text = L("silent_collect") .. ": OFF", Type = "warn"}) end
+    end)
+    TabConfig:AddInfo("Collects Diamonds and Souls automatically in the background.", "info")
+end
+
+TabConfig:AddSection(L("lang_sel"))
+TabConfig:AddDropdown(L("lang_sel"), {"es", "en", "fil"}, currentLang, function(val)
+    if writefile then pcall(function() writefile("FroggyLang.txt", val) end) end
+    Assets.Notify({Title = "Language", Text = L("lang_desc"), Type = "info", Duration = 5})
+end)
+
+TabConfig:AddSection(L("dev_zone"))
+local passBox = TabConfig:AddTextBox(L("pass"), "...", function() end, { ClearButton = true })
+local unlockBtn = TabConfig:AddButtonEx(L("unlock"), function()
+    if passBox:Get() == "froggy_testing_2026" then
+        Assets.Notify({Title = "OK", Text = L("dev_zone"), Type = "warn"})
+        passBox.Instance.Visible = false
+        if unlockBtn and unlockBtn.Instance then unlockBtn.Instance.Visible = false end
+        if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = true end
+    else
+        Assets.Notify({Title = "Error", Text = "Wrong password", Type = "danger"})
+        passBox:Set("")
+    end
+end, "wood", "md")
+
+TabConfig:AddButton(L("destroy_ui"), function()
+    Window:Destroy()
+end)
+
+print("[Main] Froggy Hub (Full Auto + Selector) cargado con éxito.")
