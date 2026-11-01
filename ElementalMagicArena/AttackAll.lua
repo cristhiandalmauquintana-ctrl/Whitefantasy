@@ -1,87 +1,57 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (Smart Zone Edition)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V6 - Full Auto)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local MarketplaceService = game:GetService("MarketplaceService")
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local env = (getgenv and getgenv()) or _G
 if env.__BF_ATTACKALL_CLEANUP then pcall(env.__BF_ATTACKALL_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    Size = 1000,
-    LobbyRadius = 100 -- Distancia a la placa para considerar que está en el lobby
+    Size = 1000
 }
 env.BF_ATTACKALL_CONFIG = Config
 
+-- Coordenadas exactas (Energy por defecto)
+local TargetPos = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
+local tpsFolder = Workspace:FindFirstChild("TPS")
+
+-- Guardar posiciones originales de las placas
+local OriginalPlateData = {}
+if tpsFolder then
+    for _, obj in ipairs(tpsFolder:GetDescendants()) do
+        if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
+            OriginalPlateData[obj] = obj.CFrame
+        end
+    end
+end
+
 local originalData = {}
-local shieldedPlayersParts = {}
 local honeypotParts = {}
-local originalPlatesTouch = {}
-local connections = {}
+local shieldedPlayersParts = {}
 
--- 🔥 BYPASSES DE COMPRAS (Hook de Metatabla)
-if getrawmetatable and newcclosure then
-    local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if Config.Enabled and (method == "PromptProductPurchase" or method == "PromptGamePassPurchase" or method == "PromptPurchase") then
-            return nil 
-        end
-        return oldNamecall(self, ...)
-    end)
-    setreadonly(mt, true)
+-- Bloqueo de Robux
+if hookfunction then
+    hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
 end
 
-local function hideUIFriendly(guiObj)
-    if not Config.Enabled then return end
-    if guiObj:IsA("ScreenGui") then
-        local allowedGuis = { "Chat", "PlayerList", "Backpack", "Health", "Froggy", "TouchGui", "CoreGui" }
-        local isAllowed = false
-        for _, allowed in ipairs(allowedGuis) do
-            if guiObj.Name:find(allowed) then isAllowed = true break end
-        end
-        if not isAllowed then
-            for _, obj in ipairs(guiObj:GetDescendants()) do
-                if obj:IsA("GuiObject") then
-                    obj.BackgroundTransparency = 1
-                    if obj:IsA("TextLabel") or obj:IsA("TextButton") then obj.TextTransparency = 1
-                    elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then obj.ImageTransparency = 1 end
-                end
+-- 1. Función para Esconder/Mostrar Placas
+local function movePlates(hide)
+    if not tpsFolder then return end
+    for part, originalCFrame in pairs(OriginalPlateData) do
+        if part and part.Parent then
+            if hide then
+                part.CFrame = CFrame.new(0, 9999, 0) -- Al cielo
+            else
+                part.CFrame = originalCFrame -- A su lugar
             end
         end
     end
 end
-table.insert(connections, PlayerGui.ChildAdded:Connect(hideUIFriendly))
 
--- 🔥 DETECCIÓN DE LOBBY
-local function isNearLobby(myRoot)
-    if not myRoot then return false end
-    
-    -- Buscar placas en el mapa
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = string.lower(obj.Name)
-            local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
-            
-            if name:find("plate") or name:find("pad") or name:find("statue") or name:find("base") or name:find("element") or name:find("spin") or name:find("gacha") or name:find("portal")
-            or parentName:find("plate") or parentName:find("gacha") or parentName:find("element") then
-                
-                local dist = (obj.Position - myRoot.Position).Magnitude
-                if dist <= Config.LobbyRadius then
-                    return true -- Está en el lobby
-                end
-            end
-        end
-    end
-    return false
-end
-
--- Lógica del Handle
+-- 2. Funciones del Arma
 local function getHandle(tool)
     if not tool or not tool:IsA("Tool") then return nil end
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
@@ -112,41 +82,82 @@ local function restoreSword(tool)
     originalData[handle] = nil
 end
 
--- 🔥 CONTROL DE PLACAS DINÁMICO
-local function managePlates(inLobby)
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = string.lower(obj.Name)
-            local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
-            
-            if name:find("plate") or name:find("pad") or name:find("statue") or name:find("base") or name:find("element") or name:find("spin") or name:find("gacha") or name:find("portal")
-            or parentName:find("plate") or parentName:find("gacha") or parentName:find("element") then
-                
-                if inLobby then
-                    -- Si está en el lobby, devolver el CanTouch (para que pueda equiparse)
-                    if originalPlatesTouch[obj] ~= nil then
-                        obj.CanTouch = originalPlatesTouch[obj]
-                        originalPlatesTouch[obj] = nil
-                    end
-                else
-                    -- Si está en la arena, desactivar el CanTouch (para que no salten ventanas)
-                    if originalPlatesTouch[obj] == nil then
-                        originalPlatesTouch[obj] = obj.CanTouch
-                    end
-                    obj.CanTouch = false 
+-- 3. Auto-Equipar al Morir (Respawn)
+LocalPlayer.CharacterAdded:Connect(function()
+    originalData = {}
+    if Config.Enabled then
+        task.wait(1.5) -- Esperar a que cargue el personaje en el lobby
+        
+        -- Bajar placas temporalmente
+        movePlates(false)
+        task.wait(0.2)
+
+        local char = LocalPlayer.Character
+        local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if myRoot and tpsFolder then
+            -- Teletransportar a Energy
+            myRoot.CFrame = CFrame.new(TargetPos + Vector3.new(0, 3, 0))
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            task.wait(0.5)
+
+            -- Buscar la placa y forzar el evento
+            local closestTele = nil
+            local shortestDist = math.huge
+            for _, obj in ipairs(tpsFolder:GetDescendants()) do
+                if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
+                    local dist = (obj.Position - TargetPos).Magnitude
+                    if dist < shortestDist then shortestDist = dist; closestTele = obj end
                 end
-                
-                -- Desactivar prompts de tienda siempre
-                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                if prompt then prompt.Enabled = false end
-                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
-                if click then click.Enabled = false end
+            end
+
+            if closestTele then
+                local success = false
+                if getconnections then
+                    for _, conn in pairs(getconnections(closestTele.Touched)) do
+                        if conn.Enabled then
+                            pcall(function() conn:Fire(myRoot) success = true end)
+                        end
+                    end
+                end
+                if not success then
+                    pcall(function()
+                        firetouchinterest(myRoot, closestTele, 0)
+                        task.wait(0.1)
+                        firetouchinterest(myRoot, closestTele, 1)
+                    end)
+                end
             end
         end
+        
+        -- Volver a esconder las placas
+        if Config.Enabled then movePlates(true) end
     end
-end
+end)
 
--- Bypasses optimizados (cada 0.5s)
+-- 4. Bucle de Flicker y Placas
+task.spawn(function()
+    while task.wait() do
+        if Config.Enabled then
+            movePlates(true) -- Mantener las placas en el cielo
+            
+            local char = LocalPlayer.Character
+            local tool = char and char:FindFirstChildOfClass("Tool")
+            if tool then
+                expandSword(tool)
+                task.wait(0.25)
+                restoreSword(tool)
+                task.wait(0.25)
+            else
+                task.wait(0.1)
+            end
+        else
+            task.wait(0.1)
+        end
+    end
+end)
+
+-- 5. Bypass de Honeypots y Escudos
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
@@ -170,6 +181,7 @@ task.spawn(function()
                     end
                 end
             end
+
             -- Honeypots
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj:IsA("Model") or obj:IsA("BasePart") then
@@ -189,53 +201,24 @@ task.spawn(function()
     end
 end)
 
--- 🔥 AUTO-FLICKER INTELIGENTE (Con Detección de Lobby)
-task.spawn(function()
-    while task.wait() do
-        if Config.Enabled then
-            local char = LocalPlayer.Character
-            local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-            local tool = char and char:FindFirstChildOfClass("Tool")
-            
-            if tool and myRoot then
-                local inLobby = isNearLobby(myRoot)
-                managePlates(inLobby)
-                
-                if inLobby then
-                    -- Si está en el lobby, mantener el arma normal
-                    if originalData[getHandle(tool)] then
-                        restoreSword(tool)
-                    end
-                    task.wait(0.5)
-                else
-                    -- Si está en la arena, hacer el Auto-Flicker
-                    expandSword(tool)
-                    task.wait(0.25)
-                    restoreSword(tool)
-                    task.wait(0.25)
-                end
-            else
-                task.wait(0.1)
-            end
-        else
-            task.wait(0.1)
-        end
-    end
-end)
-
+-- 6. Limpieza total al apagar el Toggle
 env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
-    for _, c in ipairs(connections) do c:Disconnect() end
+    
+    -- Devolver placas a su lugar
+    movePlates(false)
+    
+    -- Restaurar arma
+    local char = LocalPlayer.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    if tool then restoreSword(tool) end
+    
+    -- Restaurar escudos y honeypots
     for p, parts in pairs(shieldedPlayersParts) do
         for part, data in pairs(parts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
     end
     for part, data in pairs(honeypotParts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
-    for part, canTouch in pairs(originalPlatesTouch) do
-        if part and part.Parent then part.CanTouch = canTouch end
-    end
-    local char = LocalPlayer.Character
-    local tool = char and char:FindFirstChildOfClass("Tool")
-    if tool then restoreSword(tool) end
+    
     env.BF_ATTACKALL_CONFIG = nil
     env.__BF_ATTACKALL_CLEANUP = nil
 end
