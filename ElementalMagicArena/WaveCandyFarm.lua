@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V25 - Auto Respawn Fix)
+--// Froggy Hub - ElementalMagicArena/WaveCandyFarm.lua (V27 - Auto-Equip Weapon)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -9,16 +9,16 @@ if env.__BF_WAVEFARM_CLEANUP then pcall(env.__BF_WAVEFARM_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    SelectedElement = "energy", -- Elemento por defecto para el AutoFarm
+    SelectedElement = "energy", 
     SearchRadius = 2000,     
     HandleSize = 1000,       
     FloatHeight = 15,        
-    FlySpeed = 100,           
+    FlySpeed = 150,          
     CollectDistance = 5,     
 }
 env.BF_WAVEFARM_CONFIG = Config
 
--- 🔥 TUS COORDENADAS EXACTAS
+-- Coordenadas (Tu JSON completo)
 local ElementData = {
     ["tierra"] = {Y=-14.159768104553223,X=817.5328369140625,Z=-81.78305053710938},
     ["amor"] = {Y=-14.519143104553223,X=813.6480102539063,Z=398.444091796875},
@@ -58,12 +58,9 @@ local ElementData = {
 
 local connections = {}
 local originalHandleData = {}
-local autoClickThread = nil
 local currentTarget = nil
+local hoverPosition = nil
 
--- ==========================================
--- NOCLIP SEGURO
--- ==========================================
 local function setLocalNoclip(enabled)
     local char = LocalPlayer.Character
     if not char then return end
@@ -72,18 +69,24 @@ local function setLocalNoclip(enabled)
     end
 end
 
--- ==========================================
--- LÓGICA DEL ARMA
--- ==========================================
-local function equipAnyWeapon()
+-- 🔥 EQUIPAR ARMA AUTOMÁTICAMENTE
+local function equipWeapon()
     local char = LocalPlayer.Character
-    if not char or char:FindFirstChildOfClass("Tool") then return end
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    
+    -- Si ya tiene un arma, no hacemos nada
+    if char:FindFirstChildOfClass("Tool") then return end
+    
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then return end
+    
+    -- Buscar el primer Tool disponible y equiparlo
     for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") then
-            pcall(function() char.Humanoid:EquipTool(tool) end)
-            break
+            pcall(function() hum:EquipTool(tool) end)
+            break -- Solo equipar el primero
         end
     end
 end
@@ -116,21 +119,15 @@ local function restoreHandle(tool)
     originalHandleData[handle] = nil
 end
 
--- ==========================================
--- ESTADO DEL FARM
--- ==========================================
 local function stopFarm()
     Config.Enabled = false
-    if autoClickThread then task.cancel(autoClickThread) autoClickThread = nil end
-
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
     local tool = char and char:FindFirstChildOfClass("Tool")
-
     setLocalNoclip(false)
     if hum then hum.PlatformStand = false end
     if tool then restoreHandle(tool) end
+    hoverPosition = nil
 end
 
 local function startFarm()
@@ -139,35 +136,18 @@ local function startFarm()
     local root = char and char:FindFirstChild("HumanoidRootPart")
     
     if not hum or not root then return end
-
     hum.PlatformStand = true
     setLocalNoclip(true)
     
-    equipAnyWeapon()
-    task.wait(0.2)
-    
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then expandHandle(tool) end
-
-    if autoClickThread then task.cancel(autoClickThread) end
-    autoClickThread = task.spawn(function()
-        while Config.Enabled do
-            local c = LocalPlayer.Character
-            local t = c and c:FindFirstChildOfClass("Tool")
-            if t then pcall(function() t:Activate() end) end
-            task.wait(0.3)
-        end
-    end)
+    hoverPosition = root.Position + Vector3.new(0, Config.FloatHeight, 0)
+    equipWeapon() -- Equipar al iniciar
 end
 
--- ==========================================
--- 🔥 AUTO EQUIPAR AL MORIR (La Magia)
--- ==========================================
+-- Auto-Equipar al Morir
 table.insert(connections, LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
-        stopFarm() -- Detener el farm mientras respawneamos
-        task.wait(1.5) -- Esperar a que cargue el personaje en el lobby
-        
+        stopFarm()
+        task.wait(1.5)
         local char = LocalPlayer.Character
         local myRoot = char and char:FindFirstChild("HumanoidRootPart")
         local targetName = string.lower(Config.SelectedElement)
@@ -175,53 +155,38 @@ table.insert(connections, LocalPlayer.CharacterAdded:Connect(function()
 
         if myRoot and data then
             local targetPos = Vector3.new(data.X, data.Y, data.Z)
-            
-            -- Teletransportarse a la placa
             myRoot.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
             myRoot.AssemblyLinearVelocity = Vector3.zero
             task.wait(0.5)
 
-            -- Forzar el evento Touched
             local tpsFolder = Workspace:FindFirstChild("TPS")
             if tpsFolder then
-                local closestTele = nil
-                local shortestDist = math.huge
+                local closestTele, shortestDist = nil, math.huge
                 for _, obj in ipairs(tpsFolder:GetDescendants()) do
                     if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
                         local dist = (obj.Position - targetPos).Magnitude
                         if dist < shortestDist then shortestDist = dist; closestTele = obj end
                     end
                 end
-
                 if closestTele then
                     local success = false
                     if getconnections then
                         for _, conn in pairs(getconnections(closestTele.Touched)) do
-                            if conn.Enabled then
-                                pcall(function() conn:Fire(myRoot) success = true end)
-                            end
+                            if conn.Enabled then pcall(function() conn:Fire(myRoot) success = true end) end
                         end
                     end
-                    if not success then
-                        pcall(function()
-                            firetouchinterest(myRoot, closestTele, 0)
-                            task.wait(0.1)
-                            firetouchinterest(myRoot, closestTele, 1)
-                        end)
-                    end
+                    if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
                 end
             end
         end
-        
-        -- Una vez equipado, volver a empezar el farm
-        task.wait(1.5) -- Esperar a que termine la animación y entre a la arena
+        task.wait(1)
+        equipWeapon() -- 🔥 Volver a equipar el arma después de tocar la placa
+        task.wait(0.5)
         startFarm()
     end
 end))
 
--- ==========================================
--- BÚSQUEDA ESTRICTA DE DROPS
--- ==========================================
+-- Buscar caramelos
 local function findClosestDrop()
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
@@ -229,22 +194,19 @@ local function findClosestDrop()
 
     local closest, shortestDist = nil, math.huge
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        local isDrop = false
-        local part = nil
+        local isDrop, part = false, nil
         local objName = string.lower(obj.Name)
-        local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
         
-        if not objName:find("shop") and not objName:find("gacha") and not parentName:find("shop") and not parentName:find("gacha") then
-            if obj:IsA("BasePart") or obj:IsA("MeshPart") then
-                local isCharacter = obj.Parent:FindFirstChildOfClass("Humanoid") ~= nil
-                if not isCharacter and obj ~= myRoot then
-                    local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
-                    if not obj.Anchored or (hasPrompt and (objName:find("soul") or objName:find("alma") or objName:find("candy"))) then
-                        if obj.Size.Magnitude < 20 then isDrop = true; part = obj end
-                    end
+        if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+            local isCharacter = obj.Parent:FindFirstChildOfClass("Humanoid") ~= nil
+            if not isCharacter and obj ~= myRoot then
+                local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+                if not obj.Anchored or (hasPrompt and (objName:find("soul") or objName:find("alma") or objName:find("candy"))) then
+                    if obj.Size.Magnitude < 20 then isDrop = true; part = obj end
                 end
             end
         end
+        
         if isDrop and part then
             local dist = (part.Position - myRoot.Position).Magnitude
             if dist <= Config.SearchRadius and dist < shortestDist then
@@ -255,9 +217,7 @@ local function findClosestDrop()
     return closest
 end
 
--- ==========================================
--- BUCLE PRINCIPAL DEL FARM
--- ==========================================
+-- Bucle de vuelo
 table.insert(connections, RunService.Heartbeat:Connect(function(dt)
     if not Config.Enabled then return end
 
@@ -268,13 +228,16 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
 
     if not char or not hum or not root or hum.Health <= 0 then return end
 
-    -- Si no tiene arma, equiparla
+    hum.PlatformStand = true
+    setLocalNoclip(true)
+
+    -- 🔥 MANTENER EL ARMA EQUIPADA SIEMPRE
     if not tool then
-        equipAnyWeapon()
+        equipWeapon()
         tool = char:FindFirstChildOfClass("Tool")
     end
 
-    -- Mantener el Handle expandido
+    -- Expandir Handle
     if tool then
         local handle = getHandle(tool)
         if handle and handle.Size ~= Vector3.new(Config.HandleSize, Config.HandleSize, Config.HandleSize) then
@@ -282,6 +245,7 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         end
     end
 
+    -- Lógica de vuelo
     if not currentTarget or not currentTarget.Parent then
         currentTarget = findClosestDrop()
     end
@@ -291,8 +255,8 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
         if dist > Config.CollectDistance then
             local direction = (currentTarget.Position - root.Position).Unit
             root.CFrame = CFrame.lookAt(root.Position + (direction * Config.FlySpeed * dt), currentTarget.Position)
+            root.AssemblyLinearVelocity = Vector3.zero
         else
-            -- Recoger (Touch y Prompt)
             pcall(function()
                 firetouchinterest(root, currentTarget, 0)
                 task.wait(0.05)
@@ -306,8 +270,17 @@ table.insert(connections, RunService.Heartbeat:Connect(function(dt)
             currentTarget = nil 
         end
     else
-        -- Si no hay nada, volar hacia arriba para no caer
-        root.CFrame = root.CFrame + Vector3.new(0, 2, 0)
+        -- Volver a flotar si no hay caramelos
+        if hoverPosition then
+            local distToHover = (hoverPosition - root.Position).Magnitude
+            if distToHover > 2 then
+                local direction = (hoverPosition - root.Position).Unit
+                root.CFrame = CFrame.lookAt(root.Position + (direction * Config.FlySpeed * dt), hoverPosition)
+            else
+                root.CFrame = CFrame.new(hoverPosition)
+                root.AssemblyLinearVelocity = Vector3.zero
+            end
+        end
     end
 end))
 
