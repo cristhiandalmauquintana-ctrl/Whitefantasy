@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (Módulo Independiente)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (Fix Anti-Gacha)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -19,7 +19,7 @@ local shieldedPlayersParts = {}
 local honeypotParts = {}
 local connections = {}
 
--- 🔥 BYPASSES
+-- 🔥 BYPASSES DE UI Y COMPRAS
 if getrawmetatable and newcclosure then
     local mt = getrawmetatable(game)
     local oldNamecall = mt.__namecall
@@ -54,6 +54,25 @@ local function hideUIFriendly(guiObj)
     end
 end
 table.insert(connections, PlayerGui.ChildAdded:Connect(hideUIFriendly))
+
+-- 🔥 FUNCIÓN PARA DESACTIVAR MÁQUINAS DE GACHA/SPIN
+local function disableGachaAndShops()
+    if not Config.Enabled then return end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            local name = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
+            if name:find("spin") or name:find("gacha") or name:find("robux") or name:find("wheel") or name:find("buy") or name:find("purchase") then
+                obj.Enabled = false
+            end
+        end
+        if obj:IsA("ClickDetector") then
+            local parentName = string.lower(obj.Parent.Name)
+            if parentName:find("spin") or parentName:find("gacha") or parentName:find("wheel") or parentName:find("buy") then
+                obj.Enabled = false
+            end
+        end
+    end
+end
 
 -- Lógica del Handle
 local function getHandle(tool)
@@ -90,6 +109,7 @@ end
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
+            -- Escudos
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer and p.Character then
                     local hasShield = p.Character:FindFirstChildOfClass("ForceField") or (p.Character:FindFirstChildOfClass("Humanoid") and p.Character.Humanoid:FindFirstChildOfClass("ForceField"))
@@ -109,6 +129,7 @@ task.spawn(function()
                     end
                 end
             end
+            -- Honeypots
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj:IsA("Model") or obj:IsA("BasePart") then
                     local name = string.lower(obj.Name)
@@ -123,6 +144,9 @@ task.spawn(function()
                     end
                 end
             end
+            
+            -- 🔥 Llamada al bloqueador de Gacha
+            disableGachaAndShops()
         end
     end
 end)
