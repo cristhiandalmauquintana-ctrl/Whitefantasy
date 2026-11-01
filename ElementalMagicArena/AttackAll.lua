@@ -1,7 +1,8 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (Fix Anti-Gacha)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (Smart Zone Edition)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local MarketplaceService = game:GetService("MarketplaceService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -10,16 +11,18 @@ if env.__BF_ATTACKALL_CLEANUP then pcall(env.__BF_ATTACKALL_CLEANUP) end
 
 local Config = {
     Enabled = false,
-    Size = 1000
+    Size = 1000,
+    LobbyRadius = 100 -- Distancia a la placa para considerar que está en el lobby
 }
 env.BF_ATTACKALL_CONFIG = Config
 
 local originalData = {}
 local shieldedPlayersParts = {}
 local honeypotParts = {}
+local originalPlatesTouch = {}
 local connections = {}
 
--- 🔥 BYPASSES DE UI Y COMPRAS
+-- 🔥 BYPASSES DE COMPRAS (Hook de Metatabla)
 if getrawmetatable and newcclosure then
     local mt = getrawmetatable(game)
     local oldNamecall = mt.__namecall
@@ -55,23 +58,27 @@ local function hideUIFriendly(guiObj)
 end
 table.insert(connections, PlayerGui.ChildAdded:Connect(hideUIFriendly))
 
--- 🔥 FUNCIÓN PARA DESACTIVAR MÁQUINAS DE GACHA/SPIN
-local function disableGachaAndShops()
-    if not Config.Enabled then return end
+-- 🔥 DETECCIÓN DE LOBBY
+local function isNearLobby(myRoot)
+    if not myRoot then return false end
+    
+    -- Buscar placas en el mapa
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
-            local name = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
-            if name:find("spin") or name:find("gacha") or name:find("robux") or name:find("wheel") or name:find("buy") or name:find("purchase") then
-                obj.Enabled = false
-            end
-        end
-        if obj:IsA("ClickDetector") then
-            local parentName = string.lower(obj.Parent.Name)
-            if parentName:find("spin") or parentName:find("gacha") or parentName:find("wheel") or parentName:find("buy") then
-                obj.Enabled = false
+        if obj:IsA("BasePart") then
+            local name = string.lower(obj.Name)
+            local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
+            
+            if name:find("plate") or name:find("pad") or name:find("statue") or name:find("base") or name:find("element") or name:find("spin") or name:find("gacha") or name:find("portal")
+            or parentName:find("plate") or parentName:find("gacha") or parentName:find("element") then
+                
+                local dist = (obj.Position - myRoot.Position).Magnitude
+                if dist <= Config.LobbyRadius then
+                    return true -- Está en el lobby
+                end
             end
         end
     end
+    return false
 end
 
 -- Lógica del Handle
@@ -103,6 +110,40 @@ local function restoreSword(tool)
     handle.Massless = data.Massless
     handle.CanTouch = data.CanTouch
     originalData[handle] = nil
+end
+
+-- 🔥 CONTROL DE PLACAS DINÁMICO
+local function managePlates(inLobby)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local name = string.lower(obj.Name)
+            local parentName = obj.Parent and string.lower(obj.Parent.Name) or ""
+            
+            if name:find("plate") or name:find("pad") or name:find("statue") or name:find("base") or name:find("element") or name:find("spin") or name:find("gacha") or name:find("portal")
+            or parentName:find("plate") or parentName:find("gacha") or parentName:find("element") then
+                
+                if inLobby then
+                    -- Si está en el lobby, devolver el CanTouch (para que pueda equiparse)
+                    if originalPlatesTouch[obj] ~= nil then
+                        obj.CanTouch = originalPlatesTouch[obj]
+                        originalPlatesTouch[obj] = nil
+                    end
+                else
+                    -- Si está en la arena, desactivar el CanTouch (para que no salten ventanas)
+                    if originalPlatesTouch[obj] == nil then
+                        originalPlatesTouch[obj] = obj.CanTouch
+                    end
+                    obj.CanTouch = false 
+                end
+                
+                -- Desactivar prompts de tienda siempre
+                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then prompt.Enabled = false end
+                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+                if click then click.Enabled = false end
+            end
+        end
+    end
 end
 
 -- Bypasses optimizados (cada 0.5s)
@@ -144,24 +185,35 @@ task.spawn(function()
                     end
                 end
             end
-            
-            -- 🔥 Llamada al bloqueador de Gacha
-            disableGachaAndShops()
         end
     end
 end)
 
--- Auto-Flicker (El truco del daño)
+-- 🔥 AUTO-FLICKER INTELIGENTE (Con Detección de Lobby)
 task.spawn(function()
     while task.wait() do
         if Config.Enabled then
             local char = LocalPlayer.Character
+            local myRoot = char and char:FindFirstChild("HumanoidRootPart")
             local tool = char and char:FindFirstChildOfClass("Tool")
-            if tool then
-                expandSword(tool)
-                task.wait(0.25)
-                restoreSword(tool)
-                task.wait(0.25)
+            
+            if tool and myRoot then
+                local inLobby = isNearLobby(myRoot)
+                managePlates(inLobby)
+                
+                if inLobby then
+                    -- Si está en el lobby, mantener el arma normal
+                    if originalData[getHandle(tool)] then
+                        restoreSword(tool)
+                    end
+                    task.wait(0.5)
+                else
+                    -- Si está en la arena, hacer el Auto-Flicker
+                    expandSword(tool)
+                    task.wait(0.25)
+                    restoreSword(tool)
+                    task.wait(0.25)
+                end
             else
                 task.wait(0.1)
             end
@@ -178,6 +230,9 @@ env.__BF_ATTACKALL_CLEANUP = function()
         for part, data in pairs(parts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
     end
     for part, data in pairs(honeypotParts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
+    for part, canTouch in pairs(originalPlatesTouch) do
+        if part and part.Parent then part.CanTouch = canTouch end
+    end
     local char = LocalPlayer.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
     if tool then restoreSword(tool) end
