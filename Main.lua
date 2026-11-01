@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Full Auto + Element Selector)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Full Auto + Visual Update)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -13,8 +13,8 @@ local env = (getgenv and getgenv()) or _G
 -- ==========================================
 local Translations = {
     ["es"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Full Auto Update",
-        tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_autofarm = "AUTO FARM", tab_config = "CONFIG",
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Visual Update",
+        tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_config = "CONFIG",
         rejoin = "RECONECTAR SERVIDOR", auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1",
         hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "TAMAÑO HITBOX (PELIGRO)",
         god_mode = "MODO DIOS", attack_all = "ATTACK ALL (AUTO)", 
@@ -22,14 +22,14 @@ local Translations = {
         attack_all_notify = "Recuerda usar la Guadaña para máximo daño.",
         select_element = "SELECCIONA TU ELEMENTO",
         esp = "ESP JUGADORES", boxes = "CAJAS 2D", tracers = "TRACERS", health = "BARRA DE VIDA",
+        car_transform = "CAR TRANSFORMATION (R6)", car_transform_desc = "Te transforma en un auto invisible para atropellar enemigos.",
         speed = "SPEED HACK", speed_val = "VELOCIDAD", jump = "SUPER JUMP", jump_val = "ALTURA DE SALTO",
-        autofarm = "AUTOFARM HALLOWEEN", candy_rad = "RADIO DE CARROÑEO", 
         utilities = "UTILIDADES", silent_collect = "AUTO-RECOLECCIÓN SILENCIOSA",
         dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA DE PRUEBAS", unlock = "DESBLOQUEAR PRUEBA", destroy_ui = "DESTRUIR UI", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar."
     },
     ["en"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Full Auto Update",
-        tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_autofarm = "AUTO FARM", tab_config = "CONFIG",
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Visual Update",
+        tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_config = "CONFIG",
         rejoin = "REJOIN SERVER", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
         hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "HITBOX SIZE (DANGER)",
         god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
@@ -37,14 +37,14 @@ local Translations = {
         attack_all_notify = "Remember to use the Scythe for max damage.",
         select_element = "SELECT YOUR ELEMENT",
         esp = "PLAYER ESP", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
+        car_transform = "CAR TRANSFORMATION (R6)", car_transform_desc = "Turns you into an invisible car to run over enemies.",
         speed = "SPEED HACK", speed_val = "SPEED", jump = "SUPER JUMP", jump_val = "JUMP POWER",
-        autofarm = "AUTOFARM HALLOWEEN", candy_rad = "CANDY RADIUS", 
         utilities = "UTILITIES", silent_collect = "SILENT AUTO-COLLECT",
         dev_zone = "DEVELOPER ZONE", pass = "TEST PASSWORD", unlock = "UNLOCK TEST", destroy_ui = "DESTROY UI", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute."
     },
     ["fil"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Full Auto Update",
-        tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_autofarm = "AUTO FARM", tab_config = "KONFIG",
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Visual Update",
+        tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_config = "KONFIG",
         rejoin = "SUMALI ULIT", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
         hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX",
         god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
@@ -52,8 +52,8 @@ local Translations = {
         attack_all_notify = "Tandaan na gumamit ng Scythe para sa max damage.",
         select_element = "PUMILI NG ELEMENTO",
         esp = "ESP NG PLAYERS", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
+        car_transform = "CAR TRANSFORMATION", car_transform_desc = "Gagawin kang invisible na sasakyan para makatapak ng kalaban.",
         speed = "SPEED HACK", speed_val = "BILIS", jump = "SUPER JUMP", jump_val = "TAAS NG TALON",
-        autofarm = "AUTOFARM HALLOWEEN", candy_rad = "RADYO NG CANDY", 
         utilities = "MGA GAMIT", silent_collect = "SILENT AUTO-COLLECT",
         dev_zone = "DEV ZONE", pass = "PASSWORD", unlock = "I-UNLOCK", destroy_ui = "IRISAN ANG UI", lang_sel = "PALITAN ANG WIKA", lang_desc = "Pumili ng wika at i-execute ulit."
     }
@@ -78,7 +78,6 @@ end
 
 local function L(key) return Translations[currentLang][key] or Translations["en"][key] or key end
 
--- Lista compartida de elementos
 local SharedElements = {
     "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
     "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", 
@@ -101,7 +100,6 @@ local TabMain = Window:CreateTab(L("tab_main"))
 local TabCombat = Window:CreateTab(L("tab_combat"))
 local TabVisual = Window:CreateTab(L("tab_visual"))
 local TabMovement = Window:CreateTab(L("tab_movement"))
-local TabAutoFarm = Window:CreateTab(L("tab_autofarm"))
 local TabConfig = Window:CreateTab(L("tab_config"))
 
 -- ==========================================
@@ -126,9 +124,9 @@ local CombC = download("AutoCombat.lua", "BF_COMBAT_CONFIG")
 local EspC = download("EspElemental.lua", "BF_ESP_CONFIG")
 local HitC = download("HitboxExpander.lua", "BF_HITBOX_CONFIG")
 local MoveC = download("Movement.lua", "BF_MOVE_CONFIG")
-local WaveCandyC = download("WaveCandyFarm.lua", "BF_WAVEFARM_CONFIG")
 local AttackAllC = download("AttackAll.lua", "BF_ATTACKALL_CONFIG")
 local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
+local CarC = download("CarTransform.lua", "BF_CARTRANSFORM_CONFIG")
 
 -- ==========================================
 -- 5. CONECTAMOS LOS BOTONES A LA UI
@@ -176,6 +174,17 @@ if EspC then
     TabVisual:AddToggle(L("health"), EspC.HealthBar, function(state) EspC.HealthBar = state end)
 end
 
+-- 🔥 CAR TRANSFORMATION
+if CarC then
+    TabVisual:AddSection("MISC")
+    TabVisual:AddToggleEx(L("car_transform"), CarC.Enabled, function(state)
+        CarC.Enabled = state
+        if state then Assets.Notify({Title = "Car Transform", Text = "¡Modo Auto Activado!", Type = "success"})
+        else Assets.Notify({Title = "Car Transform", Text = "Volviendo a la normalidad...", Type = "info"}) end
+    end, "firefly")
+    TabVisual:AddInfo(L("car_transform_desc"), "info")
+end
+
 -- === MOVEMENT ===
 if MoveC then
     TabMovement:AddToggle(L("speed"), MoveC.SpeedEnabled, function(state) MoveC.SpeedEnabled = state end)
@@ -184,23 +193,7 @@ if MoveC then
     TabMovement:AddSlider(L("jump_val"), 50, 300, MoveC.JumpPower or 100, function(val) MoveC.JumpPower = val end)
 end
 
--- === AUTO FARM ===
-if WaveCandyC then
-    TabAutoFarm:AddToggle(L("autofarm"), WaveCandyC.Enabled, function(state)
-        WaveCandyC.Enabled = state
-        if state then WaveCandyC.Start() end
-    end)
-    
-    TabAutoFarm:AddDropdown(L("select_element"), SharedElements, WaveCandyC.SelectedElement, function(val)
-        WaveCandyC.SelectedElement = val
-        Assets.Notify({Title = "Element Selected", Text = val, Type = "success"})
-    end)
-
-    TabAutoFarm:AddSlider(L("candy_rad"), 100, 2000, WaveCandyC.SearchRadius or 500, function(val) WaveCandyC.SearchRadius = val end)
-end
-
 -- === CONFIG ===
--- AUTO-COLLECT SILENCIOSO
 if SilentCollectC then
     TabConfig:AddSection(L("utilities"))
     TabConfig:AddToggle(L("silent_collect"), true, function(state)
@@ -235,4 +228,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     Window:Destroy()
 end)
 
-print("[Main] Froggy Hub (Full Auto + Selector) cargado con éxito.")
+print("[Main] Froggy Hub (Visual Update) cargado con éxito.")
