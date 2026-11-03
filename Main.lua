@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Player Farm Update)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Farm Fix)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -13,7 +13,7 @@ local env = (getgenv and getgenv()) or _G
 -- ==========================================
 local Translations = {
     ["es"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Player Farm Update",
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Farm Update",
         tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_config = "CONFIG",
         rejoin = "RECONECTAR SERVIDOR", auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1",
         hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "TAMAÑO HITBOX (PELIGRO)",
@@ -23,12 +23,12 @@ local Translations = {
         select_element = "SELECCIONA TU ELEMENTO",
         esp = "ESP JUGADORES", boxes = "CAJAS 2D", tracers = "TRACERS", health = "BARRA DE VIDA",
         speed = "SPEED HACK", speed_val = "VELOCIDAD", jump = "SUPER JUMP", jump_val = "ALTURA DE SALTO",
-        farm_players = "AUTO FARM PLAYERS", farm_desc = "Fija al jugador en el cielo y ataca automáticamente.",
+        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Fija al jugador en el cielo y ataca automáticamente usando Energía.",
         silent_collect = "AUTO-RECOLECCIÓN SILENCIOSA",
         dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA DE PRUEBAS", unlock = "DESBLOQUEAR PRUEBA", destroy_ui = "DESTRUIR UI", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar."
     },
     ["en"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Player Farm Update",
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Farm Update",
         tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_config = "CONFIG",
         rejoin = "REJOIN SERVER", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
         hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "HITBOX SIZE (DANGER)",
@@ -38,12 +38,12 @@ local Translations = {
         select_element = "SELECT YOUR ELEMENT",
         esp = "PLAYER ESP", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
         speed = "SPEED HACK", speed_val = "SPEED", jump = "SUPER JUMP", jump_val = "JUMP POWER",
-        farm_players = "AUTO FARM PLAYERS", farm_desc = "Anchors player in the sky and attacks automatically.",
+        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Anchors player in the sky and attacks automatically using Energy.",
         silent_collect = "SILENT AUTO-COLLECT",
         dev_zone = "DEVELOPER ZONE", pass = "TEST PASSWORD", unlock = "UNLOCK TEST", destroy_ui = "DESTROY UI", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute."
     },
     ["fil"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Player Farm Update",
+        title = "FROGGY HUB", subtitle = "Elemental Arena | Farm Update",
         tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_farm = "AUTO FARM", tab_config = "KONFIG",
         rejoin = "SUMALI ULIT", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
         hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX",
@@ -53,7 +53,7 @@ local Translations = {
         select_element = "PUMILI NG ELEMENTO",
         esp = "ESP NG PLAYERS", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
         speed = "SPEED HACK", speed_val = "BILIS", jump = "SUPER JUMP", jump_val = "TAAS NG TALON",
-        farm_players = "AUTO FARM PLAYERS", farm_desc = "Inaayos ang player sa langit at awtomatikong umaatake.",
+        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Inaayos ang player sa langit at awtomatikong umaatake gamit ang Energy.",
         silent_collect = "SILENT AUTO-COLLECT",
         dev_zone = "DEV ZONE", pass = "PASSWORD", unlock = "I-UNLOCK", destroy_ui = "IRISAN ANG UI", lang_sel = "PALITAN ANG WIKA", lang_desc = "Pumili ng wika at i-execute ulit."
     }
@@ -78,11 +78,12 @@ end
 
 local function L(key) return Translations[currentLang][key] or Translations["en"][key] or key end
 
--- Elementos permitidos para el Farm (Melee)
-local FarmElements = {
-    "energy", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
+local SharedElements = {
+    "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
     "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", 
-    "aurora", "fenix", "caos", "tecnología", "diamante", "demon", "ilusion", "relampago"
+    "aurora", "fenix", "caos", "tecnología", "diamante", "amor", "demon", 
+    "ilusion", "campos de fuerza", "relampago", "telequinesis", "life", "mirror", 
+    "time", "sueño", "creacion", "espacio", "realidad", "dios de elementos"
 }
 
 -- ==========================================
@@ -157,7 +158,7 @@ if AttackAllC then
         if state then Assets.Notify({Title = L("god_mode"), Text = L("attack_all_notify"), Type = "warn"}) end
     end)
     
-    TabCombat:AddDropdown(L("select_element"), FarmElements, AttackAllC.SelectedElement, function(val)
+    TabCombat:AddDropdown(L("select_element"), SharedElements, AttackAllC.SelectedElement, function(val)
         AttackAllC.SelectedElement = val
         Assets.Notify({Title = "Element Selected", Text = val, Type = "success"})
     end)
@@ -183,18 +184,15 @@ end
 
 -- === AUTO FARM ===
 if FarmC then
-    TabFarm:AddSection(L("farm_players"))
+    TabFarm:AddSection("AUTO FARM")
     TabFarm:AddToggle(L("farm_players"), FarmC.Enabled, function(state)
         FarmC.Enabled = state
-        if state then Assets.Notify({Title = "Farm", Text = "Farmeo Iniciado", Type = "success"})
-        else Assets.Notify({Title = "Farm", Text = "Farmeo Detenido", Type = "warn"}) end
+        if state then 
+            Assets.Notify({Title = "Farm", Text = "Farmeo Iniciado.", Type = "success"})
+        else 
+            Assets.Notify({Title = "Farm", Text = "Farmeo Detenido.", Type = "warn"}) 
+        end
     end)
-    
-    TabFarm:AddDropdown(L("select_element"), FarmElements, FarmC.SelectedElement, function(val)
-        FarmC.SelectedElement = val
-        Assets.Notify({Title = "Farm Element", Text = "Usando: " .. val, Type = "info"})
-    end)
-    
     TabFarm:AddInfo(L("farm_desc"), "info")
 end
 
@@ -233,4 +231,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     Window:Destroy()
 end)
 
-print("[Main] Froggy Hub (Player Farm Update) cargado con éxito.")
+print("[Main] Froggy Hub cargado con éxito.")
