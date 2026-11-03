@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ENERGY EXACTO - HANDLER FIX)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (RESET ON FIRST ACTIVATION)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -9,18 +9,10 @@ local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
 
-local Config = {
-    Enabled = false,
-}
+local Config = { Enabled = false }
 env.BF_PLAYERFARM_CONFIG = Config
 
--- 🔥 COORDENADAS EXACTAS DE ENERGÍA (Copiadas de tu JSON)
-local ENERGY_X = 816.06640625
-local ENERGY_Y = -14.519143104553223
-local ENERGY_Z = 37.429420471191409
-local ENERGY_POS = Vector3.new(ENERGY_X, ENERGY_Y, ENERGY_Z)
-
--- Coordenadas del cielo
+local ENERGY_POS = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
 local FARM_X = 1451.5
 local FARM_Y = -115.1
 local FARM_Z = 85.7
@@ -34,6 +26,7 @@ local weaponLoop = nil
 local killTrackerCon = nil
 local charAddedCon = nil
 local mainLoopCon = nil
+local isResetting = false -- 🔥 Bandera para evitar reinicios múltiples
 
 local kills = 0
 local playerStates = {}
@@ -45,7 +38,6 @@ local currentFps = 60
 local function createPremiumUI()
     if gui then gui:Destroy(); gui = nil end
     if fpsCon then fpsCon:Disconnect(); fpsCon = nil end
-
     local parent = (gethui and gethui()) or game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
 
     local C = {
@@ -55,7 +47,6 @@ local function createPremiumUI()
         redDark = Color3.fromRGB(150, 20, 30), text = Color3.fromRGB(235, 235, 240),
         dim = Color3.fromRGB(130, 130, 145), blue = Color3.fromRGB(80, 200, 255),
     }
-
     local function make(class, props, children)
         local inst = Instance.new(class)
         for k, v in pairs(props) do inst[k] = v end
@@ -68,9 +59,9 @@ local function createPremiumUI()
     local function tween(obj, t, props, style, dir) local tw = TweenService:Create(obj, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), props); tw:Play(); return tw end
 
     gui = make("ScreenGui", { Name = "FarmUI_Premium", ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 99999 })
-
     local blackScreen = make("Frame", { Name = "BlackScreen", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 1, Parent = gui })
-
+    
+    -- FPS
     local fpsBox = make("Frame", { Size = UDim2.fromOffset(92, 30), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 10), BackgroundColor3 = C.bg, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 2, Parent = gui }, {corner(8), stroke(C.neon, 1.2, 0.2)})
     local signal = make("Frame", { Size = UDim2.fromOffset(18, 14), Position = UDim2.new(0, 9, 0.5, -7), BackgroundTransparency = 1, ZIndex = 2, Parent = fpsBox })
     local sigBars = {}
@@ -78,22 +69,26 @@ local function createPremiumUI()
     local fpsLabel = make("TextLabel", { Size = UDim2.new(1, -34, 1, 0), Position = UDim2.fromOffset(30, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "60", TextSize = 15, TextColor3 = C.neon, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2, Parent = fpsBox })
     make("TextLabel", { Size = UDim2.new(0, 24, 1, 0), Position = UDim2.new(1, -28, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "FPS", TextSize = 9, TextColor3 = C.dim, ZIndex = 2, Parent = fpsBox })
 
+    -- PANEL
     local panel = make("Frame", { Name = "Panel", Size = UDim2.fromOffset(250, 340), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.panel, BackgroundTransparency = 0.18, BorderSizePixel = 0, ZIndex = 3, Parent = gui }, {corner(14), gradient(Color3.fromRGB(34, 34, 44), Color3.fromRGB(10, 10, 14), 135)})
     local panelStroke = stroke(C.neon, 1.8, 0.1); panelStroke.Parent = panel
     make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = panel })
     make("TextLabel", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "PLAYER FARM (ENERGY)", TextSize = 16, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel }, {gradient(C.neon, C.gold, 0)})
     make("Frame", { Size = UDim2.new(1, 0, 0, 2), Position = UDim2.fromOffset(0, 24), BackgroundColor3 = C.gold, BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(1), make("UIGradient", { Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)})})})
 
+    -- STATUS
     local statusBox = make("Frame", { Name = "Status", Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 34), BackgroundColor3 = C.card, BackgroundTransparency = 0.2, BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(8)})
     local statusStroke = stroke(C.neon, 1.2, 0.3); statusStroke.Parent = statusBox
     local statusDot = make("Frame", { Size = UDim2.fromOffset(8, 8), Position = UDim2.new(0, 10, 0.5, -4), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 3, Parent = statusBox }, {make("UICorner", {CornerRadius = UDim.new(1, 0)})})
     local statusLabel = make("TextLabel", { Size = UDim2.new(1, -28, 1, 0), Position = UDim2.fromOffset(24, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, Text = "SISTEMA: LISTO", TextSize = 12, TextColor3 = C.neon, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = statusBox })
 
+    -- HP
     local hpLabel = make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 72), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "HP: 100/100", TextSize = 13, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
     local hpTrack = make("Frame", { Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(0, 92), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 3, Parent = panel }, {corner(7), stroke(Color3.fromRGB(60, 60, 70), 1, 0.2)})
     local hpFill = make("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 3, Parent = hpTrack }, {corner(7)})
-    local hpGradient = make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(30, 200, 90), C.neon), Rotation = 0, Parent = hpFill })
+    make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(30, 200, 90), C.neon), Rotation = 0, Parent = hpFill })
 
+    -- GRID
     local grid = make("Frame", { Size = UDim2.new(1, 0, 0, 62), Position = UDim2.fromOffset(0, 118), BackgroundTransparency = 1, ZIndex = 3, Parent = panel }, {make("UIGridLayout", { CellSize = UDim2.new(0.333, -6, 1, 0), CellPadding = UDim2.fromOffset(8, 0), SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal })})
     local function makeCard(order, title, accent)
         local card = make("Frame", { LayoutOrder = order, BackgroundColor3 = C.card, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 3, Parent = grid }, {corner(10), stroke(accent, 1.3, 0.35), gradient(Color3.fromRGB(40, 40, 50), Color3.fromRGB(20, 20, 26), 90)})
@@ -104,6 +99,7 @@ local function createPremiumUI()
     local diamondsValue = makeCard(2, "DIAMANTES", C.blue)
     local soulsValue    = makeCard(3, "SOULS", C.gold)
 
+    -- SLIDER
     make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 192), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "OPACIDAD DEL FONDO", TextSize = 10, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
     local sliderTrack = make("Frame", { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.fromOffset(0, 215), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(5), stroke(Color3.fromRGB(60, 60, 70), 1, 0.2)})
     local sliderFill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 4, Parent = sliderTrack }, {corner(5)})
@@ -132,6 +128,7 @@ local function createPremiumUI()
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingSlider = false end
     end)
 
+    -- BOTÓN
     local actionBtn = make("TextButton", { Name = "StopButton", Size = UDim2.new(1, 0, 0, 44), Position = UDim2.new(0, 0, 1, -44), BackgroundColor3 = C.red, AutoButtonColor = false, Font = Enum.Font.GothamBlack, Text = "DETENER FARMEO", TextSize = 15, TextColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(10), gradient(Color3.fromRGB(255, 70, 80), C.redDark, 90)})
     stroke(Color3.fromRGB(255, 120, 120), 1.8, 0.1).Parent = actionBtn
     actionBtn.MouseButton1Click:Connect(function() Config.Enabled = false end)
@@ -167,16 +164,11 @@ end
 local function equipWeapon()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    if char:FindFirstChildOfClass("Tool") then return end
-    
+    if not hum or char:FindFirstChildOfClass("Tool") then return end
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if backpack then
         for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then 
-                pcall(function() hum:EquipTool(tool) end)
-                break 
-            end
+            if tool:IsA("Tool") then pcall(function() hum:EquipTool(tool) end); break end
         end
     end
 end
@@ -203,12 +195,9 @@ local function teleportToEnergy()
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
-
-    -- 🔥 Usar coordenadas exactas
     myRoot.CFrame = CFrame.new(ENERGY_POS + Vector3.new(0, 3, 0))
     myRoot.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.5)
-
     local tpsFolder = Workspace:FindFirstChild("TPS")
     if tpsFolder then
         local closestTele, shortestDist = nil, math.huge
@@ -228,12 +217,10 @@ local function teleportToEnergy()
             if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
         end
     end
-    
-    -- Esperar a que el juego nos dé el arma
     task.wait(1.5)
 end
 
-local function startFarm()
+function startFarm()
     if weaponLoop then task.cancel(weaponLoop) end
     if killTrackerCon then task.cancel(killTrackerCon) end
     if uiLoop then task.cancel(uiLoop) end
@@ -243,10 +230,6 @@ local function startFarm()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    equipWeapon()
-    task.wait(0.5)
-
-    -- 🔥 FIX TEMBLOR: Usar BodyPosition y BodyGyro con fuerzas altas
     root.Anchored = false
     hum.PlatformStand = true
 
@@ -256,8 +239,8 @@ local function startFarm()
     bp.Name = "FarmBP"
     bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bp.Position = Vector3.new(FARM_X, FARM_Y + FARM_HEIGHT, FARM_Z)
-    bp.P = 50000 -- Fuerza alta
-    bp.D = 2000  -- Amortiguación alta
+    bp.P = 50000
+    bp.D = 2000
     bp.Parent = root
 
     local bg = root:FindFirstChild("FarmBG")
@@ -265,7 +248,7 @@ local function startFarm()
     bg = Instance.new("BodyGyro")
     bg.Name = "FarmBG"
     bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bg.CFrame = root.CFrame -- Mantiene la rotación
+    bg.CFrame = root.CFrame
     bg.P = 50000
     bg.D = 2000
     bg.Parent = root
@@ -277,17 +260,11 @@ local function startFarm()
     toggleModules(true)
     updateUIFunc = createPremiumUI()
 
-    -- 🔥 FIX HANDLER: Bucle para asegurar que el arma SIEMPRE esté equipada
     weaponLoop = task.spawn(function()
         while Config.Enabled do
             local c = LocalPlayer.Character
-            if c and not c:FindFirstChildOfClass("Tool") then 
-                equipWeapon() 
-            end
-            -- Asegurar que el AttackAll siga encendido
-            if env.BF_ATTACKALL_CONFIG then
-                env.BF_ATTACKALL_CONFIG.Enabled = true
-            end
+            if c and not c:FindFirstChildOfClass("Tool") then equipWeapon() end
+            if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = true end
             task.wait(0.5)
         end
     end)
@@ -299,12 +276,8 @@ local function startFarm()
                 if p ~= LocalPlayer then
                     local c = p.Character
                     local h = c and c:FindFirstChildOfClass("Humanoid")
-                    if h and h.Health > 0 then
-                        playerStates[p] = true
-                    elseif playerStates[p] and (not h or h.Health <= 0) then
-                        kills = kills + 1
-                        playerStates[p] = false
-                    end
+                    if h and h.Health > 0 then playerStates[p] = true
+                    elseif playerStates[p] and (not h or h.Health <= 0) then kills = kills + 1; playerStates[p] = false end
                 end
             end
         end
@@ -326,45 +299,40 @@ local function stopFarm()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    
     toggleModules(false)
-    
     if root then
         local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
         local bg = root:FindFirstChild("FarmBG"); if bg then bg:Destroy() end
-        
         root.Anchored = true 
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         root.CFrame = CFrame.new(FARM_X, FARM_Y + 5, FARM_Z)
         root.Anchored = false
     end
-    
     if hum then hum.PlatformStand = false; hum.Sit = false end
-    if char then
-        for _, p in ipairs(char:GetDescendants()) do
-            if p:IsA("BasePart") then p.LocalTransparencyModifier = 0 end
-        end
-    end
-
+    if char then for _, p in ipairs(char:GetDescendants()) do if p:IsA("BasePart") then p.LocalTransparencyModifier = 0 end end end
     if gui then gui:Destroy(); gui = nil end
     updateUIFunc = nil
     if fpsCon then fpsCon:Disconnect(); fpsCon = nil end
     if uiLoop then task.cancel(uiLoop); uiLoop = nil end
     if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
     if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
-    
     playerStates = {}
 end
 
+-- ==========================================
+-- CONEXIONES
+-- ==========================================
 if charAddedCon then charAddedCon:Disconnect() end
 charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
         task.wait(2)
-        teleportToEnergy() -- Va a energy y espera a que le den el arma
-        equipWeapon()
+        teleportToEnergy()
         task.wait(1)
+        equipWeapon()
+        task.wait(0.5)
         startFarm()
+        isResetting = false
     end
 end)
 
@@ -373,9 +341,18 @@ mainLoopCon = task.spawn(function()
     while true do
         task.wait(0.5)
         if Config.Enabled then
-            if not gui then startFarm() end
+            -- 🔥 Si se enciende y no hay UI ni está reiniciando, forzamos el reinicio
+            if not gui and not isResetting and LocalPlayer.Character then
+                isResetting = true
+                task.spawn(function()
+                    task.wait(2) -- Esperar 2 segundos
+                    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if hum then hum.Health = 0 end -- Matar al personaje para que respawnee
+                end)
+            end
         else
             if gui then stopFarm() end
+            isResetting = false -- Si se apaga, cancelamos el reinicio
         end
     end
 end)
