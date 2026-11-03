@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (FIXED)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ALTURA CORREGIDA)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -46,7 +46,6 @@ local CollectConnection = nil
 local farmUI = nil
 local statsLabel = nil
 
--- 1. Interfaz de Pantalla Negra
 local function createFarmUI()
     if farmUI then farmUI:Destroy() end
     farmUI = Instance.new("ScreenGui")
@@ -111,7 +110,6 @@ local function createFarmUI()
     end)
 end
 
--- 2. Forzar Equipamiento
 local function equipWeapon()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -129,7 +127,6 @@ local function equipWeapon()
     end
 end
 
--- 3. Teletransporte a la placa al morir
 local function teleportToElement()
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
@@ -165,16 +162,15 @@ local function teleportToElement()
     end
 end
 
--- 4. Sistema de Combate (Fijar en el cielo de la arena + Hitbox)
 local function startCombat()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-    -- 🔥 FIX: Fijar 100 studs arriba de donde está la arena actual, no en 0,0,0
-    local arenaX, arenaZ = root.Position.X, root.Position.Z
+    -- 🔥 FIX: Subir solo 25 studs desde donde estás parado en la arena
+    local currentX, currentY, currentZ = root.Position.X, root.Position.Y, root.Position.Z
     root.Anchored = true
-    root.CFrame = CFrame.new(arenaX, 100, arenaZ) -- 100 studs de altura sobre la arena
+    root.CFrame = CFrame.new(currentX, currentY + 25, currentZ)
 
     -- Expandir Handle
     local tool = char:FindFirstChildOfClass("Tool")
@@ -191,7 +187,7 @@ local function startCombat()
         end
     end
 
-    -- Spam M1 (Clic en el centro de la pantalla para registrar el golpe)
+    -- Spam M1
     if M1Connection then M1Connection:Disconnect() end
     M1Connection = task.spawn(function()
         local camera = Workspace.CurrentCamera
@@ -199,7 +195,6 @@ local function startCombat()
             local char = LocalPlayer.Character
             if char and char:FindFirstChildOfClass("Tool") then
                 pcall(function()
-                    -- Clic en el centro de la pantalla
                     local cx = camera.ViewportSize.X / 2
                     local cy = camera.ViewportSize.Y / 2
                     VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
@@ -207,14 +202,13 @@ local function startCombat()
                     VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
                 end)
             else
-                equipWeapon() -- Si perdió el arma, la equipa de nuevo
+                equipWeapon()
             end
             task.wait(0.15)
         end
     end)
 end
 
--- 5. Recolección
 local DiamondNames = {"diamond", "gem", "coin", "cash", "drop", "reward", "loot", "money"}
 local SoulNames = {"soul", "alma"}
 
@@ -263,7 +257,6 @@ local function startCollecting()
     end)
 end
 
--- 6. Auto-Equipar y subir al cielo al respawnear
 table.insert(connections, LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
         task.wait(1.5)
@@ -275,7 +268,19 @@ table.insert(connections, LocalPlayer.CharacterAdded:Connect(function()
     end
 end))
 
--- 7. Bucle Principal
+-- Bucle de Bajas
+table.insert(connections, Workspace.DescendantAdded:Connect(function(obj)
+    if not Config.Enabled then return end
+    if obj:IsA("Humanoid") then
+        local player = Players:GetPlayerFromCharacter(obj.Parent)
+        if player and player ~= LocalPlayer then
+            obj.Died:Connect(function()
+                if Config.Enabled then Config.Kills = Config.Kills + 1 end
+            end)
+        end
+    end
+end))
+
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
