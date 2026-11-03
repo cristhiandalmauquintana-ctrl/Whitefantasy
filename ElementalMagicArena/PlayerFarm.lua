@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (SOLO ENERGÍA - FIX HANDLER)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ENERGY EXACTO - HANDLER FIX)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -14,9 +14,13 @@ local Config = {
 }
 env.BF_PLAYERFARM_CONFIG = Config
 
--- 🔥 COORDENADAS HARDCODEADAS DE ENERGÍA
-local ENERGY_POS = Vector3.new(816.06, -14.51, 37.42)
--- Coordenadas del cielo (Centro de la arena)
+-- 🔥 COORDENADAS EXACTAS DE ENERGÍA (Copiadas de tu JSON)
+local ENERGY_X = 816.06640625
+local ENERGY_Y = -14.519143104553223
+local ENERGY_Z = 37.429420471191409
+local ENERGY_POS = Vector3.new(ENERGY_X, ENERGY_Y, ENERGY_Z)
+
+-- Coordenadas del cielo
 local FARM_X = 1451.5
 local FARM_Y = -115.1
 local FARM_Z = 85.7
@@ -36,7 +40,7 @@ local playerStates = {}
 local currentFps = 60
 
 -- ==========================================
--- UI PREMIUM (CON SLIDER)
+-- UI PREMIUM
 -- ==========================================
 local function createPremiumUI()
     if gui then gui:Destroy(); gui = nil end
@@ -100,7 +104,6 @@ local function createPremiumUI()
     local diamondsValue = makeCard(2, "DIAMANTES", C.blue)
     local soulsValue    = makeCard(3, "SOULS", C.gold)
 
-    -- SLIDER
     make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 192), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "OPACIDAD DEL FONDO", TextSize = 10, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
     local sliderTrack = make("Frame", { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.fromOffset(0, 215), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(5), stroke(Color3.fromRGB(60, 60, 70), 1, 0.2)})
     local sliderFill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 4, Parent = sliderTrack }, {corner(5)})
@@ -159,12 +162,14 @@ local function createPremiumUI()
 end
 
 -- ==========================================
--- LÓGICA DEL FARM (SOLO ENERGÍA)
+-- LÓGICA DEL FARM
 -- ==========================================
 local function equipWeapon()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or char:FindFirstChildOfClass("Tool") then return end
+    if not hum then return end
+    if char:FindFirstChildOfClass("Tool") then return end
+    
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if backpack then
         for _, tool in ipairs(backpack:GetChildren()) do
@@ -199,6 +204,7 @@ local function teleportToEnergy()
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
+    -- 🔥 Usar coordenadas exactas
     myRoot.CFrame = CFrame.new(ENERGY_POS + Vector3.new(0, 3, 0))
     myRoot.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.5)
@@ -222,6 +228,9 @@ local function teleportToEnergy()
             if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
         end
     end
+    
+    -- Esperar a que el juego nos dé el arma
+    task.wait(1.5)
 end
 
 local function startFarm()
@@ -234,9 +243,10 @@ local function startFarm()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    -- Forzar arma y subir al cielo
     equipWeapon()
     task.wait(0.5)
+
+    -- 🔥 FIX TEMBLOR: Usar BodyPosition y BodyGyro con fuerzas altas
     root.Anchored = false
     hum.PlatformStand = true
 
@@ -246,9 +256,19 @@ local function startFarm()
     bp.Name = "FarmBP"
     bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bp.Position = Vector3.new(FARM_X, FARM_Y + FARM_HEIGHT, FARM_Z)
-    bp.P = 10000
-    bp.D = 1000
+    bp.P = 50000 -- Fuerza alta
+    bp.D = 2000  -- Amortiguación alta
     bp.Parent = root
+
+    local bg = root:FindFirstChild("FarmBG")
+    if bg then bg:Destroy() end
+    bg = Instance.new("BodyGyro")
+    bg.Name = "FarmBG"
+    bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bg.CFrame = root.CFrame -- Mantiene la rotación
+    bg.P = 50000
+    bg.D = 2000
+    bg.Parent = root
 
     for _, p in ipairs(char:GetDescendants()) do
         if p:IsA("BasePart") then p.LocalTransparencyModifier = 1 end
@@ -257,18 +277,21 @@ local function startFarm()
     toggleModules(true)
     updateUIFunc = createPremiumUI()
 
-    -- Weapon Loop: Forzar el arma SIEMPRE
+    -- 🔥 FIX HANDLER: Bucle para asegurar que el arma SIEMPRE esté equipada
     weaponLoop = task.spawn(function()
         while Config.Enabled do
             local c = LocalPlayer.Character
             if c and not c:FindFirstChildOfClass("Tool") then 
                 equipWeapon() 
             end
-            task.wait(1)
+            -- Asegurar que el AttackAll siga encendido
+            if env.BF_ATTACKALL_CONFIG then
+                env.BF_ATTACKALL_CONFIG.Enabled = true
+            end
+            task.wait(0.5)
         end
     end)
 
-    -- Kill Tracker
     killTrackerCon = task.spawn(function()
         while Config.Enabled do
             task.wait(0.1)
@@ -287,7 +310,6 @@ local function startFarm()
         end
     end)
 
-    -- UI Loop
     uiLoop = task.spawn(function()
         while Config.Enabled do
             task.wait(0.5)
@@ -309,6 +331,8 @@ local function stopFarm()
     
     if root then
         local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
+        local bg = root:FindFirstChild("FarmBG"); if bg then bg:Destroy() end
+        
         root.Anchored = true 
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
@@ -333,20 +357,13 @@ local function stopFarm()
     playerStates = {}
 end
 
--- ==========================================
--- CONEXIONES DE RESPAWN (SOLO ENERGÍA)
--- ==========================================
 if charAddedCon then charAddedCon:Disconnect() end
 charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
         task.wait(2)
-        -- Ir a la placa de energía
-        teleportToEnergy()
-        task.wait(1)
-        -- Equipar el arma
+        teleportToEnergy() -- Va a energy y espera a que le den el arma
         equipWeapon()
         task.wait(1)
-        -- Volver al cielo
         startFarm()
     end
 end)
