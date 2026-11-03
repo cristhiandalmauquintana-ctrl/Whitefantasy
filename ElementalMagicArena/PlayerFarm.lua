@@ -1,32 +1,17 @@
---// TEST INDEPENDIENTE: PLAYER FARM (SMOOTH FIX - NO TREMOR)
-local GITHUB_USER = "cristhiandalmauquintana-ctrl"
-local GITHUB_REPO = "Whitefantasy"
-local BRANCH = "main"
-local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/ElementalMagicArena/"
-
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
+
 local env = (getgenv and getgenv()) or _G
+if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
 
-print("[Test] Cargando Player Farm Suave...")
-
-local function download(name, key)
-    local url = ROOT .. name .. "?v=" .. os.time()
-    local ok, res = pcall(game.HttpGet, game, url)
-    if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
-        local fnOk, fn = pcall(loadstring, res)
-        if fnOk and type(fn) == "function" then pcall(fn) end
-    end
-    task.wait(0.1)
-    return env[key] or _G[key]
-end
-
-local AttackAllC = download("AttackAll.lua", "BF_ATTACKALL_CONFIG")
-local HitC = download("HitboxExpander.lua", "BF_HITBOX_CONFIG")
-local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
+local Config = {
+    Enabled = false, -- 🔥 APAGADO POR DEFECTO
+}
+env.BF_PLAYERFARM_CONFIG = Config
 
 -- Coordenadas
 local FARM_X = 1451.5
@@ -41,9 +26,11 @@ local soulLoop = nil
 local kills = 0
 local playerStates = {}
 local currentFps = 60
-local isFarming = false
+local updateUIFunc = nil
 
--- UI PREMIUM
+-- ==========================================
+-- UI PREMIUM (CON PANTALLA NEGRA)
+-- ==========================================
 local function createPremiumUI()
     local parent = (gethui and gethui()) or game:GetService("CoreGui")
     if parent:FindFirstChild("FarmUI_Premium") then parent:FindFirstChild("FarmUI_Premium"):Destroy() end
@@ -69,7 +56,7 @@ local function createPremiumUI()
 
     gui = make("ScreenGui", { Name = "FarmUI_Premium", ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 999 })
 
-    -- PANTALLA NEGRA (Fondo)
+    -- PANTALLA NEGRA
     make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 1, Parent = gui })
 
     -- FPS
@@ -115,7 +102,7 @@ local function createPremiumUI()
     local btnStroke = stroke(Color3.fromRGB(255, 120, 120), 1.8, 0.1); btnStroke.Parent = actionBtn
 
     actionBtn.MouseButton1Click:Connect(function()
-        isFarming = false
+        Config.Enabled = false -- 🔥 Al presionar el botón, apaga el módulo
     end)
 
     local frames, lastT = 0, os.clock()
@@ -136,9 +123,10 @@ local function createPremiumUI()
         diamondsValue.Text = tostring(d)
         soulsValue.Text = tostring(s)
         
-        statusLabel.Text = isFarming and "SISTEMA: LISTO" or "SISTEMA: FALLO"
-        statusLabel.TextColor3 = isFarming and C.neon or C.red
-        statusDot.BackgroundColor3 = isFarming and C.neon or C.red
+        local systemReady = Config.Enabled
+        statusLabel.Text = systemReady and "SISTEMA: LISTO" or "SISTEMA: FALLO"
+        statusLabel.TextColor3 = systemReady and C.neon or C.red
+        statusDot.BackgroundColor3 = systemReady and C.neon or C.red
         
         fpsLabel.Text = tostring(math.floor(fps))
         local col = fps >= 50 and C.neon or (fps >= 30 and C.gold or C.red)
@@ -146,7 +134,9 @@ local function createPremiumUI()
     end
 end
 
--- LÓGICA
+-- ==========================================
+-- LÓGICA DEL FARM
+-- ==========================================
 local function equipWeapon()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -160,9 +150,9 @@ local function equipWeapon()
 end
 
 local function toggleModules(state)
-    if AttackAllC then AttackAllC.Enabled = state end
-    if HitC then HitC.Enabled = state end
-    if SilentCollectC then SilentCollectC.Enabled = state end
+    if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = state end
+    if env.BF_HITBOX_CONFIG then env.BF_HITBOX_CONFIG.Enabled = state end
+    if env.BF_SILENTCOLLECT_CONFIG then env.BF_SILENTCOLLECT_CONFIG.Enabled = state end
 end
 
 local function getGameStats()
@@ -177,7 +167,7 @@ local function getGameStats()
     return diamonds, souls
 end
 
-local function startFarm(updateUI)
+local function startFarm()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -186,18 +176,18 @@ local function startFarm(updateUI)
     equipWeapon()
     task.wait(0.5)
 
-    -- 🔥 FIX: Quitar anclaje, usar BodyPosition suave
     root.Anchored = false
     hum.PlatformStand = true
-    
+
+    -- BodyPosition suave
     local bp = root:FindFirstChild("FarmBP")
     if bp then bp:Destroy() end
     bp = Instance.new("BodyPosition")
     bp.Name = "FarmBP"
     bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bp.Position = Vector3.new(FARM_X, FARM_Y + FARM_HEIGHT, FARM_Z)
-    bp.P = 10000 -- Fuerza proporcional
-    bp.D = 1000  -- Amortiguación (evita que rebote o tiemble)
+    bp.P = 10000
+    bp.D = 1000
     bp.Parent = root
 
     for _, p in ipairs(char:GetDescendants()) do
@@ -205,10 +195,11 @@ local function startFarm(updateUI)
     end
 
     toggleModules(true)
+    updateUIFunc = createPremiumUI() -- Inicia la UI
 
     if weaponLoop then task.cancel(weaponLoop) end
     weaponLoop = task.spawn(function()
-        while isFarming do
+        while Config.Enabled do
             local c = LocalPlayer.Character
             if c and not c:FindFirstChildOfClass("Tool") then equipWeapon() end
             task.wait(1)
@@ -217,7 +208,7 @@ local function startFarm(updateUI)
 
     if killTrackerCon then task.cancel(killTrackerCon) end
     killTrackerCon = task.spawn(function()
-        while isFarming do
+        while Config.Enabled do
             task.wait(0.1)
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer then
@@ -235,11 +226,11 @@ local function startFarm(updateUI)
     end)
 
     task.spawn(function()
-        while isFarming do
+        while Config.Enabled do
             task.wait(0.5)
-            if updateUI and hum then
+            if updateUIFunc and hum then
                 local d, s = getGameStats()
-                updateUI(hum.Health, hum.MaxHealth, kills, d, s, currentFps)
+                updateUIFunc(hum.Health, hum.MaxHealth, kills, d, s, currentFps)
             end
         end
     end)
@@ -262,28 +253,33 @@ local function stopFarm()
 
     toggleModules(false)
     if gui then gui:Destroy(); gui = nil end
+    updateUIFunc = nil
     if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
     if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
     playerStates = {}
 end
 
--- MAIN
-isFarming = true
-local updateUI = createPremiumUI()
-startFarm(updateUI)
-
-LocalPlayer.CharacterAdded:Connect(function()
-    if isFarming then
-        task.wait(2.5)
-        if not gui then updateUI = createPremiumUI() end
-        startFarm(updateUI)
-    end
-end)
-
+-- LOOP PRINCIPAL (Controlado por el Main.lua)
 task.spawn(function()
     while task.wait(0.5) do
-        if not isFarming and gui then
-            stopFarm()
+        if Config.Enabled then
+            if not gui then startFarm() end
+        else
+            if gui then stopFarm() end
         end
     end
 end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if Config.Enabled then
+        task.wait(2.5)
+        if not gui then startFarm() end
+    end
+end)
+
+env.__BF_PLAYERFARM_CLEANUP = function()
+    Config.Enabled = false
+    stopFarm()
+    env.BF_PLAYERFARM_CONFIG = nil
+    env.__BF_PLAYERFARM_CLEANUP = nil
+end
