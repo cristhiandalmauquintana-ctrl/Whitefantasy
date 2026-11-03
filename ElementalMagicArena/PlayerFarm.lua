@@ -1,9 +1,8 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (FIXED)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -20,7 +19,6 @@ local Config = {
 }
 env.BF_PLAYERFARM_CONFIG = Config
 
--- Coordenadas de los elementos (Tus datos)
 local ElementData = {
     ["tierra"] = {Y=-14.15,X=817.53,Z=-81.78}, ["amor"] = {Y=-14.51,X=813.64,Z=398.44},
     ["demon"] = {Y=-14.51,X=816.40,Z=459.56}, ["ilusion"] = {Y=-14.51,X=815.66,Z=238.91},
@@ -45,8 +43,8 @@ local connections = {}
 local originalHandleData = {}
 local M1Connection = nil
 local CollectConnection = nil
-local SkyPosition = CFrame.new(0, 500, 0) -- Altura en el cielo
 local farmUI = nil
+local statsLabel = nil
 
 -- 1. Interfaz de Pantalla Negra
 local function createFarmUI()
@@ -58,21 +56,19 @@ local function createFarmUI()
     farmUI.DisplayOrder = 999
     farmUI.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-    -- Fondo Negro (Cubre el juego para evitar lag)
     local bg = Instance.new("Frame")
     bg.Size = UDim2.fromScale(1, 1)
     bg.BackgroundColor3 = Color3.new(0, 0, 0)
     bg.BorderSizePixel = 0
     bg.Parent = farmUI
 
-    -- Panel de Información
     local infoFrame = Instance.new("Frame")
     infoFrame.Size = UDim2.new(1, -40, 0, 150)
     infoFrame.Position = UDim2.new(0, 20, 0, 50)
     infoFrame.BackgroundTransparency = 1
     infoFrame.Parent = farmUI
 
-    local statsLabel = Instance.new("TextLabel")
+    statsLabel = Instance.new("TextLabel")
     statsLabel.Size = UDim2.fromScale(1, 1)
     statsLabel.BackgroundTransparency = 1
     statsLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
@@ -80,10 +76,9 @@ local function createFarmUI()
     statsLabel.TextSize = 20
     statsLabel.TextXAlignment = Enum.TextXAlignment.Left
     statsLabel.TextYAlignment = Enum.TextYAlignment.Top
-    statsLabel.Text = "FROGGY FARM\nCargando..."
+    statsLabel.Text = "FROGGY FARM\nIniciando..."
     statsLabel.Parent = infoFrame
 
-    -- Botón de Detener
     local stopBtn = Instance.new("TextButton")
     stopBtn.Size = UDim2.fromOffset(200, 60)
     stopBtn.Position = UDim2.new(0.5, -100, 1, -100)
@@ -99,7 +94,6 @@ local function createFarmUI()
         Config.Enabled = false
     end)
 
-    -- Actualizar stats
     task.spawn(function()
         while Config.Enabled and farmUI and farmUI.Parent do
             local char = LocalPlayer.Character
@@ -108,24 +102,16 @@ local function createFarmUI()
                 Config.CurrentHealth = math.floor(hum.Health)
                 Config.MaxHealth = math.floor(hum.MaxHealth)
             end
-
             statsLabel.Text = string.format(
-                "FROGGY FARM ACTIVO\n\n" ..
-                "Elemento: %s\n" ..
-                "Vida: %d / %d\n" ..
-                "Players Eliminados: %d\n" ..
-                "Diamantes: %d\n" ..
-                "Souls: %d",
-                string.upper(Config.SelectedElement),
-                Config.CurrentHealth, Config.MaxHealth,
-                Config.Kills, Config.Diamonds, Config.Souls
+                "FROGGY FARM ACTIVO\n\nElemento: %s\nVida: %d / %d\nPlayers Eliminados: %d\nDiamantes: %d\nSouls: %d",
+                string.upper(Config.SelectedElement), Config.CurrentHealth, Config.MaxHealth, Config.Kills, Config.Diamonds, Config.Souls
             )
             task.wait(0.5)
         end
     end)
 end
 
--- 2. Sistema de Equipamiento y Placas
+-- 2. Forzar Equipamiento
 local function equipWeapon()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -143,6 +129,7 @@ local function equipWeapon()
     end
 end
 
+-- 3. Teletransporte a la placa al morir
 local function teleportToElement()
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
@@ -178,33 +165,16 @@ local function teleportToElement()
     end
 end
 
--- 3. Auto-Equipar al morir
-table.insert(connections, LocalPlayer.CharacterAdded:Connect(function()
-    if Config.Enabled then
-        task.wait(1.5)
-        teleportToElement()
-        task.wait(1)
-        equipWeapon()
-        task.wait(0.5)
-        
-        -- Fijar en el cielo de nuevo
-        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            root.Anchored = true
-            root.CFrame = SkyPosition
-        end
-    end
-end))
-
--- 4. Sistema de Combate (M1 + Hitbox)
+-- 4. Sistema de Combate (Fijar en el cielo de la arena + Hitbox)
 local function startCombat()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-    -- Anclar en el cielo
+    -- 🔥 FIX: Fijar 100 studs arriba de donde está la arena actual, no en 0,0,0
+    local arenaX, arenaZ = root.Position.X, root.Position.Z
     root.Anchored = true
-    root.CFrame = SkyPosition
+    root.CFrame = CFrame.new(arenaX, 100, arenaZ) -- 100 studs de altura sobre la arena
 
     -- Expandir Handle
     local tool = char:FindFirstChildOfClass("Tool")
@@ -221,23 +191,30 @@ local function startCombat()
         end
     end
 
-    -- M1 Spam
+    -- Spam M1 (Clic en el centro de la pantalla para registrar el golpe)
     if M1Connection then M1Connection:Disconnect() end
     M1Connection = task.spawn(function()
+        local camera = Workspace.CurrentCamera
         while Config.Enabled do
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool") then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChildOfClass("Tool") then
                 pcall(function()
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                    -- Clic en el centro de la pantalla
+                    local cx = camera.ViewportSize.X / 2
+                    local cy = camera.ViewportSize.Y / 2
+                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
                     task.wait(0.05)
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
                 end)
+            else
+                equipWeapon() -- Si perdió el arma, la equipa de nuevo
             end
             task.wait(0.15)
         end
     end)
 end
 
--- 5. Recolección Silenciosa y Contador
+-- 5. Recolección
 local DiamondNames = {"diamond", "gem", "coin", "cash", "drop", "reward", "loot", "money"}
 local SoulNames = {"soul", "alma"}
 
@@ -248,7 +225,6 @@ local function startCollecting()
             local char = LocalPlayer.Character
             local myRoot = char and char:FindFirstChild("HumanoidRootPart")
             if myRoot then
-                -- Diamantes
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     local name = string.lower(obj.Name)
                     if obj:IsA("BasePart") or obj:IsA("MeshPart") then
@@ -267,7 +243,6 @@ local function startCollecting()
                         end
                     end
                 end
-                -- Souls
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("ProximityPrompt") and obj.Enabled then
                         local pName = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
@@ -288,18 +263,15 @@ local function startCollecting()
     end)
 end
 
--- 6. Contador de Bajas (Kills)
-table.insert(connections, Workspace.DescendantAdded:Connect(function(obj)
-    if not Config.Enabled then return end
-    if obj:IsA("Humanoid") then
-        local player = Players:GetPlayerFromCharacter(obj.Parent)
-        if player and player ~= LocalPlayer then
-            obj.Died:Connect(function()
-                if Config.Enabled then
-                    Config.Kills = Config.Kills + 1
-                end
-            end)
-        end
+-- 6. Auto-Equipar y subir al cielo al respawnear
+table.insert(connections, LocalPlayer.CharacterAdded:Connect(function()
+    if Config.Enabled then
+        task.wait(1.5)
+        teleportToElement()
+        task.wait(1)
+        equipWeapon()
+        task.wait(0.5)
+        startCombat()
     end
 end))
 
@@ -308,27 +280,23 @@ task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
             if not farmUI then
-                -- Silenciar el juego
                 pcall(function() game:GetService("SoundService").RespectFilteringEnabled = false end)
                 for _, sound in ipairs(Workspace:GetDescendants()) do
                     if sound:IsA("Sound") then sound.Volume = 0 end
                 end
-
                 createFarmUI()
                 
                 local char = LocalPlayer.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
+                    if not char:FindFirstChildOfClass("Tool") then equipWeapon() end
                     startCombat()
                     startCollecting()
                 end
             end
         else
-            -- Limpieza y restauración
             if farmUI then farmUI:Destroy(); farmUI = nil end
             if M1Connection then task.cancel(M1Connection); M1Connection = nil end
             if CollectConnection then task.cancel(CollectConnection); CollectConnection = nil end
-            
-            -- Restaurar audio
             pcall(function() game:GetService("SoundService").RespectFilteringEnabled = true end)
 
             local char = LocalPlayer.Character
