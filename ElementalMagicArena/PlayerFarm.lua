@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ALTURA CORREGIDA)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (CENTRO DE ARENA + SIN PANTALLA NEGRA)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -19,6 +19,7 @@ local Config = {
 }
 env.BF_PLAYERFARM_CONFIG = Config
 
+-- Coordenadas exactas (por si mueres y tienes que volver a la placa)
 local ElementData = {
     ["tierra"] = {Y=-14.15,X=817.53,Z=-81.78}, ["amor"] = {Y=-14.51,X=813.64,Z=398.44},
     ["demon"] = {Y=-14.51,X=816.40,Z=459.56}, ["ilusion"] = {Y=-14.51,X=815.66,Z=238.91},
@@ -43,58 +44,49 @@ local connections = {}
 local originalHandleData = {}
 local M1Connection = nil
 local CollectConnection = nil
-local farmUI = nil
+local statsUI = nil
 local statsLabel = nil
 
+-- 1. Interfaz SIN pantalla negra (Solo texto)
 local function createFarmUI()
-    if farmUI then farmUI:Destroy() end
-    farmUI = Instance.new("ScreenGui")
-    farmUI.Name = "FroggyFarmUI"
-    farmUI.ResetOnSpawn = false
-    farmUI.IgnoreGuiInset = true
-    farmUI.DisplayOrder = 999
-    farmUI.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-    local bg = Instance.new("Frame")
-    bg.Size = UDim2.fromScale(1, 1)
-    bg.BackgroundColor3 = Color3.new(0, 0, 0)
-    bg.BorderSizePixel = 0
-    bg.Parent = farmUI
-
-    local infoFrame = Instance.new("Frame")
-    infoFrame.Size = UDim2.new(1, -40, 0, 150)
-    infoFrame.Position = UDim2.new(0, 20, 0, 50)
-    infoFrame.BackgroundTransparency = 1
-    infoFrame.Parent = farmUI
+    if statsUI then statsUI:Destroy() end
+    statsUI = Instance.new("ScreenGui")
+    statsUI.Name = "FroggyFarmStats"
+    statsUI.ResetOnSpawn = false
+    statsUI.IgnoreGuiInset = true
+    statsUI.DisplayOrder = 999
+    statsUI.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
     statsLabel = Instance.new("TextLabel")
-    statsLabel.Size = UDim2.fromScale(1, 1)
+    statsLabel.Size = UDim2.new(1, -40, 0, 150)
+    statsLabel.Position = UDim2.new(0, 20, 0, 50)
     statsLabel.BackgroundTransparency = 1
     statsLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
     statsLabel.Font = Enum.Font.GothamBold
-    statsLabel.TextSize = 20
+    statsLabel.TextSize = 18
     statsLabel.TextXAlignment = Enum.TextXAlignment.Left
     statsLabel.TextYAlignment = Enum.TextYAlignment.Top
     statsLabel.Text = "FROGGY FARM\nIniciando..."
-    statsLabel.Parent = infoFrame
+    statsLabel.Parent = statsUI
 
+    -- Botón pequeño para detener
     local stopBtn = Instance.new("TextButton")
-    stopBtn.Size = UDim2.fromOffset(200, 60)
-    stopBtn.Position = UDim2.new(0.5, -100, 1, -100)
+    stopBtn.Size = UDim2.fromOffset(120, 40)
+    stopBtn.Position = UDim2.new(1, -140, 1, -60)
     stopBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     stopBtn.TextColor3 = Color3.new(1, 1, 1)
     stopBtn.Font = Enum.Font.GothamBlack
-    stopBtn.TextSize = 24
-    stopBtn.Text = "DETENER FARMEO"
-    stopBtn.Parent = farmUI
-    Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 12)
+    stopBtn.TextSize = 14
+    stopBtn.Text = "DETENER FARM"
+    stopBtn.Parent = statsUI
+    Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
     stopBtn.MouseButton1Click:Connect(function()
         Config.Enabled = false
     end)
 
     task.spawn(function()
-        while Config.Enabled and farmUI and farmUI.Parent do
+        while Config.Enabled and statsUI and statsUI.Parent do
             local char = LocalPlayer.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if hum then
@@ -102,7 +94,7 @@ local function createFarmUI()
                 Config.MaxHealth = math.floor(hum.MaxHealth)
             end
             statsLabel.Text = string.format(
-                "FROGGY FARM ACTIVO\n\nElemento: %s\nVida: %d / %d\nPlayers Eliminados: %d\nDiamantes: %d\nSouls: %d",
+                "FROGGY FARM\n\nElemento: %s\nVida: %d / %d\nPlayers: %d\nDiamantes: %d\nSouls: %d",
                 string.upper(Config.SelectedElement), Config.CurrentHealth, Config.MaxHealth, Config.Kills, Config.Diamonds, Config.Souls
             )
             task.wait(0.5)
@@ -167,10 +159,15 @@ local function startCombat()
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-    -- 🔥 FIX: Subir solo 25 studs desde donde estás parado en la arena
-    local currentX, currentY, currentZ = root.Position.X, root.Position.Y, root.Position.Z
+    -- 🔥 FIX: Teletransportar al CENTRO EXACTO de la arena
+    -- X=815 y Z=200 es el medio de todas las islas.
     root.Anchored = true
-    root.CFrame = CFrame.new(currentX, currentY + 25, currentZ)
+    root.CFrame = CFrame.new(815, 40, 200) -- X, Y(Altura), Z
+
+    -- Invisibilidad local para que no te moleste en la pantalla
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then part.LocalTransparencyModifier = 1 end
+    end
 
     -- Expandir Handle
     local tool = char:FindFirstChildOfClass("Tool")
@@ -284,13 +281,8 @@ end))
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
-            if not farmUI then
-                pcall(function() game:GetService("SoundService").RespectFilteringEnabled = false end)
-                for _, sound in ipairs(Workspace:GetDescendants()) do
-                    if sound:IsA("Sound") then sound.Volume = 0 end
-                end
+            if not statsUI then
                 createFarmUI()
-                
                 local char = LocalPlayer.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
                     if not char:FindFirstChildOfClass("Tool") then equipWeapon() end
@@ -299,14 +291,20 @@ task.spawn(function()
                 end
             end
         else
-            if farmUI then farmUI:Destroy(); farmUI = nil end
+            if statsUI then statsUI:Destroy(); statsUI = nil end
             if M1Connection then task.cancel(M1Connection); M1Connection = nil end
             if CollectConnection then task.cancel(CollectConnection); CollectConnection = nil end
-            pcall(function() game:GetService("SoundService").RespectFilteringEnabled = true end)
 
             local char = LocalPlayer.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if root then root.Anchored = false end
+            
+            -- Restaurar visibilidad
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then part.LocalTransparencyModifier = 0 end
+                end
+            end
 
             local tool = char and char:FindFirstChildOfClass("Tool")
             if tool then
