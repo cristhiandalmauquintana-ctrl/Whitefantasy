@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (SOLO ENERGÍA - FIX HANDLER)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -14,6 +14,9 @@ local Config = {
 }
 env.BF_PLAYERFARM_CONFIG = Config
 
+-- 🔥 COORDENADAS HARDCODEADAS DE ENERGÍA
+local ENERGY_POS = Vector3.new(816.06, -14.51, 37.42)
+-- Coordenadas del cielo (Centro de la arena)
 local FARM_X = 1451.5
 local FARM_Y = -115.1
 local FARM_Z = 85.7
@@ -25,7 +28,6 @@ local fpsCon = nil
 local uiLoop = nil
 local weaponLoop = nil
 local killTrackerCon = nil
-local soulLoop = nil
 local charAddedCon = nil
 local mainLoopCon = nil
 
@@ -34,7 +36,7 @@ local playerStates = {}
 local currentFps = 60
 
 -- ==========================================
--- UI PREMIUM (CON SLIDER DE TRANSPARENCIA)
+-- UI PREMIUM (CON SLIDER)
 -- ==========================================
 local function createPremiumUI()
     if gui then gui:Destroy(); gui = nil end
@@ -63,10 +65,8 @@ local function createPremiumUI()
 
     gui = make("ScreenGui", { Name = "FarmUI_Premium", ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 99999 })
 
-    -- PANTALLA NEGRA (Le damos un nombre para controlarla)
     local blackScreen = make("Frame", { Name = "BlackScreen", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 1, Parent = gui })
 
-    -- FPS
     local fpsBox = make("Frame", { Size = UDim2.fromOffset(92, 30), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 10), BackgroundColor3 = C.bg, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 2, Parent = gui }, {corner(8), stroke(C.neon, 1.2, 0.2)})
     local signal = make("Frame", { Size = UDim2.fromOffset(18, 14), Position = UDim2.new(0, 9, 0.5, -7), BackgroundTransparency = 1, ZIndex = 2, Parent = fpsBox })
     local sigBars = {}
@@ -74,26 +74,22 @@ local function createPremiumUI()
     local fpsLabel = make("TextLabel", { Size = UDim2.new(1, -34, 1, 0), Position = UDim2.fromOffset(30, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "60", TextSize = 15, TextColor3 = C.neon, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2, Parent = fpsBox })
     make("TextLabel", { Size = UDim2.new(0, 24, 1, 0), Position = UDim2.new(1, -28, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "FPS", TextSize = 9, TextColor3 = C.dim, ZIndex = 2, Parent = fpsBox })
 
-    -- PANEL PRINCIPAL (Ajustamos la altura a 340 para meter el slider)
     local panel = make("Frame", { Name = "Panel", Size = UDim2.fromOffset(250, 340), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.panel, BackgroundTransparency = 0.18, BorderSizePixel = 0, ZIndex = 3, Parent = gui }, {corner(14), gradient(Color3.fromRGB(34, 34, 44), Color3.fromRGB(10, 10, 14), 135)})
     local panelStroke = stroke(C.neon, 1.8, 0.1); panelStroke.Parent = panel
     make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = panel })
-    make("TextLabel", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "PLAYER FARM", TextSize = 16, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel }, {gradient(C.neon, C.gold, 0)})
+    make("TextLabel", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "PLAYER FARM (ENERGY)", TextSize = 16, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel }, {gradient(C.neon, C.gold, 0)})
     make("Frame", { Size = UDim2.new(1, 0, 0, 2), Position = UDim2.fromOffset(0, 24), BackgroundColor3 = C.gold, BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(1), make("UIGradient", { Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)})})})
 
-    -- ARMA
     local statusBox = make("Frame", { Name = "Status", Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 34), BackgroundColor3 = C.card, BackgroundTransparency = 0.2, BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(8)})
     local statusStroke = stroke(C.neon, 1.2, 0.3); statusStroke.Parent = statusBox
     local statusDot = make("Frame", { Size = UDim2.fromOffset(8, 8), Position = UDim2.new(0, 10, 0.5, -4), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 3, Parent = statusBox }, {make("UICorner", {CornerRadius = UDim.new(1, 0)})})
     local statusLabel = make("TextLabel", { Size = UDim2.new(1, -28, 1, 0), Position = UDim2.fromOffset(24, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, Text = "SISTEMA: LISTO", TextSize = 12, TextColor3 = C.neon, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = statusBox })
 
-    -- VIDA
     local hpLabel = make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 72), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "HP: 100/100", TextSize = 13, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
     local hpTrack = make("Frame", { Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(0, 92), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 3, Parent = panel }, {corner(7), stroke(Color3.fromRGB(60, 60, 70), 1, 0.2)})
     local hpFill = make("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 3, Parent = hpTrack }, {corner(7)})
     local hpGradient = make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(30, 200, 90), C.neon), Rotation = 0, Parent = hpFill })
 
-    -- STATS
     local grid = make("Frame", { Size = UDim2.new(1, 0, 0, 62), Position = UDim2.fromOffset(0, 118), BackgroundTransparency = 1, ZIndex = 3, Parent = panel }, {make("UIGridLayout", { CellSize = UDim2.new(0.333, -6, 1, 0), CellPadding = UDim2.fromOffset(8, 0), SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal })})
     local function makeCard(order, title, accent)
         local card = make("Frame", { LayoutOrder = order, BackgroundColor3 = C.card, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 3, Parent = grid }, {corner(10), stroke(accent, 1.3, 0.35), gradient(Color3.fromRGB(40, 40, 50), Color3.fromRGB(20, 20, 26), 90)})
@@ -104,55 +100,38 @@ local function createPremiumUI()
     local diamondsValue = makeCard(2, "DIAMANTES", C.blue)
     local soulsValue    = makeCard(3, "SOULS", C.gold)
 
-    -- 🔥 SLIDER DE TRANSPARENCIA (CYBERPUNK)
-    local sliderTitle = make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 192), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "OPACIDAD DEL FONDO", TextSize = 10, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
-    
+    -- SLIDER
+    make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 192), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "OPACIDAD DEL FONDO", TextSize = 10, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
     local sliderTrack = make("Frame", { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.fromOffset(0, 215), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(5), stroke(Color3.fromRGB(60, 60, 70), 1, 0.2)})
     local sliderFill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 4, Parent = sliderTrack }, {corner(5)})
-    local fillGrad = make("UIGradient", { Color = ColorSequence.new(C.gold, C.neon), Rotation = 0, Parent = sliderFill })
-    
+    make("UIGradient", { Color = ColorSequence.new(C.gold, C.neon), Rotation = 0, Parent = sliderFill })
     local sliderKnob = make("Frame", { Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, 0, 0.5, 0), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0, ZIndex = 5, Parent = sliderTrack }, {make("UICorner", {CornerRadius = UDim.new(1, 0)})})
-    local knobStroke = stroke(C.neon, 2, 0); knobStroke.Parent = sliderKnob
+    stroke(C.neon, 2, 0).Parent = sliderKnob
 
-    -- Lógica para arrastrar el slider
     local draggingSlider = false
     local function updateSlider(input)
         local trackPos = sliderTrack.AbsolutePosition.X
         local trackSize = sliderTrack.AbsoluteSize.X
         local xPos = math.clamp((input.Position.X - trackPos) / trackSize, 0, 1)
-        
-        -- Actualizar UI
         sliderFill.Size = UDim2.fromScale(xPos, 1)
         sliderKnob.Position = UDim2.fromScale(xPos, 0.5)
-        
-        -- Actualizar Transparencia (0 = opaco, 0.95 = casi invisible)
         blackScreen.BackgroundTransparency = xPos * 0.95
     end
-
     sliderTrack.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            draggingSlider = true
-            updateSlider(input)
+            draggingSlider = true; updateSlider(input)
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
-        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            updateSlider(input)
-        end
+        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateSlider(input) end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            draggingSlider = false
-        end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingSlider = false end
     end)
 
-    -- BOTÓN DETENER
     local actionBtn = make("TextButton", { Name = "StopButton", Size = UDim2.new(1, 0, 0, 44), Position = UDim2.new(0, 0, 1, -44), BackgroundColor3 = C.red, AutoButtonColor = false, Font = Enum.Font.GothamBlack, Text = "DETENER FARMEO", TextSize = 15, TextColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(10), gradient(Color3.fromRGB(255, 70, 80), C.redDark, 90)})
-    local btnStroke = stroke(Color3.fromRGB(255, 120, 120), 1.8, 0.1); btnStroke.Parent = actionBtn
-
-    actionBtn.MouseButton1Click:Connect(function()
-        Config.Enabled = false 
-    end)
+    stroke(Color3.fromRGB(255, 120, 120), 1.8, 0.1).Parent = actionBtn
+    actionBtn.MouseButton1Click:Connect(function() Config.Enabled = false end)
 
     local frames, lastT = 0, os.clock()
     fpsCon = RunService.RenderStepped:Connect(function()
@@ -165,12 +144,9 @@ local function createPremiumUI()
 
     return function(hp, maxHp, k, d, s, fps)
         maxHp = math.max(maxHp or 100, 1); hp = math.clamp(hp or 0, 0, maxHp)
-        local pct = hp / maxHp
         hpLabel.Text = string.format("HP: %d/%d", math.floor(hp), math.floor(maxHp))
-        tween(hpFill, 0.3, {Size = UDim2.new(pct, 0, 1, 0)})
-        killsValue.Text = tostring(k)
-        diamondsValue.Text = tostring(d)
-        soulsValue.Text = tostring(s)
+        tween(hpFill, 0.3, {Size = UDim2.new(hp / maxHp, 0, 1, 0)})
+        killsValue.Text = tostring(k); diamondsValue.Text = tostring(d); soulsValue.Text = tostring(s)
         
         local systemReady = Config.Enabled
         statusLabel.Text = systemReady and "SISTEMA: LISTO" or "SISTEMA: FALLO"
@@ -178,13 +154,12 @@ local function createPremiumUI()
         statusDot.BackgroundColor3 = systemReady and C.neon or C.red
         
         fpsLabel.Text = tostring(math.floor(fps))
-        local col = fps >= 50 and C.neon or (fps >= 30 and C.gold or C.red)
-        fpsLabel.TextColor3 = col
+        fpsLabel.TextColor3 = fps >= 50 and C.neon or (fps >= 30 and C.gold or C.red)
     end
 end
 
 -- ==========================================
--- LÓGICA DEL FARM
+-- LÓGICA DEL FARM (SOLO ENERGÍA)
 -- ==========================================
 local function equipWeapon()
     local char = LocalPlayer.Character
@@ -193,7 +168,10 @@ local function equipWeapon()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if backpack then
         for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then pcall(function() hum:EquipTool(tool) end); break end
+            if tool:IsA("Tool") then 
+                pcall(function() hum:EquipTool(tool) end)
+                break 
+            end
         end
     end
 end
@@ -216,10 +194,39 @@ local function getGameStats()
     return diamonds, souls
 end
 
+local function teleportToEnergy()
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    myRoot.CFrame = CFrame.new(ENERGY_POS + Vector3.new(0, 3, 0))
+    myRoot.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.5)
+
+    local tpsFolder = Workspace:FindFirstChild("TPS")
+    if tpsFolder then
+        local closestTele, shortestDist = nil, math.huge
+        for _, obj in ipairs(tpsFolder:GetDescendants()) do
+            if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
+                local dist = (obj.Position - ENERGY_POS).Magnitude
+                if dist < shortestDist then shortestDist = dist; closestTele = obj end
+            end
+        end
+        if closestTele then
+            local success = false
+            if getconnections then
+                for _, conn in pairs(getconnections(closestTele.Touched)) do
+                    if conn.Enabled then pcall(function() conn:Fire(myRoot) success = true end) end
+                end
+            end
+            if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
+        end
+    end
+end
+
 local function startFarm()
     if weaponLoop then task.cancel(weaponLoop) end
     if killTrackerCon then task.cancel(killTrackerCon) end
-    if soulLoop then task.cancel(soulLoop) end
     if uiLoop then task.cancel(uiLoop) end
 
     local char = LocalPlayer.Character
@@ -227,9 +234,9 @@ local function startFarm()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
+    -- Forzar arma y subir al cielo
     equipWeapon()
     task.wait(0.5)
-
     root.Anchored = false
     hum.PlatformStand = true
 
@@ -250,14 +257,18 @@ local function startFarm()
     toggleModules(true)
     updateUIFunc = createPremiumUI()
 
+    -- Weapon Loop: Forzar el arma SIEMPRE
     weaponLoop = task.spawn(function()
         while Config.Enabled do
             local c = LocalPlayer.Character
-            if c and not c:FindFirstChildOfClass("Tool") then equipWeapon() end
+            if c and not c:FindFirstChildOfClass("Tool") then 
+                equipWeapon() 
+            end
             task.wait(1)
         end
     end)
 
+    -- Kill Tracker
     killTrackerCon = task.spawn(function()
         while Config.Enabled do
             task.wait(0.1)
@@ -276,34 +287,7 @@ local function startFarm()
         end
     end)
 
-    soulLoop = task.spawn(function()
-        while Config.Enabled do
-            task.wait(1) 
-            if not Config.Enabled then break end
-            local c = LocalPlayer.Character
-            local r = c and c:FindFirstChild("HumanoidRootPart")
-            local b = r and r:FindFirstChild("FarmBP")
-            if r and b then
-                for _, obj in ipairs(Workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") and obj.Enabled then
-                        local name = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
-                        if (string.find(name, "soul") or string.find(name, "alma")) and not string.find(name, "shop") then
-                            local part = obj.Parent
-                            if part and part:IsA("BasePart") then
-                                b.Position = part.Position
-                                task.wait(0.15)
-                                pcall(function() fireproximityprompt(obj) end)
-                                task.wait(0.1)
-                                b.Position = Vector3.new(FARM_X, FARM_Y + FARM_HEIGHT, FARM_Z)
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
+    -- UI Loop
     uiLoop = task.spawn(function()
         while Config.Enabled do
             task.wait(0.5)
@@ -324,10 +308,7 @@ local function stopFarm()
     toggleModules(false)
     
     if root then
-        local bp = root:FindFirstChild("FarmBP")
-        if bp then bp:Destroy() end
-        
-        -- FIX DEL FLING: Bajar al suelo suavemente
+        local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
         root.Anchored = true 
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
@@ -335,11 +316,7 @@ local function stopFarm()
         root.Anchored = false
     end
     
-    if hum then 
-        hum.PlatformStand = false 
-        hum.Sit = false
-    end
-    
+    if hum then hum.PlatformStand = false; hum.Sit = false end
     if char then
         for _, p in ipairs(char:GetDescendants()) do
             if p:IsA("BasePart") then p.LocalTransparencyModifier = 0 end
@@ -352,15 +329,24 @@ local function stopFarm()
     if uiLoop then task.cancel(uiLoop); uiLoop = nil end
     if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
     if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
-    if soulLoop then task.cancel(soulLoop); soulLoop = nil end
     
     playerStates = {}
 end
 
+-- ==========================================
+-- CONEXIONES DE RESPAWN (SOLO ENERGÍA)
+-- ==========================================
 if charAddedCon then charAddedCon:Disconnect() end
 charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
-        task.wait(2.5)
+        task.wait(2)
+        -- Ir a la placa de energía
+        teleportToEnergy()
+        task.wait(1)
+        -- Equipar el arma
+        equipWeapon()
+        task.wait(1)
+        -- Volver al cielo
         startFarm()
     end
 end)
