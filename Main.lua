@@ -1,234 +1,367 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Energy Farm Update)
-local GITHUB_USER = "cristhiandalmauquintana-ctrl"
-local GITHUB_REPO = "Whitefantasy"
-local BRANCH = "main"
-local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
-
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (RESET ON FIRST ACTIVATION)
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+
 local env = (getgenv and getgenv()) or _G
+if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
+
+local Config = { Enabled = false }
+env.BF_PLAYERFARM_CONFIG = Config
+
+local ENERGY_POS = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
+local FARM_X = 1451.5
+local FARM_Y = -115.1
+local FARM_Z = 85.7
+local FARM_HEIGHT = 50
+
+local gui = nil
+local updateUIFunc = nil
+local fpsCon = nil
+local uiLoop = nil
+local weaponLoop = nil
+local killTrackerCon = nil
+local charAddedCon = nil
+local mainLoopCon = nil
+local isResetting = false -- 🔥 Bandera para evitar reinicios múltiples
+
+local kills = 0
+local playerStates = {}
+local currentFps = 60
 
 -- ==========================================
--- 1. SISTEMA INTELIGENTE DE IDIOMAS
+-- UI PREMIUM
 -- ==========================================
-local Translations = {
-    ["es"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Energy Farm",
-        tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_config = "CONFIG",
-        rejoin = "RECONECTAR SERVIDOR", auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1",
-        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "TAMAÑO HITBOX (PELIGRO)",
-        god_mode = "MODO DIOS", attack_all = "ATTACK ALL (AUTO)", 
-        attack_all_warn = "¡IMPORTANTE! El Attack All equipará automáticamente este elemento al morir.", 
-        attack_all_notify = "Recuerda usar la Guadaña para máximo daño.",
-        select_element = "SELECCIONA TU ELEMENTO",
-        esp = "ESP JUGADORES", boxes = "CAJAS 2D", tracers = "TRACERS", health = "BARRA DE VIDA",
-        speed = "SPEED HACK", speed_val = "VELOCIDAD", jump = "SUPER JUMP", jump_val = "ALTURA DE SALTO",
-        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Fija al jugador en el cielo y ataca automáticamente usando Energía.",
-        silent_collect = "AUTO-RECOLECCIÓN SILENCIOSA",
-        dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA DE PRUEBAS", unlock = "DESBLOQUEAR PRUEBA", destroy_ui = "DESTRUIR UI", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar."
-    },
-    ["en"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Energy Farm",
-        tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_config = "CONFIG",
-        rejoin = "REJOIN SERVER", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
-        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "HITBOX SIZE (DANGER)",
-        god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
-        attack_all_warn = "IMPORTANT! Attack All will auto-equip this element upon death.", 
-        attack_all_notify = "Remember to use the Scythe for max damage.",
-        select_element = "SELECT YOUR ELEMENT",
-        esp = "PLAYER ESP", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
-        speed = "SPEED HACK", speed_val = "SPEED", jump = "SUPER JUMP", jump_val = "JUMP POWER",
-        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Anchors player in the sky and attacks automatically using Energy.",
-        silent_collect = "SILENT AUTO-COLLECT",
-        dev_zone = "DEVELOPER ZONE", pass = "TEST PASSWORD", unlock = "UNLOCK TEST", destroy_ui = "DESTROY UI", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute."
-    },
-    ["fil"] = {
-        title = "FROGGY HUB", subtitle = "Elemental Arena | Energy Farm",
-        tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_farm = "AUTO FARM", tab_config = "KONFIG",
-        rejoin = "SUMALI ULIT", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
-        hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX",
-        god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
-        attack_all_warn = "MAHALAGA! Awtomatikong i-e-equip ang elementong ito kapag namatay.", 
-        attack_all_notify = "Tandaan na gumamit ng Scythe para sa max damage.",
-        select_element = "PUMILI NG ELEMENTO",
-        esp = "ESP NG PLAYERS", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
-        speed = "SPEED HACK", speed_val = "BILIS", jump = "SUPER JUMP", jump_val = "TAAS NG TALON",
-        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Inaayos ang player sa langit at awtomatikong umaatake gamit ang Energy.",
-        silent_collect = "SILENT AUTO-COLLECT",
-        dev_zone = "DEV ZONE", pass = "PASSWORD", unlock = "I-UNLOCK", destroy_ui = "IRISAN ANG UI", lang_sel = "PALITAN ANG WIKA", lang_desc = "Pumili ng wika at i-execute ulit."
+local function createPremiumUI()
+    if gui then gui:Destroy(); gui = nil end
+    if fpsCon then fpsCon:Disconnect(); fpsCon = nil end
+    local parent = (gethui and gethui()) or game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+
+    local C = {
+        bg = Color3.fromRGB(12, 12, 16), panel = Color3.fromRGB(22, 22, 28),
+        card = Color3.fromRGB(30, 30, 38), neon = Color3.fromRGB(57, 255, 120),
+        gold = Color3.fromRGB(255, 200, 40), red = Color3.fromRGB(255, 50, 60),
+        redDark = Color3.fromRGB(150, 20, 30), text = Color3.fromRGB(235, 235, 240),
+        dim = Color3.fromRGB(130, 130, 145), blue = Color3.fromRGB(80, 200, 255),
     }
-}
-
-local function getSystemLanguage()
-    local locale = "en"
-    pcall(function()
-        local id = LocalPlayer.LocaleId:lower()
-        if id:find("es") then locale = "es"
-        elseif id:find("fil") or id:find("tl") then locale = "fil"
-        else locale = "en" end
-    end)
-    return locale
-end
-
-local currentLang = getSystemLanguage()
-if isfile and readfile then
-    local ok, savedLang = pcall(function() return readfile("FroggyLang.txt") end)
-    if ok and Translations[savedLang] then currentLang = savedLang end
-end
-
-local function L(key) return Translations[currentLang][key] or Translations["en"][key] or key end
-
-local SharedElements = {
-    "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
-    "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", 
-    "aurora", "fenix", "caos", "tecnología", "diamante", "amor", "demon", 
-    "ilusion", "campos de fuerza", "relampago", "telequinesis", "life", "mirror", 
-    "time", "sueño", "creacion", "espacio", "realidad", "dios de elementos"
-}
-
--- ==========================================
--- 2. CARGAMOS DISEÑO Y ASSETS
--- ==========================================
-local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua"))()
-local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua"))()
-
-local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle") })
-Assets.Extend(Window)
-
--- 3. CREAMOS LAS PESTAÑAS
-local TabMain = Window:CreateTab(L("tab_main"))
-local TabCombat = Window:CreateTab(L("tab_combat"))
-local TabVisual = Window:CreateTab(L("tab_visual"))
-local TabMovement = Window:CreateTab(L("tab_movement"))
-local TabFarm = Window:CreateTab(L("tab_farm"))
-local TabConfig = Window:CreateTab(L("tab_config"))
-
--- ==========================================
--- 4. DESCARGA DE MÓDULOS
--- ==========================================
-local folder = "ElementalMagicArena/"
-
-local function download(name, key)
-    local url = ROOT .. folder .. name .. "?v=" .. os.time()
-    local ok, res = pcall(game.HttpGet, game, url)
-    if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
-        local fnOk, fn = pcall(loadstring, res)
-        if fnOk and type(fn) == "function" then pcall(fn) end
-    else
-        warn("❌ Could not download " .. name)
+    local function make(class, props, children)
+        local inst = Instance.new(class)
+        for k, v in pairs(props) do inst[k] = v end
+        if children then for _, c in ipairs(children) do c.Parent = inst end end
+        return inst
     end
-    task.wait(0.1)
-    return env[key] or _G[key]
-end
+    local function corner(r) return make("UICorner", {CornerRadius = UDim.new(0, r)}) end
+    local function stroke(c, t, tr) return make("UIStroke", {Color = c, Thickness = t or 1.5, Transparency = tr or 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}) end
+    local function gradient(c1, c2, rot) return make("UIGradient", {Color = ColorSequence.new(c1, c2), Rotation = rot or 90}) end
+    local function tween(obj, t, props, style, dir) local tw = TweenService:Create(obj, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), props); tw:Play(); return tw end
 
-local CombC = download("AutoCombat.lua", "BF_COMBAT_CONFIG")
-local EspC = download("EspElemental.lua", "BF_ESP_CONFIG")
-local HitC = download("HitboxExpander.lua", "BF_HITBOX_CONFIG")
-local MoveC = download("Movement.lua", "BF_MOVE_CONFIG")
-local AttackAllC = download("AttackAll.lua", "BF_ATTACKALL_CONFIG")
-local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
-local FarmC = download("PlayerFarm.lua", "BF_PLAYERFARM_CONFIG")
-
--- ==========================================
--- 5. CONECTAMOS LOS BOTONES A LA UI
--- ==========================================
-
--- === MAIN ===
-TabMain:AddButton(L("rejoin"), function()
-    game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
-end)
-
--- === COMBAT ===
-if CombC then
-    TabCombat:AddToggle(L("auto_combat"), CombC.Enabled, function(state) CombC.Enabled = state end)
-    TabCombat:AddSlider(L("m1_delay"), 0.1, 1.0, CombC.M1Delay or 0.3, function(val) CombC.M1Delay = val end)
-end
-
-local hitboxSlider = nil
-if HitC then
-    TabCombat:AddToggle(L("hitbox"), HitC.Enabled, function(state) HitC.Enabled = state end)
-    hitboxSlider = TabCombat:AddSliderEx(L("hitbox_size"), 35, 500, 35, function(val) HitC.Size = val end, "lily")
-    if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = false end
-end
-
-if AttackAllC then
-    TabCombat:AddSection(L("god_mode"))
-    TabCombat:AddToggle(L("attack_all"), AttackAllC.Enabled, function(state)
-        AttackAllC.Enabled = state
-        if state then Assets.Notify({Title = L("god_mode"), Text = L("attack_all_notify"), Type = "warn"}) end
-    end)
+    gui = make("ScreenGui", { Name = "FarmUI_Premium", ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 99999 })
+    local blackScreen = make("Frame", { Name = "BlackScreen", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 1, Parent = gui })
     
-    TabCombat:AddDropdown(L("select_element"), SharedElements, AttackAllC.SelectedElement, function(val)
-        AttackAllC.SelectedElement = val
-        Assets.Notify({Title = "Element Selected", Text = val, Type = "success"})
-    end)
-    
-    TabCombat:AddInfo(L("attack_all_warn"), "danger")
-end
+    -- FPS
+    local fpsBox = make("Frame", { Size = UDim2.fromOffset(92, 30), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 10), BackgroundColor3 = C.bg, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 2, Parent = gui }, {corner(8), stroke(C.neon, 1.2, 0.2)})
+    local signal = make("Frame", { Size = UDim2.fromOffset(18, 14), Position = UDim2.new(0, 9, 0.5, -7), BackgroundTransparency = 1, ZIndex = 2, Parent = fpsBox })
+    local sigBars = {}
+    for i = 1, 4 do sigBars[i] = make("Frame", { Size = UDim2.fromOffset(3, 3 + (i * 2.75)), AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, (i - 1) * 5, 1, 0), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 2, Parent = signal }, {corner(1)}) end
+    local fpsLabel = make("TextLabel", { Size = UDim2.new(1, -34, 1, 0), Position = UDim2.fromOffset(30, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "60", TextSize = 15, TextColor3 = C.neon, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2, Parent = fpsBox })
+    make("TextLabel", { Size = UDim2.new(0, 24, 1, 0), Position = UDim2.new(1, -28, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "FPS", TextSize = 9, TextColor3 = C.dim, ZIndex = 2, Parent = fpsBox })
 
--- === VISUAL ===
-if EspC then
-    TabVisual:AddToggle(L("esp"), EspC.Enabled, function(state) EspC.Enabled = state end)
-    TabVisual:AddToggle(L("boxes"), EspC.Boxes, function(state) EspC.Boxes = state end)
-    TabVisual:AddToggle(L("tracers"), EspC.Tracers, function(state) EspC.Tracers = state end)
-    TabVisual:AddToggle(L("health"), EspC.HealthBar, function(state) EspC.HealthBar = state end)
-end
+    -- PANEL
+    local panel = make("Frame", { Name = "Panel", Size = UDim2.fromOffset(250, 340), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.panel, BackgroundTransparency = 0.18, BorderSizePixel = 0, ZIndex = 3, Parent = gui }, {corner(14), gradient(Color3.fromRGB(34, 34, 44), Color3.fromRGB(10, 10, 14), 135)})
+    local panelStroke = stroke(C.neon, 1.8, 0.1); panelStroke.Parent = panel
+    make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = panel })
+    make("TextLabel", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "PLAYER FARM (ENERGY)", TextSize = 16, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel }, {gradient(C.neon, C.gold, 0)})
+    make("Frame", { Size = UDim2.new(1, 0, 0, 2), Position = UDim2.fromOffset(0, 24), BackgroundColor3 = C.gold, BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(1), make("UIGradient", { Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)})})})
 
--- === MOVEMENT ===
-if MoveC then
-    TabMovement:AddToggle(L("speed"), MoveC.SpeedEnabled, function(state) MoveC.SpeedEnabled = state end)
-    TabMovement:AddSlider(L("speed_val"), 16, 200, MoveC.Speed or 60, function(val) MoveC.Speed = val end)
-    TabMovement:AddToggle(L("jump"), MoveC.JumpEnabled, function(state) MoveC.JumpEnabled = state end)
-    TabMovement:AddSlider(L("jump_val"), 50, 300, MoveC.JumpPower or 100, function(val) MoveC.JumpPower = val end)
-end
+    -- STATUS
+    local statusBox = make("Frame", { Name = "Status", Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 34), BackgroundColor3 = C.card, BackgroundTransparency = 0.2, BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(8)})
+    local statusStroke = stroke(C.neon, 1.2, 0.3); statusStroke.Parent = statusBox
+    local statusDot = make("Frame", { Size = UDim2.fromOffset(8, 8), Position = UDim2.new(0, 10, 0.5, -4), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 3, Parent = statusBox }, {make("UICorner", {CornerRadius = UDim.new(1, 0)})})
+    local statusLabel = make("TextLabel", { Size = UDim2.new(1, -28, 1, 0), Position = UDim2.fromOffset(24, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, Text = "SISTEMA: LISTO", TextSize = 12, TextColor3 = C.neon, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = statusBox })
 
--- === AUTO FARM (SOLO ENERGÍA) ===
-if FarmC then
-    TabFarm:AddSection("AUTO FARM")
-    TabFarm:AddToggle(L("farm_players"), FarmC.Enabled, function(state)
-        FarmC.Enabled = state
-        if state then 
-            Assets.Notify({Title = "Farm", Text = "Farmeo Iniciado en Energía.", Type = "success"})
-        else 
-            Assets.Notify({Title = "Farm", Text = "Farmeo Detenido.", Type = "warn"}) 
+    -- HP
+    local hpLabel = make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 72), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "HP: 100/100", TextSize = 13, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
+    local hpTrack = make("Frame", { Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(0, 92), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 3, Parent = panel }, {corner(7), stroke(Color3.fromRGB(60, 60, 70), 1, 0.2)})
+    local hpFill = make("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 3, Parent = hpTrack }, {corner(7)})
+    make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(30, 200, 90), C.neon), Rotation = 0, Parent = hpFill })
+
+    -- GRID
+    local grid = make("Frame", { Size = UDim2.new(1, 0, 0, 62), Position = UDim2.fromOffset(0, 118), BackgroundTransparency = 1, ZIndex = 3, Parent = panel }, {make("UIGridLayout", { CellSize = UDim2.new(0.333, -6, 1, 0), CellPadding = UDim2.fromOffset(8, 0), SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal })})
+    local function makeCard(order, title, accent)
+        local card = make("Frame", { LayoutOrder = order, BackgroundColor3 = C.card, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 3, Parent = grid }, {corner(10), stroke(accent, 1.3, 0.35), gradient(Color3.fromRGB(40, 40, 50), Color3.fromRGB(20, 20, 26), 90)})
+        make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 6), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = title, TextSize = 10, TextColor3 = C.dim, ZIndex = 3, Parent = card })
+        return make("TextLabel", { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 24), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, Text = "0", TextSize = 20, TextColor3 = accent, ZIndex = 3, Parent = card })
+    end
+    local killsValue    = makeCard(1, "KILLS", C.red)
+    local diamondsValue = makeCard(2, "DIAMANTES", C.blue)
+    local soulsValue    = makeCard(3, "SOULS", C.gold)
+
+    -- SLIDER
+    make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 192), BackgroundTransparency = 1, Font = Enum.Font.Code, Text = "OPACIDAD DEL FONDO", TextSize = 10, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = panel })
+    local sliderTrack = make("Frame", { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.fromOffset(0, 215), BackgroundColor3 = Color3.fromRGB(8, 8, 10), BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(5), stroke(Color3.fromRGB(60, 60, 70), 1, 0.2)})
+    local sliderFill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.neon, BorderSizePixel = 0, ZIndex = 4, Parent = sliderTrack }, {corner(5)})
+    make("UIGradient", { Color = ColorSequence.new(C.gold, C.neon), Rotation = 0, Parent = sliderFill })
+    local sliderKnob = make("Frame", { Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, 0, 0.5, 0), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0, ZIndex = 5, Parent = sliderTrack }, {make("UICorner", {CornerRadius = UDim.new(1, 0)})})
+    stroke(C.neon, 2, 0).Parent = sliderKnob
+
+    local draggingSlider = false
+    local function updateSlider(input)
+        local trackPos = sliderTrack.AbsolutePosition.X
+        local trackSize = sliderTrack.AbsoluteSize.X
+        local xPos = math.clamp((input.Position.X - trackPos) / trackSize, 0, 1)
+        sliderFill.Size = UDim2.fromScale(xPos, 1)
+        sliderKnob.Position = UDim2.fromScale(xPos, 0.5)
+        blackScreen.BackgroundTransparency = xPos * 0.95
+    end
+    sliderTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingSlider = true; updateSlider(input)
         end
     end)
-    TabFarm:AddInfo(L("farm_desc"), "info")
-end
-
--- === CONFIG ===
-if SilentCollectC then
-    TabConfig:AddSection(L("utilities"))
-    TabConfig:AddToggle(L("silent_collect"), true, function(state)
-        SilentCollectC.Enabled = state
-        if state then Assets.Notify({Title = L("utilities"), Text = L("silent_collect") .. ": ON", Type = "success"})
-        else Assets.Notify({Title = L("utilities"), Text = L("silent_collect") .. ": OFF", Type = "warn"}) end
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateSlider(input) end
     end)
-    TabConfig:AddInfo("Collects Diamonds and Souls automatically in the background.", "info")
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingSlider = false end
+    end)
+
+    -- BOTÓN
+    local actionBtn = make("TextButton", { Name = "StopButton", Size = UDim2.new(1, 0, 0, 44), Position = UDim2.new(0, 0, 1, -44), BackgroundColor3 = C.red, AutoButtonColor = false, Font = Enum.Font.GothamBlack, Text = "DETENER FARMEO", TextSize = 15, TextColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0, ZIndex = 3, Parent = panel }, {corner(10), gradient(Color3.fromRGB(255, 70, 80), C.redDark, 90)})
+    stroke(Color3.fromRGB(255, 120, 120), 1.8, 0.1).Parent = actionBtn
+    actionBtn.MouseButton1Click:Connect(function() Config.Enabled = false end)
+
+    local frames, lastT = 0, os.clock()
+    fpsCon = RunService.RenderStepped:Connect(function()
+        frames += 1
+        local now = os.clock()
+        if now - lastT >= 1 then currentFps = frames; frames, lastT = 0, now end
+    end)
+
+    gui.Parent = parent
+
+    return function(hp, maxHp, k, d, s, fps)
+        maxHp = math.max(maxHp or 100, 1); hp = math.clamp(hp or 0, 0, maxHp)
+        hpLabel.Text = string.format("HP: %d/%d", math.floor(hp), math.floor(maxHp))
+        tween(hpFill, 0.3, {Size = UDim2.new(hp / maxHp, 0, 1, 0)})
+        killsValue.Text = tostring(k); diamondsValue.Text = tostring(d); soulsValue.Text = tostring(s)
+        
+        local systemReady = Config.Enabled
+        statusLabel.Text = systemReady and "SISTEMA: LISTO" or "SISTEMA: FALLO"
+        statusLabel.TextColor3 = systemReady and C.neon or C.red
+        statusDot.BackgroundColor3 = systemReady and C.neon or C.red
+        
+        fpsLabel.Text = tostring(math.floor(fps))
+        fpsLabel.TextColor3 = fps >= 50 and C.neon or (fps >= 30 and C.gold or C.red)
+    end
 end
 
-TabConfig:AddSection(L("lang_sel"))
-TabConfig:AddDropdown(L("lang_sel"), {"es", "en", "fil"}, currentLang, function(val)
-    if writefile then pcall(function() writefile("FroggyLang.txt", val) end) end
-    Assets.Notify({Title = "Language", Text = L("lang_desc"), Type = "info", Duration = 5})
-end)
-
-TabConfig:AddSection(L("dev_zone"))
-local passBox = TabConfig:AddTextBox(L("pass"), "...", function() end, { ClearButton = true })
-local unlockBtn = TabConfig:AddButtonEx(L("unlock"), function()
-    if passBox:Get() == "froggy_testing_2026" then
-        Assets.Notify({Title = "OK", Text = L("dev_zone"), Type = "warn"})
-        passBox.Instance.Visible = false
-        if unlockBtn and unlockBtn.Instance then unlockBtn.Instance.Visible = false end
-        if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = true end
-    else
-        Assets.Notify({Title = "Error", Text = "Wrong password", Type = "danger"})
-        passBox:Set("")
+-- ==========================================
+-- LÓGICA DEL FARM
+-- ==========================================
+local function equipWeapon()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum or char:FindFirstChildOfClass("Tool") then return end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then pcall(function() hum:EquipTool(tool) end); break end
+        end
     end
-end, "wood", "md")
+end
 
-TabConfig:AddButton(L("destroy_ui"), function()
-    Window:Destroy()
+local function toggleModules(state)
+    if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = state end
+    if env.BF_HITBOX_CONFIG then env.BF_HITBOX_CONFIG.Enabled = state end
+    if env.BF_SILENTCOLLECT_CONFIG then env.BF_SILENTCOLLECT_CONFIG.Enabled = state end
+end
+
+local function getGameStats()
+    local diamonds, souls = 0, 0
+    local stats = LocalPlayer:FindFirstChild("leaderstats")
+    if stats then
+        local d = stats:FindFirstChild("Diamonds") or stats:FindFirstChild("Gems")
+        if d then diamonds = d.Value end
+        local s = stats:FindFirstChild("Souls") or stats:FindFirstChild("Soul")
+        if s then souls = s.Value end
+    end
+    return diamonds, souls
+end
+
+local function teleportToEnergy()
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    myRoot.CFrame = CFrame.new(ENERGY_POS + Vector3.new(0, 3, 0))
+    myRoot.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.5)
+    local tpsFolder = Workspace:FindFirstChild("TPS")
+    if tpsFolder then
+        local closestTele, shortestDist = nil, math.huge
+        for _, obj in ipairs(tpsFolder:GetDescendants()) do
+            if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
+                local dist = (obj.Position - ENERGY_POS).Magnitude
+                if dist < shortestDist then shortestDist = dist; closestTele = obj end
+            end
+        end
+        if closestTele then
+            local success = false
+            if getconnections then
+                for _, conn in pairs(getconnections(closestTele.Touched)) do
+                    if conn.Enabled then pcall(function() conn:Fire(myRoot) success = true end) end
+                end
+            end
+            if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
+        end
+    end
+    task.wait(1.5)
+end
+
+function startFarm()
+    if weaponLoop then task.cancel(weaponLoop) end
+    if killTrackerCon then task.cancel(killTrackerCon) end
+    if uiLoop then task.cancel(uiLoop) end
+
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+
+    root.Anchored = false
+    hum.PlatformStand = true
+
+    local bp = root:FindFirstChild("FarmBP")
+    if bp then bp:Destroy() end
+    bp = Instance.new("BodyPosition")
+    bp.Name = "FarmBP"
+    bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bp.Position = Vector3.new(FARM_X, FARM_Y + FARM_HEIGHT, FARM_Z)
+    bp.P = 50000
+    bp.D = 2000
+    bp.Parent = root
+
+    local bg = root:FindFirstChild("FarmBG")
+    if bg then bg:Destroy() end
+    bg = Instance.new("BodyGyro")
+    bg.Name = "FarmBG"
+    bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bg.CFrame = root.CFrame
+    bg.P = 50000
+    bg.D = 2000
+    bg.Parent = root
+
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("BasePart") then p.LocalTransparencyModifier = 1 end
+    end
+
+    toggleModules(true)
+    updateUIFunc = createPremiumUI()
+
+    weaponLoop = task.spawn(function()
+        while Config.Enabled do
+            local c = LocalPlayer.Character
+            if c and not c:FindFirstChildOfClass("Tool") then equipWeapon() end
+            if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = true end
+            task.wait(0.5)
+        end
+    end)
+
+    killTrackerCon = task.spawn(function()
+        while Config.Enabled do
+            task.wait(0.1)
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer then
+                    local c = p.Character
+                    local h = c and c:FindFirstChildOfClass("Humanoid")
+                    if h and h.Health > 0 then playerStates[p] = true
+                    elseif playerStates[p] and (not h or h.Health <= 0) then kills = kills + 1; playerStates[p] = false end
+                end
+            end
+        end
+    end)
+
+    uiLoop = task.spawn(function()
+        while Config.Enabled do
+            task.wait(0.5)
+            local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if updateUIFunc and h then
+                local d, s = getGameStats()
+                updateUIFunc(h.Health, h.MaxHealth, kills, d, s, currentFps)
+            end
+        end
+    end)
+end
+
+local function stopFarm()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    toggleModules(false)
+    if root then
+        local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
+        local bg = root:FindFirstChild("FarmBG"); if bg then bg:Destroy() end
+        root.Anchored = true 
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = CFrame.new(FARM_X, FARM_Y + 5, FARM_Z)
+        root.Anchored = false
+    end
+    if hum then hum.PlatformStand = false; hum.Sit = false end
+    if char then for _, p in ipairs(char:GetDescendants()) do if p:IsA("BasePart") then p.LocalTransparencyModifier = 0 end end end
+    if gui then gui:Destroy(); gui = nil end
+    updateUIFunc = nil
+    if fpsCon then fpsCon:Disconnect(); fpsCon = nil end
+    if uiLoop then task.cancel(uiLoop); uiLoop = nil end
+    if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
+    if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
+    playerStates = {}
+end
+
+-- ==========================================
+-- CONEXIONES
+-- ==========================================
+if charAddedCon then charAddedCon:Disconnect() end
+charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
+    if Config.Enabled then
+        task.wait(2)
+        teleportToEnergy()
+        task.wait(1)
+        equipWeapon()
+        task.wait(0.5)
+        startFarm()
+        isResetting = false
+    end
 end)
 
-print("[Main] Froggy Hub (Energy Farm Update) cargado con éxito.")
+if mainLoopCon then mainLoopCon:Disconnect() end
+mainLoopCon = task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if Config.Enabled then
+            -- 🔥 Si se enciende y no hay UI ni está reiniciando, forzamos el reinicio
+            if not gui and not isResetting and LocalPlayer.Character then
+                isResetting = true
+                task.spawn(function()
+                    task.wait(2) -- Esperar 2 segundos
+                    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if hum then hum.Health = 0 end -- Matar al personaje para que respawnee
+                end)
+            end
+        else
+            if gui then stopFarm() end
+            isResetting = false -- Si se apaga, cancelamos el reinicio
+        end
+    end
+end)
+
+env.__BF_PLAYERFARM_CLEANUP = function()
+    Config.Enabled = false
+    stopFarm()
+    if charAddedCon then charAddedCon:Disconnect(); charAddedCon = nil end
+    if mainLoopCon then task.cancel(mainLoopCon); mainLoopCon = nil end
+    env.BF_PLAYERFARM_CONFIG = nil
+    env.__BF_PLAYERFARM_CLEANUP = nil
+end
