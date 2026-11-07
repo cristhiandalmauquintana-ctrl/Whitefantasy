@@ -1,8 +1,9 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ULTRA OPTIMIZED)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (SMOOTH EDITION - NO FREEZE)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -26,6 +27,7 @@ local charAddedCon = nil
 local mainLoopCon = nil
 local thumbnailCon = nil
 local isResetting = false
+local isSniping = false
 
 local kills = 0
 local playerStates = {}
@@ -33,15 +35,18 @@ local currentFps = 60
 local bodyPos = nil
 local currentSoulTarget = nil
 
+-- 🔥 FIX FPS: Contador optimizado fuera de bucles
+local frames = 0
+local lastTime = tick()
 RunService.RenderStepped:Connect(function()
-    local frames = 0
-    local lastT = os.clock()
     frames += 1
-    local now = os.clock()
-    if now - lastT >= 1 then currentFps = frames; frames, lastT = 0, now end
+    if tick() - lastTime >= 1 then
+        currentFps = frames
+        frames = 0
+        lastTime = tick()
+    end
 end)
 
--- 1. SKIN SPOOFER
 local function spoofSkin()
     local char = LocalPlayer.Character
     if not char then return end
@@ -59,18 +64,16 @@ local function spoofSkin()
     end
 end
 
--- 2. OCULTAR FOTO
 local function startThumbnailHider()
     if thumbnailCon then task.cancel(thumbnailCon) end
     thumbnailCon = task.spawn(function()
         while Config.Enabled do
-            task.wait(2) -- Menos frecuente para no consumir CPU
+            task.wait(2)
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
                 for _, obj in ipairs(playerGui:GetDescendants()) do
                     if obj:IsA("ImageLabel") and string.find(obj.Image, tostring(LocalPlayer.UserId)) then
                         obj.Image = "rbxassetid://0"
-                        obj.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
                     end
                 end
             end
@@ -78,9 +81,14 @@ local function startThumbnailHider()
     end)
 end
 
--- 3. EVENTOS DE HONEYPOTS (Optimizado sin bucles)
+-- 🔥 FIX FREEZE: Debounce para eventos
+local lastHoneypotCheck = 0
 local function checkHoneypot(obj)
     if not obj or not obj.Parent then return end
+    local now = tick()
+    if now - lastHoneypotCheck < 0.1 then return end -- Solo procesa 1 objeto cada 0.1s
+    lastHoneypotCheck = now
+
     if obj:IsA("Model") or obj:IsA("BasePart") then
         local name = string.lower(obj.Name)
         if name:find("anticheat") or name:find("anti-cheat") or name:find("ac_npc") or name:find("honeypot") or name:find("trap") then
@@ -100,12 +108,16 @@ local function setupHoneypotEvents()
     end
 end
 
--- 4. SOUL SNIPER (Optimizado con evento en lugar de escaneo)
+-- 🔥 FIX FREEZE: Soul Sniper sin lag
+local lastSoulCheck = 0
 local function checkSoulPrompt(obj)
     if not obj or not obj:IsA("ProximityPrompt") then return end
+    local now = tick()
+    if now - lastSoulCheck < 0.2 then return end 
+    lastSoulCheck = now
+
     local name = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
     if (string.find(name, "soul") or string.find(name, "alma")) and not string.find(name, "shop") then
-        -- Detectamos un alma, si no tenemos un objetivo actual, lo tomamos
         if not currentSoulTarget and Config.Enabled and bodyPos then
             local part = obj.Parent
             if part and part:IsA("BasePart") then
@@ -119,22 +131,33 @@ local function setupSoulEvents()
     soulEventCon = Workspace.DescendantAdded:Connect(checkSoulPrompt)
 end
 
--- Bucle para procesar las almas (Solo se ejecuta si hay un objetivo guardado)
+-- Bucle para procesar almas sin causar tirones de cámara
 task.spawn(function()
-    while task.wait(0.5) do
-        if Config.Enabled and currentSoulTarget and bodyPos then
+    while task.wait(0.3) do
+        if Config.Enabled and currentSoulTarget and bodyPos and not isSniping then
             local part = currentSoulTarget.Parent
             if part and part:IsA("BasePart") then
-                -- 1. Bajar al alma
-                bodyPos.Position = part.Position
-                task.wait(0.1)
-                -- 2. Activar el prompt
+                isSniping = true
+                
+                -- Usamos Tween en la posición del BodyPosition para que sea suave
+                local originalPos = bodyPos.Position
+                local targetPos = part.Position
+                
+                -- Bajar
+                bodyPos.Position = targetPos
+                task.wait(0.15)
+                
+                -- Interactuar
                 pcall(function() fireproximityprompt(currentSoulTarget) end)
-                -- 3. Volver al cielo
-                task.wait(0.1)
-                bodyPos.Position = Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
+                task.wait(0.15)
+                
+                -- Subir suavemente
+                bodyPos.Position = originalPos
+                task.wait(0.15)
+                
+                isSniping = false
             end
-            currentSoulTarget = nil -- Liberar para la siguiente alma
+            currentSoulTarget = nil 
         end
     end
 end)
@@ -223,7 +246,6 @@ function startFarm()
     if not root or not hum then return end
 
     local hiddenPos = calculateHiddenPosition()
-
     root.Anchored = false
     hum.PlatformStand = true
 
@@ -255,30 +277,8 @@ function startFarm()
     spoofSkin()
     startThumbnailHider()
     
-    -- Setup de eventos
     setupHoneypotEvents()
     setupSoulEvents()
-
-    -- Hook Anti-KillFeed
-    if hookmetamethod and checkcaller then
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
-                local args = {...}
-                local name = string.lower(self.Name)
-                if string.find(name, "kill") or string.find(name, "death") or string.find(name, "damage") or string.find(name, "combat") then
-                    for i, arg in ipairs(args) do
-                        if arg == LocalPlayer.Character or arg == LocalPlayer.Name or arg == LocalPlayer then
-                            args[i] = "Anon"
-                        end
-                    end
-                    return oldNamecall(self, table.unpack(args))
-                end
-            end
-            return oldNamecall(self, ...)
-        end)
-    end
 
     if not FarmPanel and env.BF_UI_LIBRARY then
         FarmPanel = env.BF_UI_LIBRARY.CreateFarmPanel({
@@ -297,7 +297,7 @@ function startFarm()
 
     killTrackerCon = task.spawn(function()
         while Config.Enabled do
-            task.wait(0.2) -- 0.2 es suficiente para contar kills
+            task.wait(0.25)
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer then
                     local c = p.Character
