@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V19 - FIX DUEL VOID)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V17 - STABLE)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -16,13 +16,11 @@ local shieldedPlayersParts = {}
 local purgedParts = {}
 local honeypotParts = {}
 
--- 1. HOOKS DE COMPRA
 if hookfunction then
     hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
     hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
 end
 
--- 2. FUNCIONES DE PURGA
 local function killTouch(obj)
     if obj:IsA("BasePart") then
         obj.CanTouch = false
@@ -57,7 +55,6 @@ local function globalPurge()
     end
 end
 
--- 3. FUNCIONES DEL ARMA
 local function getHandle(tool)
     if not tool or not tool:IsA("Tool") then return nil end
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
@@ -88,14 +85,10 @@ local function restoreSword(tool)
     originalData[handle] = nil
 end
 
--- 4. AUTO-EQUIPAR AL MORIR (SIN TELETRANSPORTE)
 LocalPlayer.CharacterAdded:Connect(function()
-    originalData = {} -- Limpiamos los datos de la espada vieja
-    -- 🔥 ELIMINADO: Ya no teletransporta a Energy aquí.
-    -- Solo esperamos a que el jugador saque el arma y el bucle principal lo detectará.
+    originalData = {}
 end)
 
--- 5. BUCLE DE FLICKER (Espada)
 task.spawn(function()
     while task.wait(0.25) do
         if Config.Enabled then
@@ -110,7 +103,6 @@ task.spawn(function()
     end
 end)
 
--- 6. BUCLE DE PURGA
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
@@ -119,7 +111,6 @@ task.spawn(function()
     end
 end)
 
--- 7. HONEYPOTS Y ESCUDOS
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
@@ -161,7 +152,6 @@ task.spawn(function()
     end
 end)
 
--- 8. LIMPIEZA
 env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
     local char = LocalPlayer.Character
