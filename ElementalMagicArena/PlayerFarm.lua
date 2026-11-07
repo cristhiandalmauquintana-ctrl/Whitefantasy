@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (UNDER-MAP HIDING)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ULTRA OPTIMIZED)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -11,24 +11,27 @@ if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
 local Config = { Enabled = false }
 env.BF_PLAYERFARM_CONFIG = Config
 
--- 🔥 COORDENADAS DE LA ARENA (Donde caen los jugadores)
 local FARM_X = 1451.5
 local FARM_Y = -115.1
 local FARM_Z = 85.7
-local HIDE_DEPTH = 15 -- Studs debajo del suelo (oculto de los jugadores)
+local HIDE_DEPTH = 15 
 
 local FarmPanel = nil
 local weaponLoop = nil
 local killTrackerCon = nil
-local honeypotCon = nil
+local uiLoop = nil
+local soulEventCon = nil
+local honeypotEventCon = nil
 local charAddedCon = nil
 local mainLoopCon = nil
-local uiLoop = nil
+local thumbnailCon = nil
 local isResetting = false
 
 local kills = 0
 local playerStates = {}
 local currentFps = 60
+local bodyPos = nil
+local currentSoulTarget = nil
 
 RunService.RenderStepped:Connect(function()
     local frames = 0
@@ -38,19 +41,103 @@ RunService.RenderStepped:Connect(function()
     if now - lastT >= 1 then currentFps = frames; frames, lastT = 0, now end
 end)
 
-local function ignoreHoneypots()
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if not enemies then return end
-    for _, npc in ipairs(enemies:GetChildren()) do
-        local name = string.lower(npc.Name)
-        if name:find("anticheat") or name:find("anti-cheat") or name:find("ac_npc") or name:find("honeypot") or name:find("trap") then
-            if not npc:GetAttribute("FroggyIgnored") then
-                npc:SetAttribute("FroggyIgnored", true)
-                npc.Parent = ReplicatedStorage
+-- 1. SKIN SPOOFER
+local function spoofSkin()
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("Decal") or part:IsA("Texture") or part:IsA("Shirt") or part:IsA("Pants") or part:IsA("Accessory") then
+            part:Destroy()
+        elseif part:IsA("BasePart") then
+            part.Color = Color3.fromRGB(163, 162, 165)
+            part.Material = Enum.Material.Plastic
+            if part.Name == "Head" then
+                local face = part:FindFirstChild("face")
+                if face then face:Destroy() end
             end
         end
     end
 end
+
+-- 2. OCULTAR FOTO
+local function startThumbnailHider()
+    if thumbnailCon then task.cancel(thumbnailCon) end
+    thumbnailCon = task.spawn(function()
+        while Config.Enabled do
+            task.wait(2) -- Menos frecuente para no consumir CPU
+            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                for _, obj in ipairs(playerGui:GetDescendants()) do
+                    if obj:IsA("ImageLabel") and string.find(obj.Image, tostring(LocalPlayer.UserId)) then
+                        obj.Image = "rbxassetid://0"
+                        obj.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- 3. EVENTOS DE HONEYPOTS (Optimizado sin bucles)
+local function checkHoneypot(obj)
+    if not obj or not obj.Parent then return end
+    if obj:IsA("Model") or obj:IsA("BasePart") then
+        local name = string.lower(obj.Name)
+        if name:find("anticheat") or name:find("anti-cheat") or name:find("ac_npc") or name:find("honeypot") or name:find("trap") then
+            if not obj:GetAttribute("FroggyIgnored") then
+                obj:SetAttribute("FroggyIgnored", true)
+                obj.Parent = ReplicatedStorage
+            end
+        end
+    end
+end
+
+local function setupHoneypotEvents()
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if enemies then
+        honeypotEventCon = enemies.DescendantAdded:Connect(checkHoneypot)
+        for _, child in ipairs(enemies:GetChildren()) do checkHoneypot(child) end
+    end
+end
+
+-- 4. SOUL SNIPER (Optimizado con evento en lugar de escaneo)
+local function checkSoulPrompt(obj)
+    if not obj or not obj:IsA("ProximityPrompt") then return end
+    local name = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
+    if (string.find(name, "soul") or string.find(name, "alma")) and not string.find(name, "shop") then
+        -- Detectamos un alma, si no tenemos un objetivo actual, lo tomamos
+        if not currentSoulTarget and Config.Enabled and bodyPos then
+            local part = obj.Parent
+            if part and part:IsA("BasePart") then
+                currentSoulTarget = obj
+            end
+        end
+    end
+end
+
+local function setupSoulEvents()
+    soulEventCon = Workspace.DescendantAdded:Connect(checkSoulPrompt)
+end
+
+-- Bucle para procesar las almas (Solo se ejecuta si hay un objetivo guardado)
+task.spawn(function()
+    while task.wait(0.5) do
+        if Config.Enabled and currentSoulTarget and bodyPos then
+            local part = currentSoulTarget.Parent
+            if part and part:IsA("BasePart") then
+                -- 1. Bajar al alma
+                bodyPos.Position = part.Position
+                task.wait(0.1)
+                -- 2. Activar el prompt
+                pcall(function() fireproximityprompt(currentSoulTarget) end)
+                -- 3. Volver al cielo
+                task.wait(0.1)
+                bodyPos.Position = Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
+            end
+            currentSoulTarget = nil -- Liberar para la siguiente alma
+        end
+    end
+end)
 
 local function equipWeapon()
     local char = LocalPlayer.Character
@@ -112,20 +199,15 @@ local function teleportToEnergy()
     task.wait(1.5)
 end
 
--- 🔥 NUEVA FUNCIÓN PARA CALCULAR LA POSICIÓN BAJO LA ARENA
 local function calculateHiddenPosition()
     local rayOrigin = Vector3.new(FARM_X, FARM_Y + 50, FARM_Z)
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    
     local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
-    
     if rayResult then
-        -- Si encontramos el suelo, nos ponemos 15 studs justo debajo
         return Vector3.new(FARM_X, rayResult.Position.Y - HIDE_DEPTH, FARM_Z)
     else
-        -- Si falla, usamos una posición por defecto
         return Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
     end
 end
@@ -133,7 +215,6 @@ end
 function startFarm()
     if weaponLoop then task.cancel(weaponLoop) end
     if killTrackerCon then task.cancel(killTrackerCon) end
-    if honeypotCon then task.cancel(honeypotCon) end
     if uiLoop then task.cancel(uiLoop) end
 
     local char = LocalPlayer.Character
@@ -141,7 +222,6 @@ function startFarm()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    -- Calculamos la posición bajo el mapa
     local hiddenPos = calculateHiddenPosition()
 
     root.Anchored = false
@@ -149,13 +229,13 @@ function startFarm()
 
     local bp = root:FindFirstChild("FarmBP")
     if bp then bp:Destroy() end
-    bp = Instance.new("BodyPosition")
-    bp.Name = "FarmBP"
-    bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bp.Position = hiddenPos
-    bp.P = 50000
-    bp.D = 2000
-    bp.Parent = root
+    bodyPos = Instance.new("BodyPosition")
+    bodyPos.Name = "FarmBP"
+    bodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyPos.Position = hiddenPos
+    bodyPos.P = 50000
+    bodyPos.D = 2000
+    bodyPos.Parent = root
 
     local bg = root:FindFirstChild("FarmBG")
     if bg then bg:Destroy() end
@@ -167,30 +247,42 @@ function startFarm()
     bg.D = 2000
     bg.Parent = root
 
-    -- 🔥 HACEMOS EL PERSONAJE TOTALMENTE INVISIBLE PARA LOS DEMÁS
     for _, p in ipairs(char:GetDescendants()) do
-        if p:IsA("BasePart") then 
-            p.LocalTransparencyModifier = 1 
-            -- (El LocalTransparencyModifier solo te afecta a ti, 
-            -- pero al estar bajo el mapa, los demás no te verán de todas formas).
-        end
+        if p:IsA("BasePart") then p.LocalTransparencyModifier = 1 end
     end
 
     toggleModules(true)
+    spoofSkin()
+    startThumbnailHider()
+    
+    -- Setup de eventos
+    setupHoneypotEvents()
+    setupSoulEvents()
 
-    ignoreHoneypots()
-    honeypotCon = task.spawn(function()
-        while Config.Enabled do
-            task.wait(1)
-            ignoreHoneypots()
-        end
-    end)
+    -- Hook Anti-KillFeed
+    if hookmetamethod and checkcaller then
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
+                local args = {...}
+                local name = string.lower(self.Name)
+                if string.find(name, "kill") or string.find(name, "death") or string.find(name, "damage") or string.find(name, "combat") then
+                    for i, arg in ipairs(args) do
+                        if arg == LocalPlayer.Character or arg == LocalPlayer.Name or arg == LocalPlayer then
+                            args[i] = "Anon"
+                        end
+                    end
+                    return oldNamecall(self, table.unpack(args))
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+    end
 
     if not FarmPanel and env.BF_UI_LIBRARY then
         FarmPanel = env.BF_UI_LIBRARY.CreateFarmPanel({
-            OnStop = function() 
-                Config.Enabled = false 
-            end
+            OnStop = function() Config.Enabled = false end
         })
     end
 
@@ -205,7 +297,7 @@ function startFarm()
 
     killTrackerCon = task.spawn(function()
         while Config.Enabled do
-            task.wait(0.1)
+            task.wait(0.2) -- 0.2 es suficiente para contar kills
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer then
                     local c = p.Character
@@ -240,7 +332,6 @@ local function stopFarm()
         root.Anchored = true 
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
-        -- Al detener, te devolvemos al suelo de la arena (no bajo el mapa)
         root.CFrame = CFrame.new(FARM_X, FARM_Y + 5, FARM_Z)
         root.Anchored = false
     end
@@ -251,8 +342,14 @@ local function stopFarm()
     if uiLoop then task.cancel(uiLoop); uiLoop = nil end
     if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
     if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
-    if honeypotCon then task.cancel(honeypotCon); honeypotCon = nil end
+    if thumbnailCon then task.cancel(thumbnailCon); thumbnailCon = nil end
+    
+    if soulEventCon then soulEventCon:Disconnect(); soulEventCon = nil end
+    if honeypotEventCon then honeypotEventCon:Disconnect(); honeypotEventCon = nil end
+    
     playerStates = {}
+    currentSoulTarget = nil
+    bodyPos = nil
 end
 
 if charAddedCon then charAddedCon:Disconnect() end
