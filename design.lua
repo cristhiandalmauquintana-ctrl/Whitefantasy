@@ -1,6 +1,7 @@
 --[[
 ================================================================================
-  FROGGY HUB  -  CHIBI UI LIBRARY   (design.lua  v4.0  "200 Members Edition")
+  FROGGY HUB  -  CHIBI UI LIBRARY   (design.lua  v4.1  "200 Members Edition")
+  Version SIN INTRO: la ventana abre directamente.
   Estilo chibi / kawaii pastel. Todo animado con TweenService (rebotes, squash &
   stretch, confeti, ranita saltarina). Sin imagenes: todo son Frames.
 
@@ -11,7 +12,6 @@
   local Window = UI.CreateWindow({
       Title     = "FROGGY HUB",
       Subtitle  = "200 MEMBERS EDITION",
-      Intro     = true,                    -- animacion de carga (false = sin intro)
       ToggleKey = Enum.KeyCode.RightShift, -- mostrar / ocultar
       LogEvents = true,                    -- pildora inferior con cada accion
       Resizable = true,
@@ -30,7 +30,7 @@
 
   Window:Notify({Title = "Hola", Content = "Mensaje", Duration = 4, Type = "success"})
   -- Type: "info" | "success" | "warning" | "error"
-  Window:Toggle() / :Minimize() / :Restore() / :SetTitle() / :ReplayIntro() / :Destroy()
+  Window:Toggle() / :Minimize() / :Restore() / :SetTitle() / :Destroy()
 
   local Farm = UI.CreateFarmPanel(function() print("DETENER") end)
   Farm:UpdateUI(hp, maxHp, kills, diamonds, souls, fps)
@@ -41,14 +41,13 @@
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TextService = game:GetService("TextService")
 local GuiService = game:GetService("GuiService")
 local UIS = UserInputService
 
 local rng = Random.new()
-local UI_Library = { Version = "4.0.0" }
+local UI_Library = { Version = "4.1.0" }
 
 --------------------------------------------------------------------------
 -- PALETA CHIBI
@@ -226,16 +225,6 @@ end
 local function viewport()
 	local cam = workspace.CurrentCamera
 	return cam and cam.ViewportSize or Vector2.new(1280, 720)
-end
-
-local function measure(text, size, font)
-	local ok, v = pcall(function()
-		return TextService:GetTextSize(text, size, font, Vector2.new(10000, 10000))
-	end)
-	if ok and v then
-		return v
-	end
-	return Vector2.new(#tostring(text) * size * 0.55, size * 1.2)
 end
 
 local function isPress(input)
@@ -544,460 +533,6 @@ local function buildFrog(parent, w, maid, props)
 		end
 	end)
 	return M
-end
-
--- Letras individuales (para el titulo con rebote)
-local function buildLetters(parent, str, size, pad)
-	local row = new("Frame", {
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0, 0.5),
-		Size = UDim2.new(1, 0, 0, size * 1.4),
-	}, parent)
-	new("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, pad),
-	}, row)
-	local letters = {}
-	local i = 0
-	for _, cp in utf8.codes(str) do
-		i = i + 1
-		local ch = utf8.char(cp)
-		local w = (ch == " ") and size * 0.4 or (measure(ch, size, FONT).X + 2)
-		local holder = new("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(w, size * 1.4),
-			LayoutOrder = i,
-		}, row)
-		local lb = new("TextLabel", {
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(1, 1),
-			Text = ch,
-			TextSize = size,
-			Font = FONT,
-			TextColor3 = CONFETTI[(i - 1) % #CONFETTI + 1],
-			TextStrokeColor3 = C.Plum,
-			TextStrokeTransparency = 0.1,
-			Rotation = rng:NextInteger(-25, 25),
-		}, holder)
-		local sc = new("UIScale", { Scale = 0 }, lb)
-		letters[i] = { Holder = holder, Label = lb, Scale = sc }
-	end
-	return row, letters
-end
-
---------------------------------------------------------------------------
--- ANIMACION DE CARGA: la ranita salta de nube en nube, la barra se llena,
--- al final hace una voltereta, estalla confeti y el titulo rebota letra a letra
---------------------------------------------------------------------------
-local XS = { 0.1, 0.3, 0.5, 0.7, 0.9 }
-local TIPS = {
-	"Despertando a la ranita...",
-	"Puliendo las nubes...",
-	"Contando a los miembros...",
-	"Repartiendo brillitos...",
-	"Listo!",
-}
-
-local function buildIntro(gui, maid, owner)
-	local I = { Running = false, Run = 0, _tweens = {} }
-
-	local root = new("Frame", {
-		Name = "Intro",
-		Visible = false,
-		Active = true,
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = WHITE,
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		ZIndex = 50,
-	}, gui)
-	grad(root, { Rotation = 90, Color = cseq(rgb(176, 222, 255), rgb(255, 214, 238), rgb(224, 206, 255)) })
-	floatBubbles(maid, root, 16, 51)
-	for i = 1, 10 do
-		local f, sc = buildSparkle(root, rng:NextInteger(14, 24), CONFETTI[(i % #CONFETTI) + 1])
-		f.Position = UDim2.fromScale(rng:NextNumber(0.05, 0.95), rng:NextNumber(0.08, 0.9))
-		f.ZIndex = 52
-		twinkle(maid, sc, rng:NextNumber(1.6, 3), rng:NextNumber(0, 2))
-	end
-
-	local textHolder = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 55 }, root)
-
-	local sub = new("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.315),
-		AutomaticSize = Enum.AutomaticSize.XY,
-		Size = UDim2.fromOffset(0, 0),
-		BackgroundColor3 = C.Pink,
-		BorderSizePixel = 0,
-		ZIndex = 55,
-	}, root)
-	corner(sub, UDim.new(0.5, 0))
-	stroke(sub, WHITE, 3, 0)
-	new("UIPadding", {
-		PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 16),
-		PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5),
-	}, sub)
-	local subScale = new("UIScale", { Scale = 0 }, sub)
-	local subLbl = mkText(sub, "", 14, WHITE, FONT, {
-		AutomaticSize = Enum.AutomaticSize.XY,
-		Size = UDim2.fromOffset(0, 0),
-		TextStrokeColor3 = C.PinkDark,
-		TextStrokeTransparency = 0.5,
-		ZIndex = 56,
-	})
-
-	-- escenario con las nubes
-	local stage = new("Frame", {
-		Name = "Stage",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 0.6, 0),
-		Size = UDim2.new(0.8, 0, 0, 170),
-		BackgroundTransparency = 1,
-		ZIndex = 54,
-	}, root)
-	new("UISizeConstraint", { MaxSize = Vector2.new(560, 170), MinSize = Vector2.new(260, 170) }, stage)
-
-	local PAD_Y = 128
-	local pads = {}
-	for i, x in ipairs(XS) do
-		local p = new("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(x, 0, 0, PAD_Y),
-			Size = UDim2.fromOffset(74, 22),
-			BackgroundColor3 = WHITE,
-			BorderSizePixel = 0,
-			ZIndex = 54,
-		}, stage)
-		corner(p, UDim.new(0.5, 0))
-		stroke(p, CONFETTI[i], 3, 0)
-		new("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 1, -4),
-			Size = UDim2.fromOffset(46, 8),
-			BackgroundColor3 = CONFETTI[i],
-			BackgroundTransparency = 0.5,
-			BorderSizePixel = 0,
-			ZIndex = 53,
-		}, p).ZIndex = 53
-		pads[i] = p
-	end
-
-	local FW = 58
-	local FH = math.floor(FW * 0.9)
-	local carrier = new("Frame", {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(XS[1], 0, 0, PAD_Y + 4),
-		Size = UDim2.fromOffset(FW, FH),
-		BackgroundTransparency = 1,
-		ZIndex = 56,
-	}, stage)
-	local frog = buildFrog(carrier, FW, maid, { Position = UDim2.new(0.5, 0, 1, 0), ZIndex = 56 })
-	local fr = frog.Root
-
-	-- barra de progreso
-	local track = new("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.87),
-		Size = UDim2.new(0.56, 0, 0, 22),
-		BackgroundColor3 = WHITE,
-		BackgroundTransparency = 0.25,
-		BorderSizePixel = 0,
-		ZIndex = 55,
-	}, root)
-	corner(track, UDim.new(0.5, 0))
-	stroke(track, WHITE, 3, 0)
-	new("UISizeConstraint", { MaxSize = Vector2.new(400, 22), MinSize = Vector2.new(180, 22) }, track)
-	local fill = new("Frame", {
-		Position = UDim2.fromOffset(3, 3),
-		Size = UDim2.new(0, 0, 1, -6),
-		BackgroundColor3 = WHITE,
-		BorderSizePixel = 0,
-		ZIndex = 56,
-	}, track)
-	corner(fill, UDim.new(0.5, 0))
-	grad(fill, { Color = cseq(C.Pink, C.Lav, C.Sky) })
-	local rider = new("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0, 3, 0.5, 0),
-		Size = UDim2.fromOffset(28, 28),
-		BackgroundColor3 = C.Frog,
-		BorderSizePixel = 0,
-		ZIndex = 58,
-	}, track)
-	corner(rider, UDim.new(0.5, 0))
-	stroke(rider, WHITE, 3, 0)
-	for _, x in ipairs({ 0.3, 0.7 }) do
-		local e = new("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(x, 0.42),
-			Size = UDim2.fromOffset(5, 6),
-			BackgroundColor3 = C.Plum,
-			BorderSizePixel = 0,
-			ZIndex = 59,
-		}, rider)
-		corner(e, UDim.new(0.5, 0))
-	end
-	local pct = mkText(track, "0%", 16, C.Plum, FONT, {
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, 0, 0, -4),
-		Size = UDim2.fromOffset(80, 20),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		ZIndex = 56,
-	})
-	local tip = mkText(track, TIPS[1], 14, C.Plum, FONT_BODY, {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 1, 8),
-		Size = UDim2.new(1.4, 0, 0, 20),
-		TextXAlignment = Enum.TextXAlignment.Center,
-		ZIndex = 56,
-	})
-
-	local skip = new("TextButton", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 14),
-		Size = UDim2.fromOffset(70, 28),
-		BackgroundColor3 = WHITE,
-		BackgroundTransparency = 0.2,
-		Text = "SKIP",
-		Font = FONT,
-		TextSize = 13,
-		TextColor3 = C.PinkDark,
-		AutoButtonColor = false,
-		ZIndex = 60,
-	}, root)
-	corner(skip, UDim.new(0.5, 0))
-	stroke(skip, C.Pink, 2, 0)
-	hover(maid, skip, function()
-		tween(skip, 0.25, { Size = UDim2.fromOffset(78, 31) }, EASE_BACK)
-	end, function()
-		tween(skip, 0.25, { Size = UDim2.fromOffset(70, 28) }, EASE_BACK)
-	end)
-	maid:Add(skip.MouseButton1Click:Connect(function()
-		I:Skip()
-	end))
-
-	local function padPos(i)
-		return UDim2.new(XS[i], 0, 0, PAD_Y)
-	end
-
-	function I:Stop()
-		self.Running = false
-		self.Run = self.Run + 1
-		if self._conn then
-			self._conn:Disconnect()
-			self._conn = nil
-		end
-		for _, tw in ipairs(self._tweens) do
-			pcall(function()
-				tw:Cancel()
-			end)
-		end
-		self._tweens = {}
-	end
-
-	function I:Hide()
-		root.Visible = false
-	end
-
-	function I:_finish()
-		local cb = self._done
-		self._done = nil
-		self:Stop()
-		if cb then
-			cb()
-		end
-	end
-
-	function I:Skip()
-		if self.Running then
-			self:_finish()
-		end
-	end
-
-	function I:Play(onDone)
-		self:Stop()
-		self.Run = self.Run + 1
-		local run = self.Run
-		self.Running = true
-		self._done = onDone
-		root.Visible = true
-
-		local function alive()
-			return self.Running and self.Run == run
-		end
-		local function sleep(t)
-			task.wait(t)
-			return alive()
-		end
-
-		-- reset
-		carrier.Position = UDim2.new(XS[1], 0, 0, PAD_Y + 4)
-		fr.Position = UDim2.new(0.5, 0, 1, 0)
-		fr.Size = UDim2.fromOffset(FW, FH)
-		fr.Rotation = 0
-		frog:Happy(false)
-		fill.Size = UDim2.new(0, 0, 1, -6)
-		rider.Position = UDim2.new(0, 3, 0.5, 0)
-		pct.Text = "0%"
-		tip.Text = TIPS[1]
-		subScale.Scale = 0
-		textHolder:ClearAllChildren()
-
-		local vp = viewport()
-		local tsz = math.floor(clampN(vp.X * 0.075, 34, 60) + 0.5)
-		local trow, tl = buildLetters(textHolder, owner.Title, tsz, math.floor(tsz * 0.04 + 0.5))
-		trow.Position = UDim2.new(0, 0, 0.19, 0)
-		trow.ZIndex = 55
-		subLbl.Text = string.upper(owner.Subtitle)
-
-		self._conn = RunService.Heartbeat:Connect(function()
-			if alive() then
-				local q = clampN(fill.Size.X.Scale, 0, 1)
-				pct.Text = tostring(math.floor(q * 100 + 0.5)) .. "%"
-			end
-		end)
-
-		local function setProgress(q, t)
-			tween(fill, t, { Size = UDim2.new(q, 0, 1, -6) }, Enum.EasingStyle.Quad)
-			tween(rider, t, { Position = UDim2.new(q, 0, 0.5, 0) }, Enum.EasingStyle.Quad)
-		end
-
-		local function land(k)
-			local pad = pads[k]
-			tween(fr, 0.08, { Size = UDim2.fromOffset(FW * 1.2, FH * 0.8) })
-			tween(pad, 0.08, { Position = padPos(k) + UDim2.fromOffset(0, 5) })
-			task.delay(0.08, function()
-				tween(pad, 0.4, { Position = padPos(k) }, EASE_BACK)
-				tween(fr, 0.35, { Size = UDim2.fromOffset(FW, FH) }, EASE_BACK)
-			end)
-			-- onda
-			local ring = new("Frame", {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.new(XS[k], 0, 0, PAD_Y + 4),
-				Size = UDim2.fromOffset(24, 9),
-				BackgroundTransparency = 1,
-				ZIndex = 53,
-			}, stage)
-			corner(ring, UDim.new(0.5, 0))
-			local rs = stroke(ring, CONFETTI[k], 3, 0)
-			tween(ring, 0.7, { Size = UDim2.fromOffset(130, 40) }, Enum.EasingStyle.Quart)
-			tween(rs, 0.7, { Transparency = 1 })
-			task.delay(0.75, function()
-				ring:Destroy()
-			end)
-			burst(stage, stage.AbsoluteSize.X * XS[k], PAD_Y - 6, 7, 38, CONFETTI, 57)
-			frog:Happy(true)
-		end
-
-		task.spawn(function()
-			if not sleep(0.35) then
-				return
-			end
-			local hops = #XS - 1
-			for k = 1, hops do
-				tip.Text = TIPS[k]
-				setProgress(k / hops * 0.9, 0.9)
-				-- agacharse
-				frog:Happy(false)
-				tween(fr, 0.14, { Size = UDim2.fromOffset(FW * 1.18, FH * 0.76) })
-				if not sleep(0.14) then
-					return
-				end
-				-- saltar
-				local dur = 0.56
-				tween(carrier, dur, { Position = UDim2.new(XS[k + 1], 0, 0, PAD_Y + 4) }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-				tween(fr, dur / 2, { Position = UDim2.new(0.5, 0, 1, -58), Size = UDim2.fromOffset(FW * 0.88, FH * 1.16) })
-				if not sleep(dur / 2) then
-					return
-				end
-				tween(fr, dur / 2, { Position = UDim2.new(0.5, 0, 1, 0), Size = UDim2.fromOffset(FW, FH) }, Enum.EasingStyle.Quad, IN)
-				if not sleep(dur / 2) then
-					return
-				end
-				land(k + 1)
-				if not sleep(0.2) then
-					return
-				end
-			end
-
-			-- final: voltereta + confeti + titulo
-			tip.Text = TIPS[#TIPS]
-			setProgress(1, 0.7)
-			tween(fr, 0.16, { Size = UDim2.fromOffset(FW * 1.22, FH * 0.7) })
-			if not sleep(0.16) then
-				return
-			end
-			frog:Happy(true)
-			tween(fr, 0.45, { Position = UDim2.new(0.5, 0, 1, -130), Size = UDim2.fromOffset(FW * 0.9, FH * 1.15) })
-			tween(fr, 0.8, { Rotation = 360 }, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
-			if not sleep(0.4) then
-				return
-			end
-
-			local abs = root.AbsoluteSize
-			local W, H = abs.X, abs.Y
-			if W < 10 or H < 10 then
-				local v = viewport()
-				W, H = v.X, v.Y
-			end
-			burst(root, W * 0.5, H * 0.42, 40, math.min(W, H) * 0.42, CONFETTI, 58)
-			task.delay(0.25, function()
-				if alive() then
-					burst(root, W * 0.28, H * 0.3, 18, 90, CONFETTI, 58)
-					burst(root, W * 0.72, H * 0.3, 18, 90, CONFETTI, 58)
-				end
-			end)
-			for i, L in ipairs(tl) do
-				task.delay((i - 1) * 0.07, function()
-					if not alive() then
-						return
-					end
-					tween(L.Scale, 0.5, { Scale = 1 }, EASE_BACK)
-					tween(L.Label, 0.5, { Rotation = 0 }, EASE_BACK)
-					-- baile suave
-					task.delay(0.6, function()
-						if alive() then
-							local tw = TweenService:Create(
-								L.Label,
-								TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-								{ Position = UDim2.new(0.5, 0, 0.5, -6) }
-							)
-							tw:Play()
-							self._tweens[#self._tweens + 1] = tw
-						end
-					end)
-				end)
-			end
-			task.delay(0.5, function()
-				if alive() then
-					tween(subScale, 0.55, { Scale = 1 }, EASE_BACK)
-				end
-			end)
-
-			if not sleep(0.4) then
-				return
-			end
-			tween(fr, 0.4, { Position = UDim2.new(0.5, 0, 1, 0), Size = UDim2.fromOffset(FW, FH) }, Enum.EasingStyle.Bounce)
-			if not sleep(0.4) then
-				return
-			end
-			land(#XS)
-			if not sleep(1.6) then
-				return
-			end
-			self:_finish()
-		end)
-	end
-
-	maid:Add(function()
-		I:Stop()
-	end)
-	return I
 end
 
 --------------------------------------------------------------------------
@@ -1386,7 +921,7 @@ function UI_Library.CreateWindow(cfg)
 	end))
 
 	----------------------------------------------------------------------
-	-- notificaciones, log y flash
+	-- notificaciones y log
 	----------------------------------------------------------------------
 	local notifList = new("Frame", {
 		Name = "Notifications",
@@ -1429,18 +964,6 @@ function UI_Library.CreateWindow(cfg)
 	})
 	self._pill, self._pillSt, self._pillLbl = pill, pillSt, pillLbl
 
-	local flash = new("Frame", {
-		Name = "Flash",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = WHITE,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ZIndex = 100,
-	}, gui)
-	self._flash = flash
-
-	self._intro = buildIntro(gui, maid, self)
-
 	maid:Add(UIS.InputBegan:Connect(function(input, gpe)
 		if gpe or self._listening then
 			return
@@ -1450,11 +973,8 @@ function UI_Library.CreateWindow(cfg)
 		end
 	end))
 
-	if cfg.Intro ~= false then
-		self:_playIntro()
-	else
-		self:_open()
-	end
+	-- SIN INTRO: abre directamente
+	self:_open()
 	return self
 end
 
@@ -1547,7 +1067,7 @@ function Window:Restore()
 end
 
 function Window:Toggle()
-	if self.Destroyed or self._introRunning then
+	if self.Destroyed then
 		return
 	end
 	if self.State == "hidden" then
@@ -1580,45 +1100,6 @@ function Window:SetTitle(title, subtitle)
 	end
 end
 
-function Window:_playIntro()
-	if self.Destroyed then
-		return
-	end
-	self._introRunning = true
-	self.State = "hidden"
-	self._tok = self._tok + 1
-	self._win.Visible = false
-	self._wscale.Scale = 0.001
-	self._bub.Visible = false
-	self._intro:Play(function()
-		self:_afterIntro()
-	end)
-end
-
-function Window:_afterIntro()
-	if self.Destroyed then
-		return
-	end
-	local flash = self._flash
-	tween(flash, 0.35, { BackgroundTransparency = 0 })
-	task.delay(0.38, function()
-		if self.Destroyed then
-			return
-		end
-		self._intro:Hide()
-		self._introRunning = false
-		self:_open()
-		tween(flash, 0.9, { BackgroundTransparency = 1 })
-	end)
-end
-
-function Window:ReplayIntro()
-	if self.Destroyed or self._introRunning then
-		return
-	end
-	self:_playIntro()
-end
-
 function Window:Destroy()
 	if self.Destroyed then
 		return
@@ -1628,10 +1109,6 @@ function Window:Destroy()
 		UI_Library._current = nil
 	end
 	self.State = "closed"
-	if self._intro then
-		self._intro:Stop()
-		self._intro:Hide()
-	end
 	if self._bub then
 		self._bub.Visible = false
 	end
@@ -1715,6 +1192,9 @@ function Window:Notify(opts)
 		opts = { Content = tostring(opts) }
 	end
 	local kind = opts.Type or "info"
+	if kind == "warn" then
+		kind = "warning"
+	end
 	local title = tostring(opts.Title or self.Title)
 	local content = tostring(opts.Content or "")
 	local dur = opts.Duration or 4
@@ -1947,6 +1427,8 @@ end
 
 --------------------------------------------------------------------------
 -- BASE DE FILAS
+-- Devuelve: row (el marco visible), stroke, holder (contenedor del layout).
+-- Para ocultar un elemento por completo usa holder (row.Parent).
 --------------------------------------------------------------------------
 local function makeItem(tab, h, plain)
 	tab._n = tab._n + 1
@@ -2800,7 +2282,8 @@ function Tab:AddTextbox(str, default, placeholder, callback)
 	maid:Add(box.FocusLost:Connect(function(enter)
 		tween(bst, 0.2, { Color = C.Lav })
 		tween(box, 0.3, { BackgroundColor3 = C.LavLight })
-		win:_log(string.format("Textbox %s -> %s", str, box.Text))
+		-- no se registra el texto en el log (puede ser una contrasena)
+		win:_log(string.format("Textbox %s updated", str))
 		fire(callback, box.Text, enter)
 	end))
 
@@ -3087,12 +2570,10 @@ end
 --------------------------------------------------------------------------
 -- DEMO
 --------------------------------------------------------------------------
-function UI_Library.Demo(opts)
-	opts = opts or {}
+function UI_Library.Demo()
 	local W = UI_Library.CreateWindow({
 		Title = "FROGGY HUB",
 		Subtitle = "200 MEMBERS EDITION",
-		Intro = opts.Intro ~= false,
 		ToggleKey = Enum.KeyCode.RightShift,
 		LogEvents = true,
 		Resizable = true,
@@ -3140,9 +2621,6 @@ function UI_Library.Demo(opts)
 	Extra:AddTextbox("Nombre", "", "escribe...", function() end)
 	Extra:AddDivider()
 	Extra:AddInfo("Froggy Hub", "Gracias por ser parte de los 200 miembros! Arrastra la barra superior, minimiza con el boton amarillo y cambia el tamano desde la esquina.")
-	Extra:AddButton("Repetir intro", function()
-		W:ReplayIntro()
-	end)
 	Extra:AddButton("Probar notificaciones", function()
 		W:Notify({ Title = "Info", Content = "Mensaje informativo.", Type = "info" })
 		task.delay(0.3, function()
