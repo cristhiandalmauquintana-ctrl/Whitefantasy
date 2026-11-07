@@ -1,346 +1,208 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V16 - CLEAN)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V17 - HONEYPOTS FIX)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local MarketplaceService = game:GetService("MarketplaceService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
-if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
+if env.__BF_ATTACKALL_CLEANUP then pcall(env.__BF_ATTACKALL_CLEANUP) end
 
-local Config = { Enabled = false }
-env.BF_PLAYERFARM_CONFIG = Config
+local Config = { Enabled = false, Size = 1000 }
+env.BF_ATTACKALL_CONFIG = Config
 
-local FARM_X = 1451.5
-local FARM_Y = -115.1
-local FARM_Z = 85.7
-local HIDE_DEPTH = 15 
+local TargetPos = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
 
-local FarmPanel = nil
-local weaponLoop = nil
-local killTrackerCon = nil
-local uiLoop = nil
-local soulEventCon = nil
-local charAddedCon = nil
-local mainLoopCon = nil
-local thumbnailCon = nil
-local isResetting = false
+local originalData = {}
+local shieldedPlayersParts = {}
+local purgedParts = {}
+local honeypotParts = {}
 
-local kills = 0
-local playerStates = {}
-local currentFps = 60
-local bodyPos = nil
-local currentSoulTarget = nil
+if hookfunction then
+    hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
+    hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
+end
 
-local frames = 0
-local lastTime = tick()
-RunService.RenderStepped:Connect(function()
-    frames += 1
-    if tick() - lastTime >= 1 then
-        currentFps = frames
-        frames = 0
-        lastTime = tick()
+local function killTouch(obj)
+    if obj:IsA("BasePart") then
+        obj.CanTouch = false
+        obj.CanQuery = false
+    elseif obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
+        if not purgedParts[obj] then
+            purgedParts[obj] = { Enabled = obj.Enabled, MaxDist = obj.MaxActivationDistance }
+        end
+        obj.Enabled = false
+        obj.MaxActivationDistance = 0
     end
-end)
+end
 
-local function spoofSkin()
-    local char = LocalPlayer.Character
-    if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("Decal") or part:IsA("Texture") or part:IsA("Shirt") or part:IsA("Pants") or part:IsA("Accessory") then
-            part:Destroy()
-        elseif part:IsA("BasePart") then
-            part.Color = Color3.fromRGB(163, 162, 165)
-            part.Material = Enum.Material.Plastic
-            if part.Name == "Head" then
-                local face = part:FindFirstChild("face")
-                if face then face:Destroy() end
+local function globalPurge()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local isChar = obj.Parent and obj.Parent:FindFirstChildOfClass("Humanoid")
+            local isTPS = obj:IsDescendantOf(Workspace:FindFirstChild("TPS"))
+            if obj.Anchored and not isChar and not isTPS then
+                if not purgedParts[obj] then purgedParts[obj] = { CanTouch = obj.CanTouch, CanQuery = obj.CanQuery } end
+                killTouch(obj)
+            end
+        elseif (obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector")) then
+            local isTPS = obj:IsDescendantOf(Workspace:FindFirstChild("TPS"))
+            if not isTPS then
+                local pName = string.lower(obj.Name .. (obj.Parent and obj.Parent.Name or ""))
+                if not pName:find("soul") and not pName:find("alma") then
+                    killTouch(obj)
+                end
             end
         end
     end
 end
 
-local function startThumbnailHider()
-    if thumbnailCon then task.cancel(thumbnailCon) end
-    thumbnailCon = task.spawn(function()
-        while Config.Enabled do
-            task.wait(2)
-            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-            if playerGui then
-                for _, obj in ipairs(playerGui:GetDescendants()) do
-                    if obj:IsA("ImageLabel") and string.find(obj.Image, tostring(LocalPlayer.UserId)) then
-                        obj.Image = "rbxassetid://0"
+local function getHandle(tool)
+    if not tool or not tool:IsA("Tool") then return nil end
+    return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+end
+
+local function expandSword(tool)
+    local handle = getHandle(tool)
+    if not handle then return end
+    if not originalData[handle] then
+        originalData[handle] = { Size = handle.Size, Transparency = handle.Transparency, CanCollide = handle.CanCollide, Massless = handle.Massless, CanTouch = handle.CanTouch }
+    end
+    handle.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
+    handle.Transparency = 1 
+    handle.CanCollide = false 
+    handle.Massless = true
+    handle.CanTouch = true
+end
+
+local function restoreSword(tool)
+    local handle = getHandle(tool)
+    if not handle or not originalData[handle] then return end
+    local data = originalData[handle]
+    handle.Size = data.Size
+    handle.Transparency = data.Transparency
+    handle.CanCollide = data.CanCollide
+    handle.Massless = data.Massless
+    handle.CanTouch = data.CanTouch
+    originalData[handle] = nil
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    originalData = {}
+    if Config.Enabled then
+        task.wait(1.5) 
+        local char = LocalPlayer.Character
+        local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+        if myRoot then
+            myRoot.CFrame = CFrame.new(TargetPos + Vector3.new(0, 3, 0))
+            task.wait(0.5)
+            local tpsFolder = Workspace:FindFirstChild("TPS")
+            if tpsFolder then
+                local closestTele = nil
+                for _, obj in ipairs(tpsFolder:GetDescendants()) do
+                    if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
+                        closestTele = obj; break
+                    end
+                end
+                if closestTele and getconnections then
+                    for _, conn in pairs(getconnections(closestTele.Touched)) do
+                        if conn.Enabled then pcall(function() conn:Fire(myRoot) end) end
                     end
                 end
             end
         end
-    end)
-end
-
--- Soul Sniper (Sin lag)
-local lastSoulCheck = 0
-local function checkSoulPrompt(obj)
-    if not obj or not obj:IsA("ProximityPrompt") then return end
-    local now = tick()
-    if now - lastSoulCheck < 0.2 then return end 
-    lastSoulCheck = now
-
-    local name = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
-    if (string.find(name, "soul") or string.find(name, "alma")) and not string.find(name, "shop") then
-        if not currentSoulTarget and Config.Enabled and bodyPos then
-            local part = obj.Parent
-            if part and part:IsA("BasePart") then
-                currentSoulTarget = obj
-            end
-        end
     end
-end
+end)
 
-local function setupSoulEvents()
-    soulEventCon = Workspace.DescendantAdded:Connect(checkSoulPrompt)
-end
-
+-- Bucle de Flicker (Espada)
 task.spawn(function()
-    while task.wait(0.3) do
-        if Config.Enabled and currentSoulTarget and bodyPos then
-            local part = currentSoulTarget.Parent
-            if part and part:IsA("BasePart") then
-                bodyPos.Position = part.Position
-                task.wait(0.1)
-                pcall(function() fireproximityprompt(currentSoulTarget) end)
-                task.wait(0.1)
-                bodyPos.Position = Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
-            end
-            currentSoulTarget = nil
-        end
-    end
-end)
-
-local function equipWeapon()
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or char:FindFirstChildOfClass("Tool") then return end
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if backpack then
-        for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then pcall(function() hum:EquipTool(tool) end); break end
-        end
-    end
-end
-
-local function toggleModules(state)
-    if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = state end
-    if env.BF_HITBOX_CONFIG then env.BF_HITBOX_CONFIG.Enabled = state end
-    if env.BF_SILENTCOLLECT_CONFIG then env.BF_SILENTCOLLECT_CONFIG.Enabled = state end
-end
-
-local function getGameStats()
-    local diamonds, souls = 0, 0
-    local stats = LocalPlayer:FindFirstChild("leaderstats")
-    if stats then
-        local d = stats:FindFirstChild("Diamonds") or stats:FindFirstChild("Gems")
-        if d then diamonds = d.Value end
-        local s = stats:FindFirstChild("Souls") or stats:FindFirstChild("Soul")
-        if s then souls = s.Value end
-    end
-    return diamonds, souls
-end
-
-local function teleportToEnergy()
-    local char = LocalPlayer.Character
-    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-    local ENERGY_POS = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
-    myRoot.CFrame = CFrame.new(ENERGY_POS + Vector3.new(0, 3, 0))
-    myRoot.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.5)
-    local tpsFolder = Workspace:FindFirstChild("TPS")
-    if tpsFolder then
-        local closestTele, shortestDist = nil, math.huge
-        for _, obj in ipairs(tpsFolder:GetDescendants()) do
-            if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
-                local dist = (obj.Position - ENERGY_POS).Magnitude
-                if dist < shortestDist then shortestDist = dist; closestTele = obj end
-            end
-        end
-        if closestTele then
-            local success = false
-            if getconnections then
-                for _, conn in pairs(getconnections(closestTele.Touched)) do
-                    if conn.Enabled then pcall(function() conn:Fire(myRoot) success = true end) end
-                end
-            end
-            if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
-        end
-    end
-    task.wait(1.5)
-end
-
-local function calculateHiddenPosition()
-    local rayOrigin = Vector3.new(FARM_X, FARM_Y + 50, FARM_Z)
-    local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
-    if rayResult then
-        return Vector3.new(FARM_X, rayResult.Position.Y - HIDE_DEPTH, FARM_Z)
-    else
-        return Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
-    end
-end
-
-function startFarm()
-    if weaponLoop then task.cancel(weaponLoop) end
-    if killTrackerCon then task.cancel(killTrackerCon) end
-    if uiLoop then task.cancel(uiLoop) end
-
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not root or not hum then return end
-
-    local hiddenPos = calculateHiddenPosition()
-    root.Anchored = false
-    hum.PlatformStand = true
-
-    local bp = root:FindFirstChild("FarmBP")
-    if bp then bp:Destroy() end
-    bodyPos = Instance.new("BodyPosition")
-    bodyPos.Name = "FarmBP"
-    bodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bodyPos.Position = hiddenPos
-    bodyPos.P = 50000
-    bodyPos.D = 2000
-    bodyPos.Parent = root
-
-    local bg = root:FindFirstChild("FarmBG")
-    if bg then bg:Destroy() end
-    bg = Instance.new("BodyGyro")
-    bg.Name = "FarmBG"
-    bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bg.CFrame = root.CFrame
-    bg.P = 50000
-    bg.D = 2000
-    bg.Parent = root
-
-    for _, p in ipairs(char:GetDescendants()) do
-        if p:IsA("BasePart") then p.LocalTransparencyModifier = 1 end
-    end
-
-    toggleModules(true)
-    spoofSkin()
-    startThumbnailHider()
-    
-    setupSoulEvents()
-
-    if not FarmPanel and env.BF_UI_LIBRARY then
-        FarmPanel = env.BF_UI_LIBRARY.CreateFarmPanel({
-            OnStop = function() Config.Enabled = false end
-        })
-    end
-
-    weaponLoop = task.spawn(function()
-        while Config.Enabled do
-            local c = LocalPlayer.Character
-            if c and not c:FindFirstChildOfClass("Tool") then equipWeapon() end
-            if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = true end
-            task.wait(0.5)
-        end
-    end)
-
-    killTrackerCon = task.spawn(function()
-        while Config.Enabled do
-            task.wait(0.25)
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer then
-                    local c = p.Character
-                    local h = c and c:FindFirstChildOfClass("Humanoid")
-                    if h and h.Health > 0 then playerStates[p] = true
-                    elseif playerStates[p] and (not h or h.Health <= 0) then kills = kills + 1; playerStates[p] = false end
-                end
-            end
-        end
-    end)
-
-    uiLoop = task.spawn(function()
-        while Config.Enabled do
-            task.wait(0.5)
-            local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if FarmPanel and h then
-                local d, s = getGameStats()
-                FarmPanel:UpdateUI(h.Health, h.MaxHealth, kills, d, s, currentFps)
-            end
-        end
-    end)
-end
-
-local function stopFarm()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    toggleModules(false)
-    if root then
-        local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
-        local bg = root:FindFirstChild("FarmBG"); if bg then bg:Destroy() end
-        root.Anchored = true 
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        root.CFrame = CFrame.new(FARM_X, FARM_Y + 5, FARM_Z)
-        root.Anchored = false
-    end
-    if hum then hum.PlatformStand = false; hum.Sit = false end
-    if char then for _, p in ipairs(char:GetDescendants()) do if p:IsA("BasePart") then p.LocalTransparencyModifier = 0 end end end
-    
-    if FarmPanel then FarmPanel:Destroy(); FarmPanel = nil end
-    if uiLoop then task.cancel(uiLoop); uiLoop = nil end
-    if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
-    if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
-    if thumbnailCon then task.cancel(thumbnailCon); thumbnailCon = nil end
-    
-    if soulEventCon then soulEventCon:Disconnect(); soulEventCon = nil end
-    
-    playerStates = {}
-    currentSoulTarget = nil
-    bodyPos = nil
-end
-
-if charAddedCon then charAddedCon:Disconnect() end
-charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
-    if Config.Enabled then
-        task.wait(2)
-        teleportToEnergy()
-        task.wait(1)
-        equipWeapon()
-        task.wait(0.5)
-        startFarm()
-        isResetting = false
-    end
-end)
-
-if mainLoopCon then task.cancel(mainLoopCon) end
-mainLoopCon = task.spawn(function()
-    while true do
-        task.wait(0.5)
+    while task.wait(0.25) do
         if Config.Enabled then
-            if not FarmPanel and not isResetting and LocalPlayer.Character then
-                isResetting = true
-                task.spawn(function()
-                    task.wait(2)
-                    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if hum then hum.Health = 0 end
-                end)
+            local char = LocalPlayer.Character
+            local tool = char and char:FindFirstChildOfClass("Tool")
+            if tool then
+                expandSword(tool)
+                task.wait(0.25)
+                restoreSword(tool)
             end
-        else
-            if FarmPanel then stopFarm() end
-            isResetting = false
         end
     end
 end)
 
-env.__BF_PLAYERFARM_CLEANUP = function()
+-- Bucle de Purga (Mapa y Prompts) - Cada 1 seg para no lagear
+task.spawn(function()
+    while task.wait(1) do
+        if Config.Enabled then
+            globalPurge() 
+        end
+    end
+end)
+
+-- Bucle de Honeypots y Escudos - Cada 1 seg
+task.spawn(function()
+    while task.wait(1) do
+        if Config.Enabled then
+            -- Escudos
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local hasShield = p.Character:FindFirstChildOfClass("ForceField") or (p.Character:FindFirstChildOfClass("Humanoid") and p.Character.Humanoid:FindFirstChildOfClass("ForceField"))
+                    if hasShield then
+                        if not shieldedPlayersParts[p] then shieldedPlayersParts[p] = {} end
+                        for _, part in ipairs(p.Character:GetDescendants()) do
+                            if part:IsA("BasePart") and not shieldedPlayersParts[p][part] then
+                                shieldedPlayersParts[p][part] = { CanTouch = part.CanTouch, CanQuery = part.CanQuery }
+                                part.CanTouch = false; part.CanQuery = false
+                            end
+                        end
+                    elseif shieldedPlayersParts[p] then
+                        for part, data in pairs(shieldedPlayersParts[p]) do
+                            if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end
+                        end
+                        shieldedPlayersParts[p] = nil
+                    end
+                end
+            end
+
+            -- Honeypots (RESTAURADO)
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("Model") or obj:IsA("BasePart") then
+                    local name = string.lower(obj.Name)
+                    if name:find("anticheat") or name:find("anti-cheat") or name:find("ac_npc") or name:find("honeypot") or name:find("trap") then
+                        if obj:IsA("BasePart") then
+                            if not honeypotParts[obj] then honeypotParts[obj] = { CanTouch = obj.CanTouch, CanQuery = obj.CanQuery }; obj.CanTouch = false; obj.CanQuery = false end
+                        else
+                            for _, part in ipairs(obj:GetDescendants()) do
+                                if part:IsA("BasePart") and not honeypotParts[part] then honeypotParts[part] = { CanTouch = part.CanTouch, CanQuery = part.CanQuery }; part.CanTouch = false; part.CanQuery = false end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
-    stopFarm()
-    if charAddedCon then charAddedCon:Disconnect(); charAddedCon = nil end
-    if mainLoopCon then task.cancel(mainLoopCon); mainLoopCon = nil end
-    env.BF_PLAYERFARM_CONFIG = nil
-    env.__BF_PLAYERFARM_CLEANUP = nil
+    local char = LocalPlayer.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    if tool then restoreSword(tool) end
+    
+    for p, parts in pairs(shieldedPlayersParts) do
+        for part, data in pairs(parts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
+    end
+    for part, data in pairs(honeypotParts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
+    for obj, data in pairs(purgedParts) do
+        if obj and obj.Parent then
+            if obj:IsA("BasePart") then
+                obj.CanTouch = data.CanTouch; obj.CanQuery = data.CanQuery
+            elseif obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
+                obj.Enabled = data.Enabled
+                obj.MaxActivationDistance = data.MaxDist
+            end
+        end
+    end
+    
+    env.BF_ATTACKALL_CONFIG = nil
+    env.__BF_ATTACKALL_CLEANUP = nil
 end
