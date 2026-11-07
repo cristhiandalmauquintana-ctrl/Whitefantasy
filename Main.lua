@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local env = (getgenv and getgenv()) or _G
 
 -- ==========================================
--- 🔥 FIX DEL BUCLE DE LA INTRO
+-- 🔥 FIX DEL BUCLE Y DESACTIVACIÓN DE INTRO
 -- ==========================================
 -- 1. Si la ventana anterior sigue abierta, la destruimos
 if env.BF_CURRENT_UI then
@@ -19,9 +19,8 @@ if env.BF_CURRENT_UI then
     env.BF_CURRENT_UI = nil
 end
 
--- 2. Si ya viste la intro en esta sesión, no la volvemos a mostrar
-local playIntro = not env.BF_INTRO_PLAYED
-env.BF_INTRO_PLAYED = true 
+-- 2. Forzamos a que la intro esté apagada temporalmente
+local playIntro = false 
 -- ==========================================
 
 -- ==========================================
@@ -128,8 +127,9 @@ local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua"))()
 env.BF_UI_LIBRARY = UI_Library 
 env.BF_ASSETS_LIBRARY = Assets
 
+-- Aquí aplicamos la variable playIntro
 local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle"), Intro = playIntro })
-env.BF_CURRENT_UI = Window -- Guardamos la ventana actual para destruirla si se vuelve a ejecutar
+env.BF_CURRENT_UI = Window
 
 -- 🔥 DETECCIÓN DE DISPOSITIVO
 task.spawn(function()
@@ -321,4 +321,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     end
 end)
 
-print("[Main] Froggy Hub (Tournament & Device Update) cargado con éxito.")
+print("[Main] Froggy Hub (Sin Intro Temporal) cargado con éxito.")
