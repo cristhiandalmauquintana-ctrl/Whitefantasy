@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V17 - HONEYPOTS FIX)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V17 - STABLE)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -114,7 +114,6 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- Bucle de Flicker (Espada)
 task.spawn(function()
     while task.wait(0.25) do
         if Config.Enabled then
@@ -129,7 +128,6 @@ task.spawn(function()
     end
 end)
 
--- Bucle de Purga (Mapa y Prompts) - Cada 1 seg para no lagear
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
@@ -138,11 +136,9 @@ task.spawn(function()
     end
 end)
 
--- Bucle de Honeypots y Escudos - Cada 1 seg
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
-            -- Escudos
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer and p.Character then
                     local hasShield = p.Character:FindFirstChildOfClass("ForceField") or (p.Character:FindFirstChildOfClass("Humanoid") and p.Character.Humanoid:FindFirstChildOfClass("ForceField"))
@@ -163,7 +159,6 @@ task.spawn(function()
                 end
             end
 
-            -- Honeypots (RESTAURADO)
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj:IsA("Model") or obj:IsA("BasePart") then
                     local name = string.lower(obj.Name)
