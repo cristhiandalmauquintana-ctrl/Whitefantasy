@@ -13,13 +13,11 @@ local env = (getgenv and getgenv()) or _G
 -- ==========================================
 -- 🔥 FIX DEL BUCLE Y DESACTIVACIÓN DE INTRO
 -- ==========================================
--- 1. Si la ventana anterior sigue abierta, la destruimos
 if env.BF_CURRENT_UI then
     pcall(function() env.BF_CURRENT_UI:Destroy() end)
     env.BF_CURRENT_UI = nil
 end
 
--- 2. Forzamos a que la intro esté apagada temporalmente
 local playIntro = false 
 -- ==========================================
 
@@ -119,17 +117,29 @@ local SharedElements = {
 }
 
 -- ==========================================
--- 3. CARGAMOS DISEÑO Y ASSETS
+-- 3. CARGAMOS DISEÑO Y ASSETS (CON ANTI-CACHÉ)
 -- ==========================================
-local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua"))()
-local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua"))()
+-- 🔥 AQUÍ ESTABA EL ERROR: Le pusimos ?v=os.time() para que descargue la versión nueva
+local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua?v=" .. os.time()))()
+local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua?v=" .. os.time()))()
 
 env.BF_UI_LIBRARY = UI_Library 
 env.BF_ASSETS_LIBRARY = Assets
 
--- Aquí aplicamos la variable playIntro
 local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle"), Intro = playIntro })
 env.BF_CURRENT_UI = Window
+
+-- 🔥 KILL SWITCH: Si el design viejo intenta forzar la intro, la destruimos
+task.spawn(function()
+    task.wait(0.2)
+    if Window._intro then
+        pcall(function()
+            Window._intro:Stop()
+            Window._intro:Hide()
+            Window:_open()
+        end)
+    end
+end)
 
 -- 🔥 DETECCIÓN DE DISPOSITIVO
 task.spawn(function()
@@ -321,4 +331,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     end
 end)
 
-print("[Main] Froggy Hub (Sin Intro Temporal) cargado con éxito.")
+print("[Main] Froggy Hub (Sin Intro) cargado con éxito.")
