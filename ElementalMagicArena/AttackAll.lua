@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V14 - ULTRA SMOOTH)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V15 - NO UI BUGS)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -17,82 +17,23 @@ env.BF_ATTACKALL_CONFIG = Config
 local TargetPos = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
 
 local originalData = {}
-local honeypotParts = {}
 local shieldedPlayersParts = {}
 local purgedParts = {}
 local shopConnections = {}
 local workspaceConnections = {}
 
--- 1. HOOK ANTI-COMPRAS
-if hookmetamethod and checkcaller then
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if not checkcaller() then
-            if method == "PromptProductPurchase" or method == "PromptGamePassPurchase" or method == "PromptPurchase" or method == "PromptSubscriptionPurchase" then
-                return nil
-            end
-            if (method == "FireServer" or method == "InvokeServer") and self:IsA("RemoteEvent") then
-                local name = string.lower(self.Name)
-                if name:find("purchase") or name:find("buy") or name:find("shop") or name:find("robux") then
-                    return nil
-                end
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
-elseif hookfunction then
+-- 1. HOOK ANTI-COMPRAS (Solo oficiales, sin romper la UI del juego)
+if hookfunction then
     hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
     hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
 end
 
--- 2. FUNCIONES DE PURGA
-local function killTouch(obj)
-    if obj:IsA("BasePart") then
-        obj.CanTouch = false
-        obj.CanQuery = false
-        if getconnections then
-            for _, conn in pairs(getconnections(obj.Touched)) do
-                conn:Disconnect()
-            end
-        end
-    end
-    if obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
-        obj.Enabled = false
-    end
-end
-
-local lastPurgeTime = 0
-local function checkNewWorkspaceObj(obj)
-    if not Config.Enabled or not obj or not obj.Parent then return end
-    local now = tick()
-    if now - lastPurgeTime < 0.1 then return end -- Filtro anti-lag
-    lastPurgeTime = now
-
-    if obj:IsA("BasePart") then
-        local isCharacter = obj.Parent and obj.Parent:FindFirstChildOfClass("Humanoid") ~= nil
-        if obj.Anchored and not isCharacter then
-            local isTPS = obj:IsDescendantOf(Workspace:FindFirstChild("TPS"))
-            if not isTPS then
-                if not purgedParts[obj] then purgedParts[obj] = { CanTouch = obj.CanTouch, CanQuery = obj.CanQuery } end
-                killTouch(obj)
-            end
-        end
-    elseif obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
-        local pName = string.lower(obj.Name .. (obj.Parent and obj.Parent.Name or ""))
-        if not pName:find("soul") and not pName:find("alma") then
-            if not purgedParts[obj] then purgedParts[obj] = { Enabled = obj.Enabled } end
-            obj.Enabled = false
-        end
-    end
-end
-
--- 3. CAZADOR DE VENTANAS EMERGENTES (Optimizado)
+-- 2. CAZADOR DE VENTANAS (Solo destruye si es estrictamente una tienda de Robux)
 local function checkNewGuiObj(obj)
     if not obj or not obj.Parent then return end
-    if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
         local txt = string.lower(obj.Text)
-        if txt:find("robux") or txt:find("r%$") or txt:find("gem") or txt:find("buy") or txt:find("comprar") or txt:find("premium") then
+        if txt:find("robux") or txt:find("r%$") then
             local parent = obj.Parent
             while parent and not parent:IsA("ScreenGui") and parent ~= LocalPlayer:FindFirstChild("PlayerGui") do
                 if parent:IsA("Frame") and (parent.Size.X.Scale > 0.4 or parent.Size.X.Offset > 300) then
@@ -112,14 +53,53 @@ local function setupShopShield()
             task.defer(function() checkNewGuiObj(obj) end)
         end))
     end
-    local cg = game:GetService("CoreGui")
-    if cg then
-        table.insert(shopConnections, cg.DescendantAdded:Connect(function(obj)
-            task.defer(function() checkNewGuiObj(obj) end)
-        end))
-    end
 end
 setupShopShield()
+
+-- 3. FUNCIONES DE PURGA
+local function killTouch(obj)
+    if obj:IsA("BasePart") then
+        obj.CanTouch = false
+        obj.CanQuery = false
+        if getconnections then
+            for _, conn in pairs(getconnections(obj.Touched)) do
+                conn:Disconnect()
+            end
+        end
+    end
+end
+
+local lastPurgeTime = 0
+local function checkNewWorkspaceObj(obj)
+    if not Config.Enabled or not obj or not obj.Parent then return end
+    local now = tick()
+    if now - lastPurgeTime < 0.1 then return end
+    lastPurgeTime = now
+
+    if obj:IsA("BasePart") then
+        local isCharacter = obj.Parent and obj.Parent:FindFirstChildOfClass("Humanoid") ~= nil
+        if obj.Anchored and not isCharacter then
+            local isTPS = obj:IsDescendantOf(Workspace:FindFirstChild("TPS"))
+            if not isTPS then
+                if not purgedParts[obj] then purgedParts[obj] = { CanTouch = obj.CanTouch, CanQuery = obj.CanQuery } end
+                killTouch(obj)
+            end
+        end
+    elseif obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
+        local pName = string.lower(obj.Name .. (obj.Parent and obj.Parent.Name or ""))
+        if not pName:find("soul") and not pName:find("alma") then
+            -- 🔥 FIX: Destruirlo directamente para que la espada no lo toque
+            if not purgedParts[obj] then purgedParts[obj] = { Enabled = obj.Enabled } end
+            obj.Enabled = false
+            obj.MaxActivationDistance = 0
+            task.defer(function() 
+                if obj and obj.Parent then 
+                    obj:Destroy() 
+                end 
+            end)
+        end
+    end
+end
 
 -- 4. Funciones del Arma
 local function getHandle(tool)
@@ -209,7 +189,7 @@ task.spawn(function()
     end
 end)
 
--- 7. BYPASS DE ESCUDOS (Optimizado - cada 2 segundos)
+-- 7. BYPASS DE ESCUDOS (Cada 2 segundos)
 task.spawn(function()
     while task.wait(2) do 
         if Config.Enabled then
@@ -236,7 +216,7 @@ task.spawn(function()
     end
 end)
 
--- 8. SETUP DE EVENTOS AL ENCENDER
+-- 8. SETUP DE EVENTOS
 local function setupWorkspaceEvents()
     table.insert(workspaceConnections, Workspace.DescendantAdded:Connect(checkNewWorkspaceObj))
     for _, obj in ipairs(Workspace:GetDescendants()) do checkNewWorkspaceObj(obj) end
@@ -249,7 +229,6 @@ local function cleanupWorkspaceEvents()
     workspaceConnections = {}
 end
 
--- 9. CONTROL DE ENCENDIDO/APAGADO
 local oldEnabled = Config.Enabled
 task.spawn(function()
     while task.wait(0.5) do
@@ -263,7 +242,7 @@ task.spawn(function()
     end
 end)
 
--- 10. Limpieza
+-- 9. Limpieza
 env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
     local char = LocalPlayer.Character
@@ -279,14 +258,11 @@ env.__BF_ATTACKALL_CLEANUP = function()
     for p, parts in pairs(shieldedPlayersParts) do
         for part, data in pairs(parts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
     end
-    for part, data in pairs(honeypotParts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
     for obj, data in pairs(purgedParts) do
         if obj and obj.Parent then
             if obj:IsA("BasePart") then
                 obj.CanTouch = data.CanTouch
                 obj.CanQuery = data.CanQuery
-            elseif obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
-                obj.Enabled = data.Enabled
             end
         end
     end
