@@ -114,7 +114,11 @@ local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua"))()
 env.BF_UI_LIBRARY = UI_Library 
 env.BF_ASSETS_LIBRARY = Assets
 
-local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle") })
+-- 🔥 FIX DEL BUCLE DE LA INTRO
+local playIntro = not env.BF_INTRO_PLAYED
+env.BF_INTRO_PLAYED = true
+
+local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle"), Intro = playIntro })
 
 -- 🔥 DETECCIÓN DE DISPOSITIVO
 task.spawn(function()
@@ -126,7 +130,7 @@ task.spawn(function()
     end
 end)
 
--- 4. CREAMOS LAS PESTAÑAS (Agregamos Torneo)
+-- 4. CREAMOS LAS PESTAÑAS
 local TabMain = Window:CreateTab(L("tab_main"))
 local TabCombat = Window:CreateTab(L("tab_combat"))
 local TabVisual = Window:CreateTab(L("tab_visual"))
