@@ -1,9 +1,7 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (SMOOTH EDITION - NO FREEZE)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V16 - CLEAN)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -22,12 +20,10 @@ local weaponLoop = nil
 local killTrackerCon = nil
 local uiLoop = nil
 local soulEventCon = nil
-local honeypotEventCon = nil
 local charAddedCon = nil
 local mainLoopCon = nil
 local thumbnailCon = nil
 local isResetting = false
-local isSniping = false
 
 local kills = 0
 local playerStates = {}
@@ -35,7 +31,6 @@ local currentFps = 60
 local bodyPos = nil
 local currentSoulTarget = nil
 
--- 🔥 FIX FPS: Contador optimizado fuera de bucles
 local frames = 0
 local lastTime = tick()
 RunService.RenderStepped:Connect(function()
@@ -81,34 +76,7 @@ local function startThumbnailHider()
     end)
 end
 
--- 🔥 FIX FREEZE: Debounce para eventos
-local lastHoneypotCheck = 0
-local function checkHoneypot(obj)
-    if not obj or not obj.Parent then return end
-    local now = tick()
-    if now - lastHoneypotCheck < 0.1 then return end -- Solo procesa 1 objeto cada 0.1s
-    lastHoneypotCheck = now
-
-    if obj:IsA("Model") or obj:IsA("BasePart") then
-        local name = string.lower(obj.Name)
-        if name:find("anticheat") or name:find("anti-cheat") or name:find("ac_npc") or name:find("honeypot") or name:find("trap") then
-            if not obj:GetAttribute("FroggyIgnored") then
-                obj:SetAttribute("FroggyIgnored", true)
-                obj.Parent = ReplicatedStorage
-            end
-        end
-    end
-end
-
-local function setupHoneypotEvents()
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if enemies then
-        honeypotEventCon = enemies.DescendantAdded:Connect(checkHoneypot)
-        for _, child in ipairs(enemies:GetChildren()) do checkHoneypot(child) end
-    end
-end
-
--- 🔥 FIX FREEZE: Soul Sniper sin lag
+-- Soul Sniper (Sin lag)
 local lastSoulCheck = 0
 local function checkSoulPrompt(obj)
     if not obj or not obj:IsA("ProximityPrompt") then return end
@@ -131,33 +99,18 @@ local function setupSoulEvents()
     soulEventCon = Workspace.DescendantAdded:Connect(checkSoulPrompt)
 end
 
--- Bucle para procesar almas sin causar tirones de cámara
 task.spawn(function()
     while task.wait(0.3) do
-        if Config.Enabled and currentSoulTarget and bodyPos and not isSniping then
+        if Config.Enabled and currentSoulTarget and bodyPos then
             local part = currentSoulTarget.Parent
             if part and part:IsA("BasePart") then
-                isSniping = true
-                
-                -- Usamos Tween en la posición del BodyPosition para que sea suave
-                local originalPos = bodyPos.Position
-                local targetPos = part.Position
-                
-                -- Bajar
-                bodyPos.Position = targetPos
-                task.wait(0.15)
-                
-                -- Interactuar
+                bodyPos.Position = part.Position
+                task.wait(0.1)
                 pcall(function() fireproximityprompt(currentSoulTarget) end)
-                task.wait(0.15)
-                
-                -- Subir suavemente
-                bodyPos.Position = originalPos
-                task.wait(0.15)
-                
-                isSniping = false
+                task.wait(0.1)
+                bodyPos.Position = Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
             end
-            currentSoulTarget = nil 
+            currentSoulTarget = nil
         end
     end
 end)
@@ -277,7 +230,6 @@ function startFarm()
     spoofSkin()
     startThumbnailHider()
     
-    setupHoneypotEvents()
     setupSoulEvents()
 
     if not FarmPanel and env.BF_UI_LIBRARY then
@@ -345,7 +297,6 @@ local function stopFarm()
     if thumbnailCon then task.cancel(thumbnailCon); thumbnailCon = nil end
     
     if soulEventCon then soulEventCon:Disconnect(); soulEventCon = nil end
-    if honeypotEventCon then honeypotEventCon:Disconnect(); honeypotEventCon = nil end
     
     playerStates = {}
     currentSoulTarget = nil
