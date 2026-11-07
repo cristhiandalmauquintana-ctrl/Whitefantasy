@@ -261,7 +261,7 @@ end
 -- 🔥 NO ROBUX MODULE
 if NoRobuxC then
     TabConfig:AddSection("SEGURIDAD EXTRA")
-    TabConfig:AddToggle(L("no_robux"), false, function(state)
+    TabConfig:AddToggle(L("no_robux"), true, function(state)
         NoRobuxC.Enabled = state
         if state then
             Window:Notify({Title = "NoRobux", Content = "Escudo de compras activado.", Type = "success"})
