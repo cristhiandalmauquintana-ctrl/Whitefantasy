@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V10 - Purga Original + Equip)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V12 - Ultra Anti-Shop Integrado)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -17,17 +17,89 @@ env.BF_ATTACKALL_CONFIG = Config
 -- 1. Coordenadas exactas de Energy
 local TargetPos = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
 
--- 2. Bloquear compras de Robux
-if hookfunction then
-    hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
-end
-
 -- Variables
 local originalData = {}
 local honeypotParts = {}
 local shieldedPlayersParts = {}
+local purgedParts = {}
+local shopConnections = {}
 
--- 🔥 3. LA PURGA ORIGINAL (Exactamente como la que funcionó)
+-- 2. HOOK DEFINITIVO ANTI-COMPRAS (Marketplace + Remotes)
+if hookmetamethod and checkcaller then
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if not checkcaller() then
+            -- Bloquear ventanas oficiales de Roblox
+            if method == "PromptProductPurchase" or method == "PromptGamePassPurchase" or 
+               method == "PromptPurchase" or method == "PromptSubscriptionPurchase" then
+                return nil
+            end
+            -- Bloquear remotes de tienda del juego
+            if (method == "FireServer" or method == "InvokeServer") and self:IsA("RemoteEvent") then
+                local name = string.lower(self.Name)
+                if name:find("purchase") or name:find("buy") or name:find("shop") or name:find("robux") then
+                    return nil
+                end
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+elseif hookfunction then
+    hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
+    hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
+    hookfunction(MarketplaceService.PromptPurchase, function() return end)
+end
+
+-- 3. ANTI-PROMPTS (Para que la espada no active tiendas del mapa)
+local function nukePrompts()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            obj.Enabled = false
+            obj.MaxActivationDistance = 0
+        elseif obj:IsA("ClickDetector") then
+            obj.MaxActivationDistance = 0
+        end
+    end
+end
+
+-- 4. CAZADOR DE VENTANAS EMERGENTES (Shop UI Killer)
+local function killShopGui(container)
+    if not container then return end
+    for _, obj in ipairs(container:GetDescendants()) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+            local txt = string.lower(obj.Text)
+            if txt:find("robux") or txt:find("r%$") or txt:find("gem") or txt:find("buy") or txt:find("comprar") or txt:find("premium") then
+                local parent = obj.Parent
+                while parent and parent ~= container do
+                    if parent:IsA("ScreenGui") or (parent:IsA("Frame") and parent.Size.X.Scale > 0.4) then
+                        parent:Destroy()
+                        break
+                    end
+                    parent = parent.Parent
+                end
+            end
+        end
+    end
+end
+
+local function setupShopShield()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        table.insert(shopConnections, pg.DescendantAdded:Connect(function(obj)
+            task.defer(function() killShopGui(pg) end)
+        end))
+    end
+    local cg = game:GetService("CoreGui")
+    if cg then
+        table.insert(shopConnections, cg.DescendantAdded:Connect(function(obj)
+            task.defer(function() killShopGui(cg) end)
+        end))
+    end
+end
+setupShopShield()
+
+-- 5. LA PURGA ORIGINAL (Destruye tiendas físicas del mapa)
 local function killTouch(obj)
     if obj:IsA("BasePart") then
         obj.CanTouch = false
@@ -48,20 +120,22 @@ local function globalPurge()
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
             local isCharacter = obj.Parent and obj.Parent:FindFirstChildOfClass("Humanoid") ~= nil
-            
-            -- Si está anclado y NO es un personaje
             if obj.Anchored and not isCharacter then
-                -- 🛑 EXCEPCIÓN: Protegemos la carpeta TPS (Placas de elementos)
                 local isTPS = obj:IsDescendantOf(Workspace:FindFirstChild("TPS"))
-                
                 if not isTPS then
-                    killTouch(obj) -- Destruye tiendas, gacha, duelos, UGC, etc.
+                    if not purgedParts[obj] then
+                        purgedParts[obj] = { CanTouch = obj.CanTouch, CanQuery = obj.CanQuery }
+                    end
+                    killTouch(obj)
                     count = count + 1
                 end
             end
         elseif obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
             local pName = string.lower(obj.Name .. (obj.Parent and obj.Parent.Name or ""))
             if not pName:find("soul") and not pName:find("alma") then
+                if not purgedParts[obj] then
+                    purgedParts[obj] = { Enabled = obj.Enabled }
+                end
                 obj.Enabled = false
             end
         end
@@ -69,7 +143,7 @@ local function globalPurge()
     return count
 end
 
--- 4. Funciones del Arma (Flicker)
+-- 6. Funciones del Arma (Flicker)
 local function getHandle(tool)
     if not tool or not tool:IsA("Tool") then return nil end
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
@@ -100,38 +174,31 @@ local function restoreSword(tool)
     originalData[handle] = nil
 end
 
--- 5. Auto-Equipar al Morir (Usa conn:Fire)
+-- 7. Auto-Equipar al Morir
 LocalPlayer.CharacterAdded:Connect(function()
     originalData = {}
     if Config.Enabled then
-        task.wait(1.5) -- Esperar a que cargue el personaje en el lobby
-        
+        task.wait(1.5) 
         local char = LocalPlayer.Character
         local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-        
         if myRoot then
             myRoot.CFrame = CFrame.new(TargetPos + Vector3.new(0, 3, 0))
             myRoot.AssemblyLinearVelocity = Vector3.zero
             task.wait(0.5)
-
             local tpsFolder = Workspace:FindFirstChild("TPS")
             if tpsFolder then
-                local closestTele = nil
-                local shortestDist = math.huge
+                local closestTele, shortestDist = nil, math.huge
                 for _, obj in ipairs(tpsFolder:GetDescendants()) do
                     if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
                         local dist = (obj.Position - TargetPos).Magnitude
                         if dist < shortestDist then shortestDist = dist; closestTele = obj end
                     end
                 end
-
                 if closestTele then
                     local success = false
                     if getconnections then
                         for _, conn in pairs(getconnections(closestTele.Touched)) do
-                            if conn.Enabled then
-                                pcall(function() conn:Fire(myRoot) success = true end)
-                            end
+                            if conn.Enabled then pcall(function() conn:Fire(myRoot) success = true end) end
                         end
                     end
                     if not success then
@@ -147,12 +214,12 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- 🔥 6. BUCLE PRINCIPAL (Flicker + Purga Constante)
+-- 8. BUCLE PRINCIPAL
 task.spawn(function()
-    while task.wait() do
+    while task.wait(1) do
         if Config.Enabled then
-            globalPurge() -- Mantener el mapa limpio de tiendas constantemente
-            
+            globalPurge() 
+            nukePrompts() -- 🔥 Desactiva tiendas constantemente
             local char = LocalPlayer.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
             if tool then
@@ -160,16 +227,14 @@ task.spawn(function()
                 task.wait(0.25)
                 restoreSword(tool)
                 task.wait(0.25)
-            else
-                task.wait(0.1)
             end
         else
-            task.wait(0.1)
+            task.wait(0.5)
         end
     end
 end)
 
--- 7. Bypass de Honeypots y Escudos
+-- 9. Bypass de Honeypots y Escudos
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
@@ -211,18 +276,32 @@ task.spawn(function()
     end
 end)
 
--- 8. Limpieza al Apagar
+-- 10. Limpieza
 env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
-    
     local char = LocalPlayer.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
     if tool then restoreSword(tool) end
     
+    for _, conn in ipairs(shopConnections) do
+        if conn then conn:Disconnect() end
+    end
+    shopConnections = {}
+
     for p, parts in pairs(shieldedPlayersParts) do
         for part, data in pairs(parts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
     end
     for part, data in pairs(honeypotParts) do if part and part.Parent then part.CanTouch = data.CanTouch; part.CanQuery = data.CanQuery end end
+    for obj, data in pairs(purgedParts) do
+        if obj and obj.Parent then
+            if obj:IsA("BasePart") then
+                obj.CanTouch = data.CanTouch
+                obj.CanQuery = data.CanQuery
+            elseif obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
+                obj.Enabled = data.Enabled
+            end
+        end
+    end
     
     env.BF_ATTACKALL_CONFIG = nil
     env.__BF_ATTACKALL_CLEANUP = nil
