@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (BADGE + SWORD CHECK)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ENTRY ANIMATION FIX)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -10,11 +10,8 @@ if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
 local Config = { Enabled = false, SelectedElement = "energy" }
 env.BF_PLAYERFARM_CONFIG = Config
 
--- 🔥 TABLA COMPLETA (Normales + Logros)
 local ElementData = {
     ["energy"] = {Y=-14.51,X=816.06,Z=37.42},
-    -- ... (Añade los demás que ya teníamos aquí arriba para no hacer el texto tan largo, 
-    -- pero asegúrate de mantener los de Logros que ya habíamos puesto) ...
     ["witchcraft"] = {Y=-17.33, X=694.72, Z=251.30},
     ["luck"] = {Y=-17.38, X=694.72, Z=136.30},
     ["nature"] = {Y=-17.38, X=694.72, Z=113.30},
@@ -42,12 +39,12 @@ local uiLoop = nil
 local charAddedCon = nil
 local mainLoopCon = nil
 local isResetting = false
+
 local kills = 0
 local playerStates = {}
 local currentFps = 60
 local bodyPos = nil
 
--- SKIN SPOOFER
 local function spoofSkin()
     local char = LocalPlayer.Character
     if not char then return end
@@ -57,25 +54,18 @@ local function spoofSkin()
         elseif part:IsA("BasePart") then
             part.Color = Color3.fromRGB(163, 162, 165)
             part.Material = Enum.Material.Plastic
-            if part.Name == "Head" then
-                local face = part:FindFirstChild("face")
-                if face then face:Destroy() end
-            end
         end
     end
 end
 
--- FUNCIONES DEL ARMA (CON COMPROBACIÓN DE ESPADA)
 local function getHandle(tool)
     if not tool or not tool:IsA("Tool") then return nil end
-    -- 🔥 Verifica si realmente tiene un Handle (Espada)
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
 end
 
 local function expandSword(tool)
     local handle = getHandle(tool)
-    if not handle then return end -- Si no hay mango, no hace nada (evita errores)
-    
+    if not handle then return end
     if not handle:GetAttribute("FroggyOriginalSize") then
         handle:SetAttribute("FroggyOriginalSize", handle.Size)
         handle:SetAttribute("FroggyOriginalTransparency", handle.Transparency)
@@ -143,7 +133,8 @@ local function teleportToElement()
             if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
         end
     end
-    task.wait(1.5)
+    -- 🔥 AQUÍ ESTÁ EL FIX: Esperamos 3.5 segundos a que la animación del juego termine
+    task.wait(3.5)
 end
 
 local function getGameStats()
@@ -178,7 +169,10 @@ function startFarm()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    root.Anchored = false
+    -- 🔥 FIX: Asegurarnos de que el juego no nos tenga anclados de la animación
+    if root.Anchored then root.Anchored = false end
+    
+    root.AssemblyLinearVelocity = Vector3.zero
     hum.PlatformStand = true
 
     local bp = root:FindFirstChild("FarmBP")
@@ -203,30 +197,21 @@ function startFarm()
         })
     end
 
-    -- 🔥 BUCLE DEL ARMA (Solo si tiene Handle)
     weaponLoop = task.spawn(function()
         while Config.Enabled do
             local c = LocalPlayer.Character
             if c then
                 local tool = c:FindFirstChildOfClass("Tool")
-                if not tool then 
-                    equipWeapon() 
-                    task.wait(0.2)
+                if not tool then equipWeapon() task.wait(0.2)
                 else
-                    -- Si es una espada, hace el flicker
                     if getHandle(tool) then
                         expandSword(tool)
                         task.wait(0.25)
                         restoreSword(tool)
                         task.wait(0.25)
-                    else
-                        -- Si es magia, solo espera
-                        task.wait(0.5)
-                    end
+                    else task.wait(0.5) end
                 end
-            else
-                task.wait(0.5)
-            end
+            else task.wait(0.5) end
         end
     end)
 
@@ -286,12 +271,11 @@ end
 if charAddedCon then charAddedCon:Disconnect() end
 charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
-        task.wait(2)
-        teleportToElement()
-        task.wait(1)
+        task.wait(2) -- Esperar a que cargue el personaje
+        teleportToElement() -- Toca la placa y espera 3.5s a la animación
         equipWeapon()
         task.wait(0.5)
-        startFarm()
+        startFarm() -- Ahora sí, nos vamos bajo el mapa sin conflicto
         isResetting = false
     end
 end)
