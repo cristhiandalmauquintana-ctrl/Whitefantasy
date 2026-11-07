@@ -1,19 +1,18 @@
---// Froggy Hub - ElementalMagicArena/NoRobux.lua
+--// Froggy Hub - ElementalMagicArena/NoRobux.lua (V3 - BULLETPROOF)
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
 if env.__BF_NOROBUX_CLEANUP then pcall(env.__BF_NOROBUX_CLEANUP) end
 
-local Config = {
-    Enabled = false
-}
+local Config = { Enabled = false }
 env.BF_NOROBUX_CONFIG = Config
 
-local shopConnections = {}
+local scanConnection = nil
 
--- 1. HOOK ANTI-COMPRAS (Bloquea oficiales y Remotes del juego)
+-- 1. HOOKS DE COMPRA (Bloqueo a nivel de red)
 local function applyHooks()
     if hookmetamethod and checkcaller then
         local oldNamecall
@@ -23,82 +22,69 @@ local function applyHooks()
                 if method == "PromptProductPurchase" or method == "PromptGamePassPurchase" or method == "PromptPurchase" or method == "PromptSubscriptionPurchase" then
                     return nil
                 end
-                if (method == "FireServer" or method == "InvokeServer") and self:IsA("RemoteEvent") then
-                    local name = string.lower(self.Name)
-                    if name:find("purchase") or name:find("buy") or name:find("shop") or name:find("robux") then
-                        return nil
-                    end
-                end
             end
             return oldNamecall(self, ...)
         end)
     elseif hookfunction then
         hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
         hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
+        hookfunction(MarketplaceService.PromptPurchase, function() return end)
     end
 end
 
--- 2. CAZADOR DE VENTANAS (Optimizado con Debounce)
-local lastGuiCheck = 0
-local function checkNewGuiObj(obj)
-    if not obj or not obj.Parent then return end
-    local now = tick()
-    if now - lastGuiCheck < 0.1 then return end 
-    lastGuiCheck = now
-    
-    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-        local txt = string.lower(obj.Text)
-        if txt:find("robux") or txt:find("r%$") or txt:find("gem") or txt:find("buy") or txt:find("comprar") then
-            local parent = obj.Parent
-            while parent and not parent:IsA("ScreenGui") and parent ~= LocalPlayer:FindFirstChild("PlayerGui") do
-                if parent:IsA("Frame") and (parent.Size.X.Scale > 0.4 or parent.Size.X.Offset > 300) then
-                    parent:Destroy()
-                    break
+-- 2. CAZADOR DE VENTANAS (Bucle rápido)
+local function scanAndDestroy()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+
+    for _, obj in ipairs(playerGui:GetDescendants()) do
+        -- Buscamos TextLabels, TextButtons o TextBoxes
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+            local text = string.lower(obj.Text)
+            
+            -- Si el texto menciona dinero, gemas o compras
+            if text:find("robux") or text:find("r%$") or text:find("gem") or text:find("buy") or text:find("comprar") or text:find("tienda") or text:find("shop") then
+                
+                -- Buscamos el Frame padre que contiene esta ventana
+                local parent = obj.Parent
+                while parent and parent ~= playerGui do
+                    -- Si encontramos un contenedor grande, lo destruimos
+                    if parent:IsA("Frame") and (parent.Size.X.Scale > 0.3 or parent.Size.X.Offset > 200) then
+                        parent:Destroy()
+                        break
+                    elseif parent:IsA("ScreenGui") and parent.Name ~= "FroggyHub" and parent.Name ~= "FroggyFarm" then
+                        parent:Destroy()
+                        break
+                    end
+                    parent = parent.Parent
                 end
-                parent = parent.Parent
             end
         end
     end
 end
 
--- 3. CONTROL DE ENCENDIDO / APAGADO
-local function enableNoRobux()
-    applyHooks()
-    
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg then
-        table.insert(shopConnections, pg.DescendantAdded:Connect(function(obj)
-            task.defer(function() checkNewGuiObj(obj) end)
-        end))
-    end
-    print("[Froggy] NoRobux Activado.")
-end
-
-local function disableNoRobux()
-    for _, conn in ipairs(shopConnections) do
-        if conn then conn:Disconnect() end
-    end
-    shopConnections = {}
-    print("[Froggy] NoRobux Desactivado.")
-end
-
--- Bucle de verificación para el Toggle del Hub
+-- 3. CONTROL DE ENCENDIDO
 local oldEnabled = false
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled and not oldEnabled then
             oldEnabled = true
-            enableNoRobux()
+            applyHooks()
+            -- Bucle de escaneo rápido
+            if scanConnection then scanConnection:Disconnect() end
+            scanConnection = RunService.Heartbeat:Connect(scanAndDestroy)
+            print("[Froggy] NoRobux Activado (BULLETPROOF).")
         elseif not Config.Enabled and oldEnabled then
             oldEnabled = false
-            disableNoRobux()
+            if scanConnection then scanConnection:Disconnect(); scanConnection = nil end
+            print("[Froggy] NoRobux Desactivado.")
         end
     end
 end)
 
 env.__BF_NOROBUX_CLEANUP = function()
     Config.Enabled = false
-    disableNoRobux()
+    if scanConnection then scanConnection:Disconnect(); scanConnection = nil end
     env.BF_NOROBUX_CONFIG = nil
     env.__BF_NOROBUX_CLEANUP = nil
 end
