@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Clean Release)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (NoPopUps & Clean Update)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -33,6 +33,7 @@ local Translations = {
         tourney_desc = "Persigue al enemigo 10 studs atrás y arriba. Ideal para 1v1.",
         silent_collect = "AUTO-RECOLECCIÓN SILENCIOSA",
         no_robux = "BLOQUEAR COMPRAS DE ROBUX", no_robux_desc = "Evita que la espada abra tiendas de gemas.",
+        no_popups = "BLOQUEAR VENTANAS EMERGENTES", no_popups_desc = "Segunda capa de defensa. Destruye menús del juego.",
         dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA DE PRUEBAS", unlock = "DESBLOQUEAR PRUEBA", destroy_ui = "DESTRUIR UI", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar."
     },
     ["en"] = {
@@ -49,6 +50,7 @@ local Translations = {
         tourney_desc = "Stalks the enemy 10 studs behind and above. Ideal for 1v1s.",
         silent_collect = "SILENT AUTO-COLLECT",
         no_robux = "BLOCK ROBUX PURCHASES", no_robux_desc = "Prevents the sword from opening gem shops.",
+        no_popups = "BLOCK POP-UP WINDOWS", no_popups_desc = "Second defense layer. Destroys game menus.",
         dev_zone = "DEVELOPER ZONE", pass = "TEST PASSWORD", unlock = "UNLOCK TEST", destroy_ui = "DESTROY UI", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute."
     }
 }
@@ -101,8 +103,11 @@ local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
 local FarmC = download("PlayerFarm.lua", "BF_PLAYERFARM_CONFIG")
 local TourneyC = download("AutoTournament.lua", "BF_TOURNAMENT_CONFIG")
 local NoRobuxC = download("NoRobux.lua", "BF_NOROBUX_CONFIG")
+local NoPopUpsC = download("NoPopUps.lua", "BF_NOPOPUPS_CONFIG")
 
-if NoRobuxC then NoRobuxC.Enabled = true end -- Forzar encendido
+-- 🔥 FORZAR ENCENDIDO DE DEFENSAS AL INICIAR
+if NoRobuxC then NoRobuxC.Enabled = true end
+if NoPopUpsC then NoPopUpsC.Enabled = true end
 
 -- CONEXIÓN UI
 TabMain:AddButton(L("rejoin"), function() game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer) end)
@@ -191,6 +196,11 @@ if NoRobuxC then
     TabConfig:AddSection("SEGURIDAD EXTRA")
     TabConfig:AddToggle(L("no_robux"), true, function(state) NoRobuxC.Enabled = state end)
     TabConfig:AddInfo(L("no_robux_desc"))
+end
+
+if NoPopUpsC then
+    TabConfig:AddToggle(L("no_popups"), true, function(state) NoPopUpsC.Enabled = state end)
+    TabConfig:AddInfo(L("no_popups_desc"))
 end
 
 TabConfig:AddSection(L("lang_sel"))
