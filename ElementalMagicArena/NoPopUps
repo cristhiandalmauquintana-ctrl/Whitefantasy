@@ -1,0 +1,120 @@
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (Segunda Defensa)
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+local env = (getgenv and getgenv()) or _G
+if env.__BF_NOPOPUPS_CLEANUP then pcall(env.__BF_NOPOPUPS_CLEANUP) end
+
+local Config = { Enabled = false }
+env.BF_NOPOPUPS_CONFIG = Config
+
+local connections = {}
+
+-- 🔥 1. PROTECCIÓN INSTANTÁNEA CONTRA PROMPTS Y CLICKS EN EL MAPA
+local function onWorkspaceDescendant(obj)
+    if not Config.Enabled then return end
+    
+    -- Si es un ProximityPrompt o ClickDetector
+    if obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
+        -- Excepción para que el Farm siga funcionando
+        local isTPS = obj:IsDescendantOf(Workspace:FindFirstChild("TPS"))
+        local pName = string.lower(obj.Name .. (obj.Parent and obj.Parent.Name or ""))
+        local isSoul = pName:find("soul") or pName:find("alma")
+        
+        if not isTPS and not isSoul then
+            obj.Enabled = false
+            obj.MaxActivationDistance = 0
+            -- Destruirlo en el siguiente micro-frame para que la espada no lo toque
+            task.defer(function() 
+                if obj and obj.Parent then obj:Destroy() end 
+            end)
+        end
+    end
+end
+
+-- 🔥 2. DESTRUCTOR DE INTERFACES (Pantallas que se abren)
+local function onGuiDescendant(obj)
+    if not Config.Enabled then return end
+    if not obj or not obj.Parent then return end
+    
+    -- No tocar la UI de Froggy Hub
+    local name = string.lower(obj.Name)
+    if name:find("froggy") then return end
+
+    -- Si es una ventana grande (Frame o ScreenGui)
+    if obj:IsA("ScreenGui") or (obj:IsA("Frame") and (obj.Size.X.Scale > 0.4 or obj.Size.X.Offset > 300)) then
+        -- Buscar palabras clave de tiendas o menús
+        if name:find("shop") or name:find("store") or name:find("menu") or name:find("purchase") or 
+           name:find("popup") or name:find("reward") or name:find("offer") or name:find("buy") then
+            obj:Destroy()
+            return
+        end
+        
+        -- Si tiene textos de dinero/gemas, destruirlo
+        for _, child in ipairs(obj:GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("TextButton") then
+                local txt = string.lower(child.Text)
+                if txt:find("robux") or txt:find("r%$") or txt:find("gem") or txt:find("buy") or txt:find("comprar") then
+                    obj:Destroy()
+                    return
+                end
+            end
+        end
+    end
+end
+
+-- 🔥 3. ACTIVACIÓN Y MONITOREO
+local function startNoPopUps()
+    -- Escuchar cualquier objeto que se cree en el Workspace
+    table.insert(connections, Workspace.DescendantAdded:Connect(onWorkspaceDescendant))
+    
+    -- Escuchar cualquier ventana que se cree en el PlayerGui
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        table.insert(connections, pg.DescendantAdded:Connect(onGuiDescendant))
+    end
+    
+    -- Limpieza inicial (por si ya había ventanas abiertas al activarlo)
+    task.spawn(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            onWorkspaceDescendant(obj)
+        end
+        if pg then
+            for _, obj in ipairs(pg:GetDescendants()) do
+                onGuiDescendant(obj)
+            end
+        end
+    end)
+    
+    print("[Froggy] NoPopUps Activado.")
+end
+
+local function stopNoPopUps()
+    for _, conn in ipairs(connections) do
+        if conn then conn:Disconnect() end
+    end
+    connections = {}
+    print("[Froggy] NoPopUps Desactivado.")
+end
+
+-- Bucle de verificación para el Toggle del Hub
+local oldEnabled = false
+task.spawn(function()
+    while task.wait(0.5) do
+        if Config.Enabled and not oldEnabled then
+            oldEnabled = true
+            startNoPopUps()
+        elseif not Config.Enabled and oldEnabled then
+            oldEnabled = false
+            stopNoPopUps()
+        end
+    end
+end)
+
+env.__BF_NOPOPUPS_CLEANUP = function()
+    Config.Enabled = false
+    stopNoPopUps()
+    env.BF_NOPOPUPS_CONFIG = nil
+    env.__BF_NOPOPUPS_CLEANUP = nil
+end
