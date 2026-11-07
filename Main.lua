@@ -11,6 +11,20 @@ local HttpService = game:GetService("HttpService")
 local env = (getgenv and getgenv()) or _G
 
 -- ==========================================
+-- 🔥 FIX DEL BUCLE DE LA INTRO
+-- ==========================================
+-- 1. Si la ventana anterior sigue abierta, la destruimos
+if env.BF_CURRENT_UI then
+    pcall(function() env.BF_CURRENT_UI:Destroy() end)
+    env.BF_CURRENT_UI = nil
+end
+
+-- 2. Si ya viste la intro en esta sesión, no la volvemos a mostrar
+local playIntro = not env.BF_INTRO_PLAYED
+env.BF_INTRO_PLAYED = true 
+-- ==========================================
+
+-- ==========================================
 -- 1. SISTEMA DE PERSISTENCIA Y DISPOSITIVO
 -- ==========================================
 local SavedState = {}
@@ -114,11 +128,8 @@ local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua"))()
 env.BF_UI_LIBRARY = UI_Library 
 env.BF_ASSETS_LIBRARY = Assets
 
--- 🔥 FIX DEL BUCLE DE LA INTRO
-local playIntro = not env.BF_INTRO_PLAYED
-env.BF_INTRO_PLAYED = true
-
 local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle"), Intro = playIntro })
+env.BF_CURRENT_UI = Window -- Guardamos la ventana actual para destruirla si se vuelve a ejecutar
 
 -- 🔥 DETECCIÓN DE DISPOSITIVO
 task.spawn(function()
@@ -305,6 +316,9 @@ end)
 
 TabConfig:AddButton(L("destroy_ui"), function()
     Window:Destroy()
+    if env.BF_CURRENT_UI == Window then
+        env.BF_CURRENT_UI = nil
+    end
 end)
 
 print("[Main] Froggy Hub (Tournament & Device Update) cargado con éxito.")
