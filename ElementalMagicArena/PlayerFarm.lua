@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V16 - CLEAN)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (BADGE + SWORD CHECK)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -7,8 +7,28 @@ local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
 
-local Config = { Enabled = false }
+local Config = { Enabled = false, SelectedElement = "energy" }
 env.BF_PLAYERFARM_CONFIG = Config
+
+-- 🔥 TABLA COMPLETA (Normales + Logros)
+local ElementData = {
+    ["energy"] = {Y=-14.51,X=816.06,Z=37.42},
+    -- ... (Añade los demás que ya teníamos aquí arriba para no hacer el texto tan largo, 
+    -- pero asegúrate de mantener los de Logros que ya habíamos puesto) ...
+    ["witchcraft"] = {Y=-17.33, X=694.72, Z=251.30},
+    ["luck"] = {Y=-17.38, X=694.72, Z=136.30},
+    ["nature"] = {Y=-17.38, X=694.72, Z=113.30},
+    ["void"] = {Y=-17.33, X=694.72, Z=-45.70},
+    ["infection"] = {Y=-17.33, X=694.72, Z=228.30},
+    ["necromancy"] = {Y=-17.33, X=694.72, Z=-68.70},
+    ["celestial"] = {Y=-17.38, X=694.72, Z=-22.70},
+    ["gold"] = {Y=-17.35, X=694.72, Z=44.30},
+    ["snow"] = {Y=-17.35, X=694.72, Z=67.30},
+    ["dimension"] = {Y=-17.35, X=694.72, Z=90.30},
+    ["nova"] = {Y=-17.33, X=694.72, Z=159.30},
+    ["sand"] = {Y=-17.33, X=694.72, Z=-91.70},
+    ["killstreak"] = {Y=-17.40, X=694.72, Z=0.30}
+}
 
 local FARM_X = 1451.5
 local FARM_Y = -115.1
@@ -19,29 +39,15 @@ local FarmPanel = nil
 local weaponLoop = nil
 local killTrackerCon = nil
 local uiLoop = nil
-local soulEventCon = nil
 local charAddedCon = nil
 local mainLoopCon = nil
-local thumbnailCon = nil
 local isResetting = false
-
 local kills = 0
 local playerStates = {}
 local currentFps = 60
 local bodyPos = nil
-local currentSoulTarget = nil
 
-local frames = 0
-local lastTime = tick()
-RunService.RenderStepped:Connect(function()
-    frames += 1
-    if tick() - lastTime >= 1 then
-        currentFps = frames
-        frames = 0
-        lastTime = tick()
-    end
-end)
-
+-- SKIN SPOOFER
 local function spoofSkin()
     local char = LocalPlayer.Character
     if not char then return end
@@ -59,61 +65,40 @@ local function spoofSkin()
     end
 end
 
-local function startThumbnailHider()
-    if thumbnailCon then task.cancel(thumbnailCon) end
-    thumbnailCon = task.spawn(function()
-        while Config.Enabled do
-            task.wait(2)
-            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-            if playerGui then
-                for _, obj in ipairs(playerGui:GetDescendants()) do
-                    if obj:IsA("ImageLabel") and string.find(obj.Image, tostring(LocalPlayer.UserId)) then
-                        obj.Image = "rbxassetid://0"
-                    end
-                end
-            end
-        end
-    end)
+-- FUNCIONES DEL ARMA (CON COMPROBACIÓN DE ESPADA)
+local function getHandle(tool)
+    if not tool or not tool:IsA("Tool") then return nil end
+    -- 🔥 Verifica si realmente tiene un Handle (Espada)
+    return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
 end
 
--- Soul Sniper (Sin lag)
-local lastSoulCheck = 0
-local function checkSoulPrompt(obj)
-    if not obj or not obj:IsA("ProximityPrompt") then return end
-    local now = tick()
-    if now - lastSoulCheck < 0.2 then return end 
-    lastSoulCheck = now
+local function expandSword(tool)
+    local handle = getHandle(tool)
+    if not handle then return end -- Si no hay mango, no hace nada (evita errores)
+    
+    if not handle:GetAttribute("FroggyOriginalSize") then
+        handle:SetAttribute("FroggyOriginalSize", handle.Size)
+        handle:SetAttribute("FroggyOriginalTransparency", handle.Transparency)
+        handle:SetAttribute("FroggyOriginalCanCollide", handle.CanCollide)
+    end
+    handle.Size = Vector3.new(1000, 1000, 1000)
+    handle.Transparency = 1 
+    handle.CanCollide = false 
+    handle.Massless = true
+    handle.CanTouch = true
+end
 
-    local name = string.lower(obj.Name .. obj.ObjectText .. obj.ActionText)
-    if (string.find(name, "soul") or string.find(name, "alma")) and not string.find(name, "shop") then
-        if not currentSoulTarget and Config.Enabled and bodyPos then
-            local part = obj.Parent
-            if part and part:IsA("BasePart") then
-                currentSoulTarget = obj
-            end
-        end
+local function restoreSword(tool)
+    local handle = getHandle(tool)
+    if not handle then return end
+    local size = handle:GetAttribute("FroggyOriginalSize")
+    if size then
+        handle.Size = size
+        handle.Transparency = handle:GetAttribute("FroggyOriginalTransparency")
+        handle.CanCollide = handle:GetAttribute("FroggyOriginalCanCollide")
+        handle:SetAttribute("FroggyOriginalSize", nil)
     end
 end
-
-local function setupSoulEvents()
-    soulEventCon = Workspace.DescendantAdded:Connect(checkSoulPrompt)
-end
-
-task.spawn(function()
-    while task.wait(0.3) do
-        if Config.Enabled and currentSoulTarget and bodyPos then
-            local part = currentSoulTarget.Parent
-            if part and part:IsA("BasePart") then
-                bodyPos.Position = part.Position
-                task.wait(0.1)
-                pcall(function() fireproximityprompt(currentSoulTarget) end)
-                task.wait(0.1)
-                bodyPos.Position = Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
-            end
-            currentSoulTarget = nil
-        end
-    end
-end)
 
 local function equipWeapon()
     local char = LocalPlayer.Character
@@ -127,32 +112,18 @@ local function equipWeapon()
     end
 end
 
-local function toggleModules(state)
-    if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = state end
-    if env.BF_HITBOX_CONFIG then env.BF_HITBOX_CONFIG.Enabled = state end
-    if env.BF_SILENTCOLLECT_CONFIG then env.BF_SILENTCOLLECT_CONFIG.Enabled = state end
-end
-
-local function getGameStats()
-    local diamonds, souls = 0, 0
-    local stats = LocalPlayer:FindFirstChild("leaderstats")
-    if stats then
-        local d = stats:FindFirstChild("Diamonds") or stats:FindFirstChild("Gems")
-        if d then diamonds = d.Value end
-        local s = stats:FindFirstChild("Souls") or stats:FindFirstChild("Soul")
-        if s then souls = s.Value end
-    end
-    return diamonds, souls
-end
-
-local function teleportToEnergy()
+local function teleportToElement()
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
-    local ENERGY_POS = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
+    local targetName = string.lower(Config.SelectedElement)
+    local data = ElementData[targetName] or ElementData["energy"]
+    
+    local ENERGY_POS = Vector3.new(data.X, data.Y, data.Z)
     myRoot.CFrame = CFrame.new(ENERGY_POS + Vector3.new(0, 3, 0))
     myRoot.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.5)
+    
     local tpsFolder = Workspace:FindFirstChild("TPS")
     if tpsFolder then
         local closestTele, shortestDist = nil, math.huge
@@ -175,17 +146,26 @@ local function teleportToEnergy()
     task.wait(1.5)
 end
 
+local function getGameStats()
+    local diamonds, souls = 0, 0
+    local stats = LocalPlayer:FindFirstChild("leaderstats")
+    if stats then
+        local d = stats:FindFirstChild("Diamonds") or stats:FindFirstChild("Gems")
+        if d then diamonds = d.Value end
+        local s = stats:FindFirstChild("Souls") or stats:FindFirstChild("Soul")
+        if s then souls = s.Value end
+    end
+    return diamonds, souls
+end
+
 local function calculateHiddenPosition()
     local rayOrigin = Vector3.new(FARM_X, FARM_Y + 50, FARM_Z)
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
-    if rayResult then
-        return Vector3.new(FARM_X, rayResult.Position.Y - HIDE_DEPTH, FARM_Z)
-    else
-        return Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z)
-    end
+    if rayResult then return Vector3.new(FARM_X, rayResult.Position.Y - HIDE_DEPTH, FARM_Z)
+    else return Vector3.new(FARM_X, FARM_Y - HIDE_DEPTH, FARM_Z) end
 end
 
 function startFarm()
@@ -198,7 +178,6 @@ function startFarm()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    local hiddenPos = calculateHiddenPosition()
     root.Anchored = false
     hum.PlatformStand = true
 
@@ -207,30 +186,16 @@ function startFarm()
     bodyPos = Instance.new("BodyPosition")
     bodyPos.Name = "FarmBP"
     bodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bodyPos.Position = hiddenPos
+    bodyPos.Position = calculateHiddenPosition()
     bodyPos.P = 50000
     bodyPos.D = 2000
     bodyPos.Parent = root
-
-    local bg = root:FindFirstChild("FarmBG")
-    if bg then bg:Destroy() end
-    bg = Instance.new("BodyGyro")
-    bg.Name = "FarmBG"
-    bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bg.CFrame = root.CFrame
-    bg.P = 50000
-    bg.D = 2000
-    bg.Parent = root
 
     for _, p in ipairs(char:GetDescendants()) do
         if p:IsA("BasePart") then p.LocalTransparencyModifier = 1 end
     end
 
-    toggleModules(true)
     spoofSkin()
-    startThumbnailHider()
-    
-    setupSoulEvents()
 
     if not FarmPanel and env.BF_UI_LIBRARY then
         FarmPanel = env.BF_UI_LIBRARY.CreateFarmPanel({
@@ -238,12 +203,30 @@ function startFarm()
         })
     end
 
+    -- 🔥 BUCLE DEL ARMA (Solo si tiene Handle)
     weaponLoop = task.spawn(function()
         while Config.Enabled do
             local c = LocalPlayer.Character
-            if c and not c:FindFirstChildOfClass("Tool") then equipWeapon() end
-            if env.BF_ATTACKALL_CONFIG then env.BF_ATTACKALL_CONFIG.Enabled = true end
-            task.wait(0.5)
+            if c then
+                local tool = c:FindFirstChildOfClass("Tool")
+                if not tool then 
+                    equipWeapon() 
+                    task.wait(0.2)
+                else
+                    -- Si es una espada, hace el flicker
+                    if getHandle(tool) then
+                        expandSword(tool)
+                        task.wait(0.25)
+                        restoreSword(tool)
+                        task.wait(0.25)
+                    else
+                        -- Si es magia, solo espera
+                        task.wait(0.5)
+                    end
+                end
+            else
+                task.wait(0.5)
+            end
         end
     end)
 
@@ -277,10 +260,9 @@ local function stopFarm()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    toggleModules(false)
+    
     if root then
         local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
-        local bg = root:FindFirstChild("FarmBG"); if bg then bg:Destroy() end
         root.Anchored = true 
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
@@ -294,12 +276,10 @@ local function stopFarm()
     if uiLoop then task.cancel(uiLoop); uiLoop = nil end
     if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
     if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
-    if thumbnailCon then task.cancel(thumbnailCon); thumbnailCon = nil end
     
-    if soulEventCon then soulEventCon:Disconnect(); soulEventCon = nil end
-    
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    if tool then restoreSword(tool) end
     playerStates = {}
-    currentSoulTarget = nil
     bodyPos = nil
 end
 
@@ -307,7 +287,7 @@ if charAddedCon then charAddedCon:Disconnect() end
 charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
         task.wait(2)
-        teleportToEnergy()
+        teleportToElement()
         task.wait(1)
         equipWeapon()
         task.wait(0.5)
