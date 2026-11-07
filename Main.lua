@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (FIX ATTACK ALL & BETA HITBOX)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Final Stable Release)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -9,11 +9,17 @@ local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local env = (getgenv and getgenv()) or _G
 
+-- ==========================================
+-- 🛑 CANDADO ANTI-DOBLE EJECUCIÓN Y VENTANAS FANTASMA
+-- ==========================================
 if env.BF_CURRENT_UI then
     pcall(function() env.BF_CURRENT_UI:Destroy() end)
     env.BF_CURRENT_UI = nil
 end
 
+-- ==========================================
+-- 1. DETECCIÓN DE DISPOSITIVO
+-- ==========================================
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 -- ==========================================
@@ -31,9 +37,11 @@ local Translations = {
         select_element = "SELECCIONA TU ELEMENTO",
         esp = "ESP JUGADORES", boxes = "CAJAS 2D", tracers = "TRACERS", health = "BARRA DE VIDA",
         speed = "SPEED HACK", speed_val = "VELOCIDAD", jump = "SUPER JUMP", jump_val = "ALTURA DE SALTO",
-        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Fija al jugador en el cielo y ataca automáticamente usando Energía.",
+        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Fija al jugador bajo la arena y ataca automáticamente usando Energía.",
         tourney_desc = "Persigue al enemigo 10 studs atrás y arriba. Ideal para 1v1.",
         silent_collect = "AUTO-RECOLECCIÓN SILENCIOSA",
+        no_robux = "BLOQUEAR COMPRAS DE ROBUX",
+        no_robux_desc = "Evita que la espada abra tiendas de gemas.",
         dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA DE PRUEBAS", unlock = "DESBLOQUEAR PRUEBA", destroy_ui = "DESTRUIR UI", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar."
     },
     ["en"] = {
@@ -47,9 +55,11 @@ local Translations = {
         select_element = "SELECT YOUR ELEMENT",
         esp = "PLAYER ESP", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
         speed = "SPEED HACK", speed_val = "SPEED", jump = "SUPER JUMP", jump_val = "JUMP POWER",
-        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Anchors player in the sky and attacks automatically using Energy.",
+        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Anchors player under the arena and attacks automatically using Energy.",
         tourney_desc = "Stalks the enemy 10 studs behind and above. Ideal for 1v1s.",
         silent_collect = "SILENT AUTO-COLLECT",
+        no_robux = "BLOCK ROBUX PURCHASES",
+        no_robux_desc = "Prevents the sword from opening gem shops.",
         dev_zone = "DEVELOPER ZONE", pass = "TEST PASSWORD", unlock = "UNLOCK TEST", destroy_ui = "DESTROY UI", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute."
     },
     ["fil"] = {
@@ -63,9 +73,11 @@ local Translations = {
         select_element = "PUMILI NG ELEMENTO",
         esp = "ESP NG PLAYERS", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
         speed = "SPEED HACK", speed_val = "BILIS", jump = "SUPER JUMP", jump_val = "TAAS NG TALON",
-        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Inaayos ang player sa langit at awtomatikong umaatake gamit ang Energy.",
+        farm_players = "AUTO FARM PLAYERS (ENERGY)", farm_desc = "Inaayos ang player sa ilalim ng arena at awtomatikong umaatake gamit ang Energy.",
         tourney_desc = "Sinusundan ang kalaban 10 studs sa likod at itaas. Para sa 1v1.",
         silent_collect = "SILENT AUTO-COLLECT",
+        no_robux = "I-BLOCK ANG ROBUX PURCHASES",
+        no_robux_desc = "Pinipigilan ang espada na magbukas ng mga tindahan ng gem.",
         dev_zone = "DEV ZONE", pass = "PASSWORD", unlock = "I-UNLOCK", destroy_ui = "IRISAN ANG UI", lang_sel = "PALITAN ANG WIKA", lang_desc = "Pumili ng wika at i-execute ulit."
     }
 }
@@ -99,6 +111,7 @@ env.BF_ASSETS_LIBRARY = Assets
 local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle") })
 env.BF_CURRENT_UI = Window
 
+-- Notificación de dispositivo
 task.spawn(function()
     task.wait(1.5)
     if isMobile then
@@ -108,6 +121,7 @@ task.spawn(function()
     end
 end)
 
+-- 4. CREAMOS LAS PESTAÑAS
 local TabMain = Window:CreateTab(L("tab_main"))
 local TabCombat = Window:CreateTab(L("tab_combat"))
 local TabVisual = Window:CreateTab(L("tab_visual"))
@@ -146,6 +160,7 @@ local AttackAllC = download("AttackAll.lua", "BF_ATTACKALL_CONFIG")
 local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
 local FarmC = download("PlayerFarm.lua", "BF_PLAYERFARM_CONFIG")
 local TourneyC = download("AutoTournament.lua", "BF_TOURNAMENT_CONFIG")
+local NoRobuxC = download("NoRobux.lua", "BF_NOROBUX_CONFIG")
 
 -- ==========================================
 -- 6. CONEXIÓN UI
@@ -166,7 +181,7 @@ local hitboxSlider = nil
 if HitC then
     TabCombat:AddToggle(L("hitbox"), false, function(state) HitC.Enabled = state end)
     hitboxSlider = TabCombat:AddSlider(L("hitbox_size"), 35, 500, 35, function(val) HitC.Size = val end)
-    -- 🔥 DOBLE BLOQUEO PARA LA BETA (Ocultamos el contenedor y el frame)
+    -- 🔥 Ocultar el Slider de la Hitbox (BETA)
     if hitboxSlider and hitboxSlider.Instance then 
         hitboxSlider.Instance.Visible = false 
         if hitboxSlider.Instance.Parent then
@@ -175,7 +190,6 @@ if HitC then
     end
 end
 
--- 🔥 ATAQUE ALL RESTAURADO Y BLINDADO
 if AttackAllC then
     TabCombat:AddSection(L("god_mode"))
     TabCombat:AddToggle(L("attack_all"), false, function(state) AttackAllC.Enabled = state end)
@@ -186,10 +200,6 @@ if AttackAllC then
     end)
     
     TabCombat:AddInfo(L("attack_all_warn"))
-else
-    -- Si el módulo falla, mostramos un aviso para que no piensen que lo borramos
-    TabCombat:AddSection(L("god_mode"))
-    TabCombat:AddInfo("⚠️ Error al cargar AttackAll.lua. Revisa tu conexión o el módulo en GitHub.")
 end
 
 -- === VISUAL ===
@@ -248,6 +258,20 @@ if SilentCollectC then
     TabConfig:AddToggle(L("silent_collect"), true, function(state) SilentCollectC.Enabled = state end)
 end
 
+-- 🔥 NO ROBUX MODULE
+if NoRobuxC then
+    TabConfig:AddSection("SEGURIDAD EXTRA")
+    TabConfig:AddToggle(L("no_robux"), false, function(state)
+        NoRobuxC.Enabled = state
+        if state then
+            Window:Notify({Title = "NoRobux", Content = "Escudo de compras activado.", Type = "success"})
+        else
+            Window:Notify({Title = "NoRobux", Content = "Escudo desactivado.", Type = "warning"})
+        end
+    end)
+    TabConfig:AddInfo(L("no_robux_desc"))
+end
+
 TabConfig:AddSection(L("lang_sel"))
 TabConfig:AddDropdown(L("lang_sel"), {"es", "en", "fil"}, currentLang, function(val)
     if writefile then pcall(function() writefile("FroggyLang.txt", val) end) end
@@ -262,7 +286,7 @@ local unlockBtn = TabConfig:AddButton(L("unlock"), function()
         passBox.Instance.Visible = false
         if unlockBtn and unlockBtn.Instance then unlockBtn.Instance.Visible = false end
         
-        -- 🔥 DOBLE DESBLOQUEO
+        -- 🔥 Desbloqueo de la Hitbox
         if hitboxSlider and hitboxSlider.Instance then 
             hitboxSlider.Instance.Visible = true 
             if hitboxSlider.Instance.Parent then
@@ -282,4 +306,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     end
 end)
 
-print("[Main] Froggy Hub (Fix Chibi) cargado con éxito.")
+print("[Main] Froggy Hub (Final Stable Release) cargado con éxito.")
