@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Clean Chibi Edition)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (FIX ATTACK ALL & BETA HITBOX)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -9,27 +9,11 @@ local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local env = (getgenv and getgenv()) or _G
 
--- ==========================================
--- 🛑 CANDADO ANTI-DOBLE EJECUCIÓN
--- ==========================================
-if env.BF_HUB_LOADING then
-    return
-end
-env.BF_HUB_LOADING = true
-
 if env.BF_CURRENT_UI then
     pcall(function() env.BF_CURRENT_UI:Destroy() end)
     env.BF_CURRENT_UI = nil
 end
 
-task.delay(3, function()
-    env.BF_HUB_LOADING = false 
-end)
--- ==========================================
-
--- ==========================================
--- 1. DETECCIÓN DE DISPOSITIVO
--- ==========================================
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 -- ==========================================
@@ -40,7 +24,7 @@ local Translations = {
         title = "FROGGY HUB", subtitle = "200 MEMBERS | CHIBI EDITION",
         tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_tourney = "TORNEO", tab_config = "CONFIG",
         rejoin = "RECONECTAR SERVIDOR", auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1",
-        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "TAMAÑO HITBOX (PELIGRO)",
+        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "TAMAÑO HITBOX (BETA)",
         god_mode = "MODO DIOS", attack_all = "ATTACK ALL (AUTO)", 
         attack_all_warn = "¡IMPORTANTE! El Attack All equipará automáticamente este elemento al morir.", 
         attack_all_notify = "Recuerda usar la Guadaña para máximo daño.",
@@ -56,7 +40,7 @@ local Translations = {
         title = "FROGGY HUB", subtitle = "200 MEMBERS | CHIBI EDITION",
         tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_tourney = "TOURNAMENT", tab_config = "CONFIG",
         rejoin = "REJOIN SERVER", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
-        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "HITBOX SIZE (DANGER)",
+        hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "HITBOX SIZE (BETA)",
         god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
         attack_all_warn = "IMPORTANT! Attack All will auto-equip this element upon death.", 
         attack_all_notify = "Remember to use the Scythe for max damage.",
@@ -72,7 +56,7 @@ local Translations = {
         title = "FROGGY HUB", subtitle = "200 MEMBERS | CHIBI EDITION",
         tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_farm = "AUTO FARM", tab_tourney = "TOURNAMENT", tab_config = "KONFIG",
         rejoin = "SUMALI ULIT", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
-        hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX",
+        hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX (BETA)",
         god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
         attack_all_warn = "MAHALAGA! Awtomatikong i-e-equip ang elementong ito kapag namatay.", 
         attack_all_notify = "Tandaan na gumamit ng Scythe para sa max damage.",
@@ -115,7 +99,6 @@ env.BF_ASSETS_LIBRARY = Assets
 local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle") })
 env.BF_CURRENT_UI = Window
 
--- Notificación de dispositivo
 task.spawn(function()
     task.wait(1.5)
     if isMobile then
@@ -125,7 +108,6 @@ task.spawn(function()
     end
 end)
 
--- 4. CREAMOS LAS PESTAÑAS
 local TabMain = Window:CreateTab(L("tab_main"))
 local TabCombat = Window:CreateTab(L("tab_combat"))
 local TabVisual = Window:CreateTab(L("tab_visual"))
@@ -144,9 +126,13 @@ local function download(name, key)
     local ok, res = pcall(game.HttpGet, game, url)
     if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
         local fnOk, fn = pcall(loadstring, res)
-        if fnOk and type(fn) == "function" then pcall(fn) end
+        if fnOk and type(fn) == "function" then 
+            pcall(fn) 
+        else
+            warn("[Froggy] ❌ Error de sintaxis en el módulo: " .. name)
+        end
     else
-        warn("❌ Could not download " .. name)
+        warn("[Froggy] ❌ No se pudo descargar el módulo: " .. name)
     end
     task.wait(0.1)
     return env[key] or _G[key]
@@ -162,7 +148,7 @@ local FarmC = download("PlayerFarm.lua", "BF_PLAYERFARM_CONFIG")
 local TourneyC = download("AutoTournament.lua", "BF_TOURNAMENT_CONFIG")
 
 -- ==========================================
--- 6. CONEXIÓN UI (TODO POR DEFECTO EN FALSE/OFF)
+-- 6. CONEXIÓN UI
 -- ==========================================
 
 -- === MAIN ===
@@ -180,9 +166,16 @@ local hitboxSlider = nil
 if HitC then
     TabCombat:AddToggle(L("hitbox"), false, function(state) HitC.Enabled = state end)
     hitboxSlider = TabCombat:AddSlider(L("hitbox_size"), 35, 500, 35, function(val) HitC.Size = val end)
-    if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = false end
+    -- 🔥 DOBLE BLOQUEO PARA LA BETA (Ocultamos el contenedor y el frame)
+    if hitboxSlider and hitboxSlider.Instance then 
+        hitboxSlider.Instance.Visible = false 
+        if hitboxSlider.Instance.Parent then
+            hitboxSlider.Instance.Parent.Visible = false 
+        end
+    end
 end
 
+-- 🔥 ATAQUE ALL RESTAURADO Y BLINDADO
 if AttackAllC then
     TabCombat:AddSection(L("god_mode"))
     TabCombat:AddToggle(L("attack_all"), false, function(state) AttackAllC.Enabled = state end)
@@ -193,6 +186,10 @@ if AttackAllC then
     end)
     
     TabCombat:AddInfo(L("attack_all_warn"))
+else
+    -- Si el módulo falla, mostramos un aviso para que no piensen que lo borramos
+    TabCombat:AddSection(L("god_mode"))
+    TabCombat:AddInfo("⚠️ Error al cargar AttackAll.lua. Revisa tu conexión o el módulo en GitHub.")
 end
 
 -- === VISUAL ===
@@ -264,7 +261,14 @@ local unlockBtn = TabConfig:AddButton(L("unlock"), function()
         Window:Notify({Title = "OK", Content = L("dev_zone"), Type = "warning"})
         passBox.Instance.Visible = false
         if unlockBtn and unlockBtn.Instance then unlockBtn.Instance.Visible = false end
-        if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = true end
+        
+        -- 🔥 DOBLE DESBLOQUEO
+        if hitboxSlider and hitboxSlider.Instance then 
+            hitboxSlider.Instance.Visible = true 
+            if hitboxSlider.Instance.Parent then
+                hitboxSlider.Instance.Parent.Visible = true
+            end
+        end
     else
         Window:Notify({Title = "Error", Content = "Wrong password", Type = "error"})
         passBox:Set("")
@@ -278,4 +282,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     end
 end)
 
-print("[Main] Froggy Hub (Clean Chibi) cargado con éxito.")
+print("[Main] Froggy Hub (Fix Chibi) cargado con éxito.")
