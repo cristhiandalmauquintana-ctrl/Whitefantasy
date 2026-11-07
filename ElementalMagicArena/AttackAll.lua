@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V17 - STABLE)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V19 - FIX DUEL VOID)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -11,18 +11,18 @@ if env.__BF_ATTACKALL_CLEANUP then pcall(env.__BF_ATTACKALL_CLEANUP) end
 local Config = { Enabled = false, Size = 1000 }
 env.BF_ATTACKALL_CONFIG = Config
 
-local TargetPos = Vector3.new(816.06640625, -14.519143104553223, 37.429420471191409)
-
 local originalData = {}
 local shieldedPlayersParts = {}
 local purgedParts = {}
 local honeypotParts = {}
 
+-- 1. HOOKS DE COMPRA
 if hookfunction then
     hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
     hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
 end
 
+-- 2. FUNCIONES DE PURGA
 local function killTouch(obj)
     if obj:IsA("BasePart") then
         obj.CanTouch = false
@@ -57,6 +57,7 @@ local function globalPurge()
     end
 end
 
+-- 3. FUNCIONES DEL ARMA
 local function getHandle(tool)
     if not tool or not tool:IsA("Tool") then return nil end
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
@@ -87,33 +88,14 @@ local function restoreSword(tool)
     originalData[handle] = nil
 end
 
+-- 4. AUTO-EQUIPAR AL MORIR (SIN TELETRANSPORTE)
 LocalPlayer.CharacterAdded:Connect(function()
-    originalData = {}
-    if Config.Enabled then
-        task.wait(1.5) 
-        local char = LocalPlayer.Character
-        local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-        if myRoot then
-            myRoot.CFrame = CFrame.new(TargetPos + Vector3.new(0, 3, 0))
-            task.wait(0.5)
-            local tpsFolder = Workspace:FindFirstChild("TPS")
-            if tpsFolder then
-                local closestTele = nil
-                for _, obj in ipairs(tpsFolder:GetDescendants()) do
-                    if obj:IsA("BasePart") and string.lower(obj.Name) == "teleporter" then
-                        closestTele = obj; break
-                    end
-                end
-                if closestTele and getconnections then
-                    for _, conn in pairs(getconnections(closestTele.Touched)) do
-                        if conn.Enabled then pcall(function() conn:Fire(myRoot) end) end
-                    end
-                end
-            end
-        end
-    end
+    originalData = {} -- Limpiamos los datos de la espada vieja
+    -- 🔥 ELIMINADO: Ya no teletransporta a Energy aquí.
+    -- Solo esperamos a que el jugador saque el arma y el bucle principal lo detectará.
 end)
 
+-- 5. BUCLE DE FLICKER (Espada)
 task.spawn(function()
     while task.wait(0.25) do
         if Config.Enabled then
@@ -128,6 +110,7 @@ task.spawn(function()
     end
 end)
 
+-- 6. BUCLE DE PURGA
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
@@ -136,6 +119,7 @@ task.spawn(function()
     end
 end)
 
+-- 7. HONEYPOTS Y ESCUDOS
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
@@ -177,6 +161,7 @@ task.spawn(function()
     end
 end)
 
+-- 8. LIMPIEZA
 env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
     local char = LocalPlayer.Character
