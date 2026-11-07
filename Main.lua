@@ -1,4 +1,4 @@
---// Main.lua - Froggy Hub | Elemental Magic Arena (Final Stable Release)
+--// Main.lua - Froggy Hub | Elemental Magic Arena (Clean Release)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -17,16 +17,15 @@ end
 
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
--- SISTEMA DE IDIOMAS (Resumido para no hacerlo tan largo)
+-- SISTEMA DE IDIOMAS
 local Translations = {
     ["es"] = {
         title = "FROGGY HUB", subtitle = "200 MEMBERS | CHIBI EDITION",
         tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_tourney = "TORNEO", tab_config = "CONFIG",
         rejoin = "RECONECTAR SERVIDOR", auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1",
         hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "TAMAÑO HITBOX (BETA)",
-        god_mode = "MODO DIOS", attack_all = "ATTACK ALL (AUTO)", 
-        attack_all_warn = "¡IMPORTANTE! El Attack All equipará automáticamente este elemento al morir.", 
-        attack_all_notify = "Recuerda usar la Guadaña para máximo daño.",
+        attack_all = "ATTACK ALL (AUTO)", 
+        attack_all_warn = "¡IMPORTANTE! El Attack All equipará automáticamente Energy al morir.", 
         select_element = "SELECCIONA TU ELEMENTO",
         esp = "ESP JUGADORES", boxes = "CAJAS 2D", tracers = "TRACERS", health = "BARRA DE VIDA",
         speed = "SPEED HACK", speed_val = "VELOCIDAD", jump = "SUPER JUMP", jump_val = "ALTURA DE SALTO",
@@ -41,9 +40,8 @@ local Translations = {
         tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_tourney = "TOURNAMENT", tab_config = "CONFIG",
         rejoin = "REJOIN SERVER", auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY",
         hitbox = "HITBOX EXPANDER (35 STUDS)", hitbox_size = "HITBOX SIZE (BETA)",
-        god_mode = "GOD MODE", attack_all = "ATTACK ALL (AUTO)", 
-        attack_all_warn = "IMPORTANT! Attack All will auto-equip this element upon death.", 
-        attack_all_notify = "Remember to use the Scythe for max damage.",
+        attack_all = "ATTACK ALL (AUTO)", 
+        attack_all_warn = "IMPORTANT! Attack All will auto-equip Energy upon death.", 
         select_element = "SELECT YOUR ELEMENT",
         esp = "PLAYER ESP", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
         speed = "SPEED HACK", speed_val = "SPEED", jump = "SUPER JUMP", jump_val = "JUMP POWER",
@@ -61,14 +59,6 @@ pcall(function()
     if id:find("es") then currentLang = "es" end
 end)
 local function L(key) return Translations[currentLang][key] or Translations["en"][key] or key end
-
-local SharedElements = {
-    "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
-    "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", 
-    "aurora", "fenix", "caos", "tecnología", "diamante", "amor", "demon", 
-    "ilusion", "campos de fuerza", "relampago", "telequinesis", "life", "mirror", 
-    "time", "sueño", "creacion", "espacio", "realidad", "dios de elementos"
-}
 
 -- CARGAMOS DISEÑO
 local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua?v=" .. os.time()))()
@@ -132,10 +122,10 @@ if HitC then
     end
 end
 
+-- 🔥 ATTACK ALL LIMPIO (Sin Godmode vacío ni Dropdown inútil)
 if AttackAllC then
-    TabCombat:AddSection(L("god_mode"))
+    TabCombat:AddSection(L("attack_all"))
     TabCombat:AddToggle(L("attack_all"), false, function(state) AttackAllC.Enabled = state end)
-    TabCombat:AddDropdown(L("select_element"), SharedElements, AttackAllC.SelectedElement, function(val) AttackAllC.SelectedElement = val end)
     TabCombat:AddInfo(L("attack_all_warn"))
 end
 
@@ -153,11 +143,10 @@ if MoveC then
     TabMovement:AddSlider(L("jump_val"), 50, 300, MoveC.JumpPower or 100, function(val) MoveC.JumpPower = val end)
 end
 
--- === AUTO FARM CON DROPDOWN ===
+-- === AUTO FARM (CON DROPDOWN DE ELEMENTOS) ===
 if FarmC then
     TabFarm:AddSection("AUTO FARM")
     
-    -- 🔥 LISTA DE ELEMENTOS (CON LOGROS)
     local ElementList = {
         "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
         "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", 
@@ -171,7 +160,6 @@ if FarmC then
     TabFarm:AddDropdown(L("select_element"), ElementList, FarmC.SelectedElement or "energy", function(val)
         FarmC.SelectedElement = val
         Window:Notify({Title = "Farm Element", Content = "Seleccionado: " .. val, Type = "info"})
-        -- Si cambias el elemento mientras está activo, te avisa que reinicies el toggle
         if FarmC.Enabled then
             Window:Notify({Title = "Aviso", Content = "Apaga y enciende el Farm para aplicar el nuevo elemento.", Type = "warning"})
         end
