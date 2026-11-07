@@ -117,9 +117,8 @@ local SharedElements = {
 }
 
 -- ==========================================
--- 3. CARGAMOS DISEÑO Y ASSETS (CON ANTI-CACHÉ)
+-- 3. CARGAMOS DISEÑO Y ASSETS
 -- ==========================================
--- 🔥 AQUÍ ESTABA EL ERROR: Le pusimos ?v=os.time() para que descargue la versión nueva
 local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua?v=" .. os.time()))()
 local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua?v=" .. os.time()))()
 
@@ -129,15 +128,16 @@ env.BF_ASSETS_LIBRARY = Assets
 local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle"), Intro = playIntro })
 env.BF_CURRENT_UI = Window
 
--- 🔥 KILL SWITCH: Si el design viejo intenta forzar la intro, la destruimos
+-- 🔥 KILL SWITCH DEFINITIVO: Bucle que destruye la intro si aparece
 task.spawn(function()
-    task.wait(0.2)
-    if Window._intro then
-        pcall(function()
-            Window._intro:Stop()
-            Window._intro:Hide()
-            Window:_open()
-        end)
+    while task.wait(0.1) do
+        if env.BF_CURRENT_UI and env.BF_CURRENT_UI.Gui then
+            local introFrame = env.BF_CURRENT_UI.Gui:FindFirstChild("Intro")
+            if introFrame and introFrame.Visible then
+                introFrame.Visible = false
+                env.BF_CURRENT_UI:_open() -- Forzar la apertura del menú
+            end
+        end
     end
 end)
 
@@ -331,4 +331,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     end
 end)
 
-print("[Main] Froggy Hub (Sin Intro) cargado con éxito.")
+print("[Main] Froggy Hub (Sin Intro 100% Garantizado) cargado con éxito.")
