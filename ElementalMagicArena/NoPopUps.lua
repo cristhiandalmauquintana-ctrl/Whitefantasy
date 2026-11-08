@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V11 - FORENSIC PURGE)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V12 - THE SPY METHOD)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
@@ -12,9 +12,10 @@ env.BF_NOPOPUPS_CONFIG = Config
 
 local GROUP_NAME = "FroggySword"
 local honeypotParts = {}
-local connections = {}
+local oldNewIndex = nil
+local oldNamecall = nil
 
--- 1. ESPADA FANTASMA (Para no tocar físicamente el gacha)
+-- 1. ESPADA FANTASMA
 pcall(function()
     PhysicsService:RegisterCollisionGroup(GROUP_NAME)
     PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
@@ -29,23 +30,33 @@ local function applyGhostGroup(tool)
     end
 end
 
--- 2. BLOQUEO DE REMOTES (Intercepta OpenQuest y compras de Robux)
-local oldNamecall = nil
-if hookmetamethod and checkcaller then
+-- 2. LOS HOOKS DEL SPY (El arma secreta)
+local function applyHooks()
+    if not hookmetamethod or not checkcaller then return end
+
+    -- Hook A: Interceptar cuando una ventana intenta hacerse VISIBLE
+    oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+        if not checkcaller() and (key == "Visible" or key == "Enabled") and value == true then
+            if self:IsA("ScreenGui") or self:IsA("Frame") then
+                local name = string.lower(self.Name)
+                -- Si la ventana es de misiones, forja o tiendas...
+                if name:find("howtounlock") or name:find("quest") or name:find("forge") or name:find("shop") or name:find("robux") then
+                    if not name:find("froggy") then
+                        self:Destroy() -- La destruimos antes de que se dibuje
+                        return -- Bloqueamos la propiedad Visible
+                    end
+                end
+            end
+        end
+        return oldNewIndex(self, key, value)
+    end)
+
+    -- Hook B: Interceptar el Remote OpenQuest
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local method = getnamecallmethod()
-        
-        -- Si el script del juego intenta disparar un evento al servidor
         if not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
             local name = string.lower(self.Name)
-            
-            -- 🔥 BLOQUEAR EL REMOTE DE LAS MISIONES
-            if name == "openquest" or name:find("howtounlock") then
-                return nil 
-            end
-            
-            -- 🔥 BLOQUEAR REMOTES DE TIENDAS
-            if name:find("shop") or name:find("buy") or name:find("purchase") or name:find("robux") or name:find("gacha") then
+            if name:find("openquest") or name:find("howtounlock") or name:find("shop") or name:find("buy") then
                 return nil
             end
         end
@@ -53,27 +64,12 @@ if hookmetamethod and checkcaller then
     end)
 end
 
--- 3. DESTRUCTOR DE UI ESPECÍFICO (Destruye HowToUnlockGui)
-local function destroyBadGUIs()
-    if not Config.Enabled then return end
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
-
-    for _, obj in ipairs(pg:GetDescendants()) do
-        if obj:IsA("ScreenGui") or obj:IsA("Frame") then
-            local name = string.lower(obj.Name)
-            -- 🔥 Destruir solo las ventanas problemáticas
-            if name == "howtounlockgui" or name == "contextactiongui" or name:find("quest") or name:find("shop") then
-                -- Verificar que no sea de Froggy para no auto-destruirnos
-                if not name:find("froggy") then
-                    obj:Destroy()
-                end
-            end
-        end
-    end
+local function removeHooks()
+    if oldNewIndex then hookmetamethod(game, "__newindex", oldNewIndex); oldNewIndex = nil end
+    if oldNamecall then hookmetamethod(game, "__namecall", oldNamecall); oldNamecall = nil end
 end
 
--- 4. ANTI-HONEYPOTS (Para que la espada no te kickee)
+-- 3. ANTI-HONEYPOTS
 local function purgeHoneypots()
     if not Config.Enabled then return end
     for _, obj in ipairs(Workspace:GetDescendants()) do
@@ -98,32 +94,28 @@ local function purgeHoneypots()
     end
 end
 
--- 5. BUCLE DE CONTROL
+-- 4. BUCLE DE CONTROL
 local oldEnabled = false
 task.spawn(function()
     while task.wait(0.2) do
         if Config.Enabled then
             if not oldEnabled then
                 oldEnabled = true
-                print("[Froggy] Purga Forense Activada.")
+                applyHooks()
+                print("[Froggy] Purga V12 Activada (Spy Method).")
             end
 
-            -- Espada Fantasma
             local char = LocalPlayer.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
             if tool then
                 applyGhostGroup(tool)
             end
 
-            -- Destruir ventanas
-            destroyBadGUIs()
-
-            -- Proteger de Honeypots
             purgeHoneypots()
 
         elseif not Config.Enabled and oldEnabled then
             oldEnabled = false
-            -- Restaurar Honeypots
+            removeHooks()
             for part, data in pairs(honeypotParts) do 
                 if part and part.Parent then 
                     part.CanTouch = data.CanTouch
@@ -131,14 +123,14 @@ task.spawn(function()
                 end 
             end
             honeypotParts = {}
-            print("[Froggy] Purga Forense Desactivada.")
+            print("[Froggy] Purga V12 Desactivada.")
         end
     end
 end)
 
 env.__BF_NOPOPUPS_CLEANUP = function()
     Config.Enabled = false
-    if oldNamecall then hookmetamethod(game, "__namecall", oldNamecall) end
+    removeHooks()
     for part, data in pairs(honeypotParts) do 
         if part and part.Parent then 
             part.CanTouch = data.CanTouch
