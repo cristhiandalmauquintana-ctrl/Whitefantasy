@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V13 - STABLE PHYSICAL + EXACT GUIS)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V14 - TEXT KILLER DEFINITIVO)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
@@ -15,7 +15,7 @@ local honeypotParts = {}
 local movedParts = {}
 local connections = {}
 
--- 1. ESPADA FANTASMA
+-- 1. ESPADA FANTASMA (Protege el gacha)
 pcall(function()
     PhysicsService:RegisterCollisionGroup(GROUP_NAME)
     PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
@@ -30,22 +30,44 @@ local function applyGhostGroup(tool)
     end
 end
 
--- 2. DESTRUCTOR DE LA UI DE MISIONES (HowToUnlockGui)
+-- 2. DESTRUCTOR VISUAL (Caza textos específicos)
 local function destroyBadUI()
     if not Config.Enabled then return end
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return end
 
-    -- Destruir el HowToUnlockGui al instante
-    for _, obj in ipairs(pg:GetChildren()) do
-        if obj:IsA("ScreenGui") and string.lower(obj.Name) == "howtounlockgui" then
-            obj:Destroy()
+    -- Buscar cualquier texto que coincida con las ventanas problemáticas
+    for _, obj in ipairs(pg:GetDescendants()) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            local txt = string.lower(obj.Text)
+            
+            if txt:find("misiones de plasma") or txt:find("sobrevivencia") or txt:find("supervivencia") then
+                -- Subir por la jerarquía hasta encontrar el Frame contenedor principal
+                local parent = obj.Parent
+                while parent and parent ~= pg do
+                    if parent:IsA("Frame") and (parent.Size.X.Scale > 0.4 or parent.Size.X.Offset > 300) then
+                        parent:Destroy() -- Destruir el panel entero
+                        break
+                    elseif parent:IsA("ScreenGui") then
+                        parent:Destroy()
+                        break
+                    end
+                    parent = parent.Parent
+                end
+            end
+        end
+    end
+
+    -- Destruir el HowToUnlockGui por si acaso
+    for _, gui in ipairs(pg:GetChildren()) do
+        if gui:IsA("ScreenGui") and string.lower(gui.Name) == "howtounlockgui" then
+            gui:Destroy()
         end
     end
 end
 
--- 3. TELETRANSPORTE FÍSICO DE PARTES (Forja/Duelos/Tiendas)
-local TARGET_PARTS = {"simulatorcircle", "shoppart", "teleport asset", "rankedpart"}
+-- 3. TELETRANSPORTE FÍSICO (Opcional, por si la UI está vinculada al piso)
+local TARGET_PARTS = {"simulatorcircle", "teleport asset", "rankedpart"}
 local VOID_CFRAME = CFrame.new(0, -5000, 0)
 
 local function hideParts()
@@ -55,7 +77,7 @@ local function hideParts()
             local name = string.lower(obj.Name)
             local parentName = string.lower(obj.Parent and obj.Parent.Name or "")
             
-            -- Excepción absoluta: No tocar TPS (placas) ni Almas
+            -- NO TOCAR LAS PLACAS (TPS) NI ALMAS
             local tpsFolder = Workspace:FindFirstChild("TPS")
             local isTPS = tpsFolder and obj:IsDescendantOf(tpsFolder) or false
             local isSoul = name:find("soul") or name:find("alma") or parentName:find("soul") or parentName:find("alma")
@@ -64,9 +86,9 @@ local function hideParts()
                 for _, target in ipairs(TARGET_PARTS) do
                     if name:find(target) or parentName:find(target) then
                         if not movedParts[obj] then
-                            movedParts[obj] = obj.CFrame -- Guardar posición
+                            movedParts[obj] = obj.CFrame 
                         end
-                        obj.CFrame = VOID_CFRAME -- Mover al vacío
+                        obj.CFrame = VOID_CFRAME 
                         break
                     end
                 end
@@ -112,11 +134,11 @@ end
 -- 5. BUCLE DE CONTROL
 local oldEnabled = false
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.15) do -- 0.15s es muy rápido, atrapa la UI antes de que se dibuje
         if Config.Enabled then
             if not oldEnabled then
                 oldEnabled = true
-                print("[Froggy] NoPopUps V13 Activado (Estable + Físico).")
+                print("[Froggy] NoPopUps V14 Activado (Text Killer).")
             end
 
             local char = LocalPlayer.Character
@@ -139,7 +161,7 @@ task.spawn(function()
                 end 
             end
             honeypotParts = {}
-            print("[Froggy] NoPopUps V13 Desactivado.")
+            print("[Froggy] NoPopUps V14 Desactivado.")
         end
     end
 end)
