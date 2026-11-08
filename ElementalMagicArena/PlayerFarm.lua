@@ -1,8 +1,7 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V33 - NO POPUPS ON FARM)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V35 - ATTACK ALL INTEGRATION)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local PhysicsService = game:GetService("PhysicsService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -32,28 +31,19 @@ local FARM_X = 1451.5
 local FARM_Y = -115.1
 local FARM_Z = 85.7
 local HIDE_DEPTH = 15 
-local SWORD_SIZE = 360 -- 🔥 Mismo tamaño que el AttackAll
 
 local FarmPanel = nil
-local weaponLoop = nil
 local killTrackerCon = nil
 local uiLoop = nil
 local charAddedCon = nil
 local mainLoopCon = nil
-local uiCleanerLoop = nil
+local uiCleanerCon = nil
 local isResetting = false
 
 local kills = 0
 local playerStates = {}
 local currentFps = 60
 local bodyPos = nil
-
-local GROUP_NAME = "FroggySword360"
-
-pcall(function()
-    PhysicsService:RegisterCollisionGroup(GROUP_NAME)
-    PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
-end)
 
 local function spoofSkin()
     local char = LocalPlayer.Character
@@ -68,55 +58,21 @@ local function spoofSkin()
     end
 end
 
--- 🔥 LIMPIADOR DE UI (Para las ventanas que se abren al tocar la placa)
-local function cleanFarmPopups()
-    if not Config.Enabled then return end
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
-    
-    for _, obj in ipairs(pg:GetChildren()) do
-        if obj:IsA("ScreenGui") then
-            local name = string.lower(obj.Name)
-            if name == "howtounlockgui" or name == "luckelementpopupgui" or name == "survivalsquadgui" then
-                obj:Destroy()
+-- 🔥 DESTRUCTOR INSTANTÁNEO DE POPUPS (Solo por si acaso)
+local BAD_GUIS = {"howtounlockgui", "luckelementpopupgui", "survivalsquadgui", "purchaseprompt", "comprar"}
+
+local function onGuiAdded(obj)
+    if not Config.Enabled or not obj then return end
+    if obj:IsA("ScreenGui") or obj:IsA("Frame") then
+        local name = string.lower(obj.Name)
+        if not name:find("froggy") then
+            for _, bad in ipairs(BAD_GUIS) do
+                if name == bad or name:find(bad) then
+                    obj:Destroy()
+                    return
+                end
             end
         end
-    end
-end
-
-local function getHandle(tool)
-    if not tool or not tool:IsA("Tool") then return nil end
-    return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-end
-
-local function expandSword(tool)
-    local handle = getHandle(tool)
-    if not handle then return end
-    if not handle:GetAttribute("FroggyOriginalSize") then
-        handle:SetAttribute("FroggyOriginalSize", handle.Size)
-        handle:SetAttribute("FroggyOriginalTransparency", handle.Transparency)
-        handle:SetAttribute("FroggyOriginalCanCollide", handle.CanCollide)
-        handle:SetAttribute("FroggyOriginalCollisionGroup", handle.CollisionGroup)
-    end
-    handle.Size = Vector3.new(SWORD_SIZE, SWORD_SIZE, SWORD_SIZE) -- 🔥 Tamaño 360
-    handle.Transparency = 1 
-    handle.CanCollide = false 
-    handle.Massless = true
-    handle.CanTouch = true
-    handle.CanQuery = false
-    pcall(function() PhysicsService:SetPartCollisionGroup(handle, GROUP_NAME) end)
-end
-
-local function restoreSword(tool)
-    local handle = getHandle(tool)
-    if not handle then return end
-    local size = handle:GetAttribute("FroggyOriginalSize")
-    if size then
-        handle.Size = size
-        handle.Transparency = handle:GetAttribute("FroggyOriginalTransparency")
-        handle.CanCollide = handle:GetAttribute("FroggyOriginalCanCollide")
-        pcall(function() PhysicsService:SetPartCollisionGroup(handle, handle:GetAttribute("FroggyOriginalCollisionGroup") or "Default") end)
-        handle:SetAttribute("FroggyOriginalSize", nil)
     end
 end
 
@@ -163,7 +119,7 @@ local function teleportToElement()
             if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
         end
     end
-    task.wait(2) -- Esperar animación
+    task.wait(2) -- Esperar a que el juego termine la animación de entrada
 end
 
 local function getGameStats()
@@ -189,10 +145,8 @@ local function calculateHiddenPosition()
 end
 
 function startFarm()
-    if weaponLoop then task.cancel(weaponLoop) end
     if killTrackerCon then task.cancel(killTrackerCon) end
     if uiLoop then task.cancel(uiLoop) end
-    if uiCleanerLoop then task.cancel(uiCleanerLoop) end
 
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -218,38 +172,27 @@ function startFarm()
 
     spoofSkin()
 
-    -- 🔥 Limpiar popups generados por la placa
-    if uiCleanerLoop then task.cancel(uiCleanerLoop) end
-    uiCleanerLoop = task.spawn(function()
-        while Config.Enabled do
-            cleanFarmPopups()
-            task.wait(0.5)
-        end
-    end)
+    -- 🔥 ENCENDER EL ATTACK ALL (Delegando la espada)
+    if env.BF_ATTACKALL_CONFIG then 
+        env.BF_ATTACKALL_CONFIG.Enabled = true 
+    else
+        warn("[Farm] AttackAll no está cargado. El Farm no hará daño.")
+    end
+
+    -- Activar el cazador de popups por si la placa bloqueada intenta colarse
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        if uiCleanerCon then uiCleanerCon:Disconnect() end
+        uiCleanerCon = pg.DescendantAdded:Connect(function(obj)
+            task.defer(function() onGuiAdded(obj) end)
+        end)
+    end
 
     if not FarmPanel and env.BF_UI_LIBRARY then
         FarmPanel = env.BF_UI_LIBRARY.CreateFarmPanel({
             OnStop = function() Config.Enabled = false end
         })
     end
-
-    weaponLoop = task.spawn(function()
-        while Config.Enabled do
-            local c = LocalPlayer.Character
-            if c then
-                local tool = c:FindFirstChildOfClass("Tool")
-                if not tool then equipWeapon() task.wait(0.2)
-                else
-                    if getHandle(tool) then
-                        expandSword(tool)
-                        task.wait(0.25)
-                        restoreSword(tool)
-                        task.wait(0.25)
-                    else task.wait(0.5) end
-                end
-            else task.wait(0.5) end
-        end
-    end)
 
     killTrackerCon = task.spawn(function()
         while Config.Enabled do
@@ -282,6 +225,11 @@ local function stopFarm()
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     
+    -- 🔥 APAGAR EL ATTACK ALL
+    if env.BF_ATTACKALL_CONFIG then 
+        env.BF_ATTACKALL_CONFIG.Enabled = false 
+    end
+
     if root then
         local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
         root.Anchored = true 
@@ -295,12 +243,9 @@ local function stopFarm()
     
     if FarmPanel then FarmPanel:Destroy(); FarmPanel = nil end
     if uiLoop then task.cancel(uiLoop); uiLoop = nil end
-    if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
     if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
-    if uiCleanerLoop then task.cancel(uiCleanerLoop); uiCleanerLoop = nil end
+    if uiCleanerCon then uiCleanerCon:Disconnect(); uiCleanerCon = nil end
     
-    local tool = char and char:FindFirstChildOfClass("Tool")
-    if tool then restoreSword(tool) end
     playerStates = {}
     bodyPos = nil
 end
@@ -329,6 +274,10 @@ mainLoopCon = task.spawn(function()
                     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
                     if hum then hum.Health = 0 end
                 end)
+            end
+            -- Si el Attack All se apagó por error, lo volvemos a encender
+            if env.BF_ATTACKALL_CONFIG and not env.BF_ATTACKALL_CONFIG.Enabled then
+                env.BF_ATTACKALL_CONFIG.Enabled = true
             end
         else
             if FarmPanel then stopFarm() end
