@@ -1,8 +1,7 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V19 - THE SPY BLOCKER)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V22 - Tournament Allowed)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
-local MarketplaceService = game:GetService("MarketplaceService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -13,10 +12,7 @@ env.BF_NOPOPUPS_CONFIG = Config
 
 local GROUP_NAME = "FroggySword"
 local honeypotParts = {}
-local movedParts = {}
 local connections = {}
-local oldNewIndex = nil
-local oldNamecall = nil
 
 -- 1. ESPADA FANTASMA
 pcall(function()
@@ -33,82 +29,42 @@ local function applyGhostGroup(tool)
     end
 end
 
--- 2. HOOKS DEL SPY (El que bloqueó la Forja por accidente)
-local function applyHooks()
-    if not hookmetamethod or not checkcaller then return end
+-- 2. LISTA NEGRA (Sin TournamentGui)
+local BLACKLIST = {
+    "survivalsquadgui",   -- Halloween / Supervivencia
+    "rankedgui",          -- Duelos
+    "luckelementpopupgui",-- Popup de elemento bloqueado (Robux)
+    "howtounlockgui",     -- UI de desbloqueo
+    "coderedemptiongui",  -- Códigos
+    "killrewardpopup",    -- Recompensas de kills
+    "giftnotifgui",       -- Notificaciones de regalos
+    "spinui",             -- Ruleta
+    "giftui",             -- Regalos
+    "giftconfettigui",    -- Confeti
+    "giftspinnergui"      -- Ruleta de regalos
+}
 
-    -- Hook A: Bloquear el cambio de propiedad a Visible/Enabled (El que funcionó)
-    oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-        if not checkcaller() and (key == "Visible" or key == "Enabled") and value == true then
-            if self:IsA("ScreenGui") or self:IsA("Frame") then
-                local name = string.lower(self.Name)
-                
-                -- 🔥 Si es HowToUnlock (Misiones), Shop, etc., lo destruimos
-                if name == "howtounlockgui" or name:find("quest") or name:find("shop") or name:find("forge") then
-                    if not name:find("froggy") then
-                        self:Destroy()
-                        return -- Bloquea la propiedad para que no se muestre
-                    end
-                end
-            end
-        end
-        return oldNewIndex(self, key, value)
-    end)
-
-    -- Hook B: Bloquear Remotes de compra y misiones
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
-            local name = string.lower(self.Name)
-            if name == "openquest" or name:find("howtounlock") or name:find("purchase") or name:find("robux") or name:find("shop") then
-                return nil
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
-end
-
-local function removeHooks()
-    if oldNewIndex then hookmetamethod(game, "__newindex", oldNewIndex); oldNewIndex = nil end
-    if oldNamecall then hookmetamethod(game, "__namecall", oldNamecall); oldNamecall = nil end
-end
-
--- 3. PURGA FÍSICA (Para el círculo de Halloween en el lobby)
-local TARGET_PARTS = {"simulatorcircle", "teleport asset", "rankedpart", "shoppart", "forge"}
-local VOID_CFRAME = CFrame.new(0, -5000, 0)
-
-local function hidePhysicalParts(obj)
-    if not Config.Enabled or not obj or not obj:IsA("BasePart") then return end
+-- 3. DESTRUCTOR INSTANTÁNEO
+local function onGuiAdded(obj)
+    if not Config.Enabled or not obj then return end
     
-    local name = string.lower(obj.Name)
-    local parentName = string.lower(obj.Parent and obj.Parent.Name or "")
-    
-    local tpsFolder = Workspace:FindFirstChild("TPS")
-    local isTPS = tpsFolder and obj:IsDescendantOf(tpsFolder) or false
-    local isSoul = name:find("soul") or name:find("alma") or parentName:find("soul") or parentName:find("alma")
-    
-    if not isTPS and not isSoul then
-        for _, target in ipairs(TARGET_PARTS) do
-            if name:find(target) or parentName:find(target) then
-                if not movedParts[obj] then
-                    movedParts[obj] = obj.CFrame 
-                end
-                obj.CFrame = VOID_CFRAME 
-                break
+    if obj:IsA("ScreenGui") or (obj:IsA("Frame") and obj.Parent == LocalPlayer:FindFirstChild("PlayerGui")) then
+        local name = string.lower(obj.Name)
+        
+        if name:find("froggy") then return end
+        
+        for _, badName in ipairs(BLACKLIST) do
+            if name == badName or name:find(badName) then
+                obj:Destroy() 
+                return
             end
         end
     end
 end
 
-local function restoreParts()
-    for obj, cf in pairs(movedParts) do
-        if obj and obj.Parent then obj.CFrame = cf end
-    end
-    movedParts = {}
-end
-
-table.insert(connections, Workspace.DescendantAdded:Connect(function(obj)
-    task.defer(function() hidePhysicalParts(obj) end)
+local pg = LocalPlayer:WaitForChild("PlayerGui")
+table.insert(connections, pg.DescendantAdded:Connect(function(obj)
+    task.defer(function() onGuiAdded(obj) end)
 end))
 
 -- 4. ANTI-HONEYPOTS
@@ -143,9 +99,8 @@ task.spawn(function()
         if Config.Enabled then
             if not oldEnabled then
                 oldEnabled = true
-                applyHooks()
-                for _, obj in ipairs(Workspace:GetDescendants()) do hidePhysicalParts(obj) end
-                print("[Froggy] NoPopUps V19 Activado (Spy Hook Blocker).")
+                for _, obj in ipairs(pg:GetChildren()) do onGuiAdded(obj) end
+                print("[Froggy] NoPopUps V22 (Tournament Allowed) Activado.")
             end
 
             local char = LocalPlayer.Character
@@ -158,8 +113,6 @@ task.spawn(function()
 
         elseif not Config.Enabled and oldEnabled then
             oldEnabled = false
-            removeHooks()
-            restoreParts()
             for part, data in pairs(honeypotParts) do 
                 if part and part.Parent then 
                     part.CanTouch = data.CanTouch
@@ -167,16 +120,14 @@ task.spawn(function()
                 end 
             end
             honeypotParts = {}
-            print("[Froggy] NoPopUps V19 Desactivado.")
+            print("[Froggy] NoPopUps V22 Desactivado.")
         end
     end
 end)
 
 env.__BF_NOPOPUPS_CLEANUP = function()
     Config.Enabled = false
-    removeHooks()
     for _, conn in ipairs(connections) do if conn then conn:Disconnect() end end
-    restoreParts()
     for part, data in pairs(honeypotParts) do 
         if part and part.Parent then 
             part.CanTouch = data.CanTouch
