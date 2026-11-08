@@ -1,26 +1,34 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V21 - ESTABLE)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V24 - MASSIVE + GHOST HITBOX)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local PhysicsService = game:GetService("PhysicsService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
 if env.__BF_ATTACKALL_CLEANUP then pcall(env.__BF_ATTACKALL_CLEANUP) end
 
-local Config = { Enabled = false, Size = 1000 }
+local Config = { Enabled = false, Size = 1000 } -- 🔥 TAMAÑO MANTENIDO EN 1000
 env.BF_ATTACKALL_CONFIG = Config
 
+local GROUP_NAME = "FroggyMassiveSword"
 local originalData = {}
 local honeypotParts = {}
 
--- 1. HOOK ANTI-COMPRAS (Bloqueo oficial de Roblox)
+-- 🔥 1. GRUPO DE COLISIÓN PARA LA ESPADA (Evita que los proyectiles te den)
+pcall(function()
+    PhysicsService:RegisterCollisionGroup(GROUP_NAME)
+    PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false) -- No choca con proyectiles/mapa
+end)
+
+-- 2. HOOK ANTI-COMPRAS
 if hookfunction then
     hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
     hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
 end
 
--- 2. FUNCIONES DEL ARMA
+-- 3. FUNCIONES DEL ARMA
 local function getHandle(tool)
     if not tool or not tool:IsA("Tool") then return nil end
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
@@ -35,14 +43,23 @@ local function expandSword(tool)
             Transparency = handle.Transparency, 
             CanCollide = handle.CanCollide, 
             Massless = handle.Massless, 
-            CanTouch = handle.CanTouch 
+            CanTouch = handle.CanTouch,
+            CanQuery = handle.CanQuery,
+            CollisionGroup = handle.CollisionGroup
         }
     end
+    
     handle.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
     handle.Transparency = 1 
     handle.CanCollide = false 
     handle.Massless = true
     handle.CanTouch = true
+    handle.CanQuery = false -- 🔥 Evita que los raycast te detecten a distancia
+    
+    -- Aplicar el grupo de colisión fantasma
+    pcall(function()
+        PhysicsService:SetPartCollisionGroup(handle, GROUP_NAME)
+    end)
 end
 
 local function restoreSword(tool)
@@ -54,15 +71,21 @@ local function restoreSword(tool)
     handle.CanCollide = data.CanCollide
     handle.Massless = data.Massless
     handle.CanTouch = data.CanTouch
+    handle.CanQuery = data.CanQuery
+    
+    pcall(function()
+        PhysicsService:SetPartCollisionGroup(handle, data.CollisionGroup)
+    end)
+    
     originalData[handle] = nil
 end
 
--- Limpiar datos al morir (SIN teletransportar a ningún lado)
+-- Limpiar datos al morir
 LocalPlayer.CharacterAdded:Connect(function()
     originalData = {}
 end)
 
--- 3. BUCLE PRINCIPAL (El Flicker de la espada)
+-- 4. BUCLE PRINCIPAL (Flicker)
 task.spawn(function()
     while task.wait(0.25) do
         if Config.Enabled then
@@ -77,7 +100,7 @@ task.spawn(function()
     end
 end)
 
--- 4. BYPASS DE HONEYPOTS (Protección contra kicks)
+-- 5. BYPASS DE HONEYPOTS
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
@@ -105,14 +128,13 @@ task.spawn(function()
     end
 end)
 
--- 5. LIMPIEZA AL APAGAR
+-- 6. LIMPIEZA
 env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
     local char = LocalPlayer.Character
     local tool = char and char:FindFirstChildOfClass("Tool")
     if tool then restoreSword(tool) end
     
-    -- Restaurar Honeypots
     for part, data in pairs(honeypotParts) do 
         if part and part.Parent then 
             part.CanTouch = data.CanTouch
