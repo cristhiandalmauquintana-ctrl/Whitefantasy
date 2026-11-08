@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V22 - Tournament Allowed)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V23 - BLACK SCREEN KILLER)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
@@ -29,7 +29,7 @@ local function applyGhostGroup(tool)
     end
 end
 
--- 2. LISTA NEGRA (Sin TournamentGui)
+-- 2. LISTA NEGRA DE GUIs (Sin TournamentGui)
 local BLACKLIST = {
     "survivalsquadgui",   -- Halloween / Supervivencia
     "rankedgui",          -- Duelos
@@ -44,7 +44,6 @@ local BLACKLIST = {
     "giftspinnergui"      -- Ruleta de regalos
 }
 
--- 3. DESTRUCTOR INSTANTÁNEO
 local function onGuiAdded(obj)
     if not Config.Enabled or not obj then return end
     
@@ -66,6 +65,30 @@ local pg = LocalPlayer:WaitForChild("PlayerGui")
 table.insert(connections, pg.DescendantAdded:Connect(function(obj)
     task.defer(function() onGuiAdded(obj) end)
 end))
+
+-- 3. BLACK SCREEN KILLER (Destructor de fondos oscuros)
+local function destroyBlackFrames()
+    if not Config.Enabled then return end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return end
+
+    for _, obj in ipairs(pg:GetDescendants()) do
+        -- Buscar Frames que cubran toda la pantalla
+        if obj:IsA("Frame") and (obj.Size.X.Scale >= 0.95 and obj.Size.Y.Scale >= 0.95) then
+            local name = string.lower(obj.Name)
+            local parentName = string.lower(obj.Parent and obj.Parent.Name or "")
+            
+            -- Verificar que no sea de Froggy Hub ni del juego base (Chat, HUD, etc)
+            if not name:find("froggy") and not parentName:find("froggy") and not name:find("chat") and not name:find("hud") then
+                -- Verificar que sea un color oscuro/negro
+                local c = obj.BackgroundColor3
+                if c.R < 0.15 and c.G < 0.15 and c.B < 0.15 and obj.BackgroundTransparency < 0.8 then
+                    obj:Destroy() -- Adiós pantalla negra
+                end
+            end
+        end
+    end
+end
 
 -- 4. ANTI-HONEYPOTS
 local function purgeHoneypots()
@@ -100,7 +123,8 @@ task.spawn(function()
             if not oldEnabled then
                 oldEnabled = true
                 for _, obj in ipairs(pg:GetChildren()) do onGuiAdded(obj) end
-                print("[Froggy] NoPopUps V22 (Tournament Allowed) Activado.")
+                destroyBlackFrames()
+                print("[Froggy] NoPopUps V23 Activado.")
             end
 
             local char = LocalPlayer.Character
@@ -109,6 +133,8 @@ task.spawn(function()
                 applyGhostGroup(tool)
             end
 
+            -- Escanear fondos negros y honeypots constantemente
+            destroyBlackFrames()
             purgeHoneypots()
 
         elseif not Config.Enabled and oldEnabled then
@@ -120,7 +146,7 @@ task.spawn(function()
                 end 
             end
             honeypotParts = {}
-            print("[Froggy] NoPopUps V22 Desactivado.")
+            print("[Froggy] NoPopUps V23 Desactivado.")
         end
     end
 end)
