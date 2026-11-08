@@ -1,5 +1,4 @@
-
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V36 - FULL COORDS)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V37 - FIXED RESETS)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -11,7 +10,6 @@ if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
 local Config = { Enabled = false, SelectedElement = "energy" }
 env.BF_PLAYERFARM_CONFIG = Config
 
--- 🔥 TABLA COMPLETA DE COORDENADAS
 local ElementData = {
     ["energy"] = {Y=-14.51,X=816.06,Z=37.42},
     ["luz"] = {Y=-14.51,X=815.31,Z=16.66},
@@ -47,7 +45,6 @@ local ElementData = {
     ["espacio"] = {Y=-14.51,X=816.91,Z=57.76},
     ["realidad"] = {Y=-14.51,X=813.58,Z=418.34},
     ["dios de elementos"] = {Y=-14.51,X=752.07,Z=530.86},
-    -- Logros (Badges)
     ["witchcraft"] = {Y=-17.33, X=694.72, Z=251.30},
     ["luck"] = {Y=-17.38, X=694.72, Z=136.30},
     ["nature"] = {Y=-17.38, X=694.72, Z=113.30},
@@ -74,7 +71,7 @@ local uiLoop = nil
 local charAddedCon = nil
 local mainLoopCon = nil
 local uiCleanerCon = nil
-local isResetting = false
+local isLoading = false -- 🔥 Nueva bandera para evitar bucles
 
 local kills = 0
 local playerStates = {}
@@ -111,16 +108,23 @@ local function onGuiAdded(obj)
     end
 end
 
+-- 🔥 EQUIPAR CON BUCLE DE ESPERA
 local function equipWeapon()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or char:FindFirstChildOfClass("Tool") then return end
+    if not hum then return false end
+    if char:FindFirstChildOfClass("Tool") then return true end
+
     local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if backpack then
-        for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then pcall(function() hum:EquipTool(tool) end); break end
+    if not backpack then return false end
+
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then 
+            pcall(function() hum:EquipTool(tool) end)
+            return true
         end
     end
+    return false
 end
 
 local function teleportToElement()
@@ -154,7 +158,7 @@ local function teleportToElement()
             if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
         end
     end
-    task.wait(2) 
+    task.wait(2) -- Espera a la animación
 end
 
 local function getGameStats()
@@ -252,7 +256,6 @@ function startFarm()
 end
 
 local function stopFarm()
-    -- 🔥 APAGAR EL ATTACK ALL
     if env.BF_ATTACKALL_CONFIG then 
         env.BF_ATTACKALL_CONFIG.Enabled = false 
     end
@@ -281,40 +284,65 @@ local function stopFarm()
     bodyPos = nil
 end
 
+-- 🔥 PROCESO COMPLETO DE INICIO (CON BUCLE DE ESPERA)
+local function processFarmStart()
+    if isLoading then return end
+    isLoading = true
+    
+    -- 1. Esperar a que el personaje cargue
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.CharacterAdded:Wait()
+    end
+    task.wait(1)
+
+    -- 2. Ir a la placa
+    teleportToElement()
+
+    -- 3. Intentar equipar el arma hasta 10 veces (5 segundos)
+    local hasWeapon = false
+    for i = 1, 10 do
+        if equipWeapon() then
+            hasWeapon = true
+            break
+        end
+        task.wait(0.5)
+    end
+
+    if not hasWeapon then
+        warn("[Farm] No se encontró arma en el inventario. El ataque podría fallar.")
+    end
+
+    -- 4. Subir al cielo
+    task.wait(0.5)
+    startFarm()
+    isLoading = false
+end
+
 if charAddedCon then charAddedCon:Disconnect() end
 charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
-        task.wait(2)
-        teleportToElement()
-        equipWeapon()
-        task.wait(0.5)
-        startFarm()
-        isResetting = false
+        task.wait(2) -- Espera inicial para el respawn
+        processFarmStart()
     end
 end)
 
+-- 🔥 BUCLE PRINCIPAL (SIN MATAR AL JUGADOR)
 if mainLoopCon then task.cancel(mainLoopCon) end
 mainLoopCon = task.spawn(function()
     while true do
         task.wait(0.5)
         if Config.Enabled then
-            if not FarmPanel and not isResetting and LocalPlayer.Character then
-                isResetting = true
-                task.spawn(function()
-                    task.wait(2)
-                    if Config.Enabled then
-                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                        if hum then hum.Health = 0 end
-                    end
-                    isResetting = false
-                end)
+            -- Si el Farm está activo pero no hay panel y no estamos cargando, iniciamos.
+            if not FarmPanel and not isLoading and LocalPlayer.Character then
+                task.spawn(processFarmStart)
             end
+            -- Asegurarnos de que AttackAll siga encendido
             if env.BF_ATTACKALL_CONFIG and not env.BF_ATTACKALL_CONFIG.Enabled then
                 env.BF_ATTACKALL_CONFIG.Enabled = true
             end
         else
             if FarmPanel then stopFarm() end
-            isResetting = false
         end
     end
 end)
