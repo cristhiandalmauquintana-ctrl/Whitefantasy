@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V39 - TRUE AUTO FARM)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V40 - SMART EQUIP)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -77,16 +77,31 @@ local function onGuiAdded(obj)
     end
 end
 
-local function equipWeapon()
+-- 🔥 NUEVO: BUCLE DE EQUIPAMIENTO INTELIGENTE
+local function equipWeaponWithWait()
     local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or char:FindFirstChildOfClass("Tool") then return end
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+
+    -- Si ya tiene el arma, terminamos rápido
+    if char:FindFirstChildOfClass("Tool") then return true end
+
     local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if backpack then
+    if not backpack then return false end
+
+    -- Intentar equipar durante 5 segundos (10 intentos)
+    for i = 1, 10 do
+        if char:FindFirstChildOfClass("Tool") then return true end
+
         for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then pcall(function() hum:EquipTool(tool) end); break end
+            if tool:IsA("Tool") then
+                pcall(function() hum:EquipTool(tool) end)
+            end
         end
+        task.wait(0.5)
     end
+    return false
 end
 
 local function getGameStats()
@@ -101,14 +116,13 @@ local function getGameStats()
     return diamonds, souls
 end
 
--- 🔥 FUNCIÓN DE INICIO LIMPIA
 local function startFarm()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    -- Ir a la placa
+    -- 1. Ir a la placa
     local targetName = string.lower(Config.SelectedElement)
     local data = ElementData[targetName] or ElementData["energy"]
     local ENERGY_POS = Vector3.new(data.X, data.Y, data.Z)
@@ -137,11 +151,17 @@ local function startFarm()
         end
     end
     
-    task.wait(2.5) -- Espera LARGA para que el juego te dé el arma
-    equipWeapon()
+    task.wait(2) -- Esperar a que el servidor procese la placa
+    
+    -- 2. 🔥 EQUIPAR INTELIGENTE (Se espera hasta 5 segundos)
+    local hasWeapon = equipWeaponWithWait()
+    if not hasWeapon then
+        warn("[Farm] No se encontró el arma después de 5 segundos. El ataque podría fallar.")
+    end
+    
     task.wait(0.5)
 
-    -- Subir al cielo
+    -- 3. Subir al cielo
     root.Anchored = false
     hum.PlatformStand = true
 
@@ -243,10 +263,9 @@ end
 LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled and not isRestarting then
         isRestarting = true
-        -- Limpiamos cualquier panel viejo
         if FarmPanel then FarmPanel:Destroy(); FarmPanel = nil end
         
-        task.wait(3) -- Espera crítica para que el juego cargue el personaje
+        task.wait(3) 
         if Config.Enabled then
             startFarm()
         end
@@ -254,19 +273,17 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- 🔥 BUCLE PRINCIPAL (Solo mantiene el AttackAll y verifica el panel)
+-- 🔥 BUCLE PRINCIPAL
 task.spawn(function()
     local lastState = false
     while task.wait(0.5) do
         if Config.Enabled then
-            -- Si el panel no existe y no estamos en medio de un reinicio, iniciamos
             if not FarmPanel and not isRestarting and LocalPlayer.Character then
                 isRestarting = true
                 startFarm()
                 isRestarting = false
             end
             
-            -- Mantener AttackAll encendido
             if env.BF_ATTACKALL_CONFIG and not env.BF_ATTACKALL_CONFIG.Enabled then
                 env.BF_ATTACKALL_CONFIG.Enabled = true
             end
