@@ -1,7 +1,7 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V6 - NO CRASH, ZERO HOOKS)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V7 - PHYSICAL PURGE STABLE)
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
-local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -11,9 +11,10 @@ local Config = { Enabled = false }
 env.BF_NOPOPUPS_CONFIG = Config
 
 local GROUP_NAME = "FroggySword"
-local scanConnection = nil
+local movedObjects = {}
+local isHidden = false
 
--- 1. ESPADA FANTASMA (Evita tocar gacha/tiendas)
+-- 1. ESPADA FANTASMA (Capa extra de seguridad)
 pcall(function()
     PhysicsService:RegisterCollisionGroup(GROUP_NAME)
     PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
@@ -28,74 +29,92 @@ local function applyGhostGroup(tool)
     end
 end
 
--- 2. CAZADOR DE VENTANAS (Por nombres específicos)
-local blocklist = {"halloween", "duel", "shop", "store", "gacha", "purchase", "robux", "gem", "buy"}
+-- 2. IDENTIFICAR OBJETOS A MOVER
+local function isTargetObject(obj)
+    if not obj:IsA("BasePart") then return false end
+    
+    local name = string.lower(obj.Name .. (obj.Parent and obj.Parent.Name or ""))
+    
+    -- NO mover almas ni la carpeta TPS (placas de elementos)
+    if name:find("soul") or name:find("alma") then return false end
+    local tpsFolder = Workspace:FindFirstChild("TPS")
+    if tpsFolder and obj:IsDescendantOf(tpsFolder) then return false end
 
-local function scanAndDestroy()
-    if not Config.Enabled then return end
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
+    -- Mover si tiene un prompt/click o si su nombre suena a tienda/duelo/gacha
+    local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+    local hasClick = obj:FindFirstChildWhichIsA("ClickDetector", true) ~= nil
+    local isShop = name:find("shop") or name:find("gacha") or name:find("store") or 
+                   name:find("duel") or name:find("halloween") or name:find("chest") or name:find("cofre")
 
-    -- Revisar solo las ventanas principales (Cero lag)
-    for _, gui in ipairs(pg:GetChildren()) do
-        if gui:IsA("ScreenGui") or gui:IsA("Frame") then
-            local name = string.lower(gui.Name)
-            local isBad = false
-            
-            for _, word in ipairs(blocklist) do
-                if name:find(word) then
-                    isBad = true
-                    break
-                end
+    return hasPrompt or hasClick or isShop
+end
+
+-- 3. MOVER AL SUBSUELO Y RESTAURAR
+local function hideTargets()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if isTargetObject(obj) then
+            if not movedObjects[obj] then
+                movedObjects[obj] = obj.CFrame -- Guardar ubicación original
             end
-
-            -- No destruir nuestra propia UI
-            if isBad and not name:find("froggy") then
-                gui:Destroy()
-            end
+            obj.CFrame = CFrame.new(0, -5000, 0) -- Mandarlo al subsuelo
         end
     end
+    isHidden = true
 end
 
--- 3. LÓGICA DE ACTIVACIÓN
-local function startShield()
-    -- Bucle muy ligero de escaneo (solo mira los hijos directos del PlayerGui)
-    if scanConnection then scanConnection:Disconnect() end
-    scanConnection = RunService.Heartbeat:Connect(scanAndDestroy)
-    print("[Froggy] NoPopUps V6 Activado (Modo Ligero).")
+local function restoreTargets()
+    for obj, cf in pairs(movedObjects) do
+        if obj and obj.Parent then
+            obj.CFrame = cf -- Devolver a su lugar
+        end
+    end
+    movedObjects = {}
+    isHidden = false
 end
 
-local function stopShield()
-    if scanConnection then scanConnection:Disconnect(); scanConnection = nil end
-    print("[Froggy] NoPopUps V6 Desactivado.")
-end
+-- 4. ESCUCHAR SI APARECEN COSAS NUEVAS MIENTRAS ESTÁ OCULTO
+local newObjConnection = Workspace.DescendantAdded:Connect(function(obj)
+    if Config.Enabled and isHidden and isTargetObject(obj) then
+        if not movedObjects[obj] then
+            movedObjects[obj] = obj.CFrame
+        end
+        obj.CFrame = CFrame.new(0, -5000, 0)
+    end
+end)
 
--- 4. BUCLE PRINCIPAL
+-- 5. BUCLE PRINCIPAL (Revisa si tienes el arma en la mano)
 local oldEnabled = false
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
-            if not oldEnabled then
-                oldEnabled = true
-                startShield()
-            end
-            
-            -- Mantener la espada fantasma
             local char = LocalPlayer.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
+            
             if tool then
+                -- Si tienes arma: Aplicar Espada Fantasma y Esconder cosas
                 applyGhostGroup(tool)
+                if not isHidden then
+                    hideTargets()
+                end
+            else
+                -- Si NO tienes arma: Devolver todo a su lugar
+                if isHidden then
+                    restoreTargets()
+                end
             end
-        elseif not Config.Enabled and oldEnabled then
+        elseif oldEnabled then
+            -- Si se apaga el script, restaurar todo
             oldEnabled = false
-            stopShield()
+            restoreTargets()
         end
+        oldEnabled = Config.Enabled
     end
 end)
 
 env.__BF_NOPOPUPS_CLEANUP = function()
     Config.Enabled = false
-    stopShield()
+    restoreTargets()
+    if newObjConnection then newObjConnection:Disconnect() end
     env.BF_NOPOPUPS_CONFIG = nil
     env.__BF_NOPOPUPS_CLEANUP = nil
 end
