@@ -1,7 +1,8 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (ENTRY ANIMATION FIX)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V33 - NO POPUPS ON FARM)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local PhysicsService = game:GetService("PhysicsService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -31,6 +32,7 @@ local FARM_X = 1451.5
 local FARM_Y = -115.1
 local FARM_Z = 85.7
 local HIDE_DEPTH = 15 
+local SWORD_SIZE = 360 -- 🔥 Mismo tamaño que el AttackAll
 
 local FarmPanel = nil
 local weaponLoop = nil
@@ -38,12 +40,20 @@ local killTrackerCon = nil
 local uiLoop = nil
 local charAddedCon = nil
 local mainLoopCon = nil
+local uiCleanerLoop = nil
 local isResetting = false
 
 local kills = 0
 local playerStates = {}
 local currentFps = 60
 local bodyPos = nil
+
+local GROUP_NAME = "FroggySword360"
+
+pcall(function()
+    PhysicsService:RegisterCollisionGroup(GROUP_NAME)
+    PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
+end)
 
 local function spoofSkin()
     local char = LocalPlayer.Character
@@ -54,6 +64,22 @@ local function spoofSkin()
         elseif part:IsA("BasePart") then
             part.Color = Color3.fromRGB(163, 162, 165)
             part.Material = Enum.Material.Plastic
+        end
+    end
+end
+
+-- 🔥 LIMPIADOR DE UI (Para las ventanas que se abren al tocar la placa)
+local function cleanFarmPopups()
+    if not Config.Enabled then return end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return end
+    
+    for _, obj in ipairs(pg:GetChildren()) do
+        if obj:IsA("ScreenGui") then
+            local name = string.lower(obj.Name)
+            if name == "howtounlockgui" or name == "luckelementpopupgui" or name == "survivalsquadgui" then
+                obj:Destroy()
+            end
         end
     end
 end
@@ -70,12 +96,15 @@ local function expandSword(tool)
         handle:SetAttribute("FroggyOriginalSize", handle.Size)
         handle:SetAttribute("FroggyOriginalTransparency", handle.Transparency)
         handle:SetAttribute("FroggyOriginalCanCollide", handle.CanCollide)
+        handle:SetAttribute("FroggyOriginalCollisionGroup", handle.CollisionGroup)
     end
-    handle.Size = Vector3.new(1000, 1000, 1000)
+    handle.Size = Vector3.new(SWORD_SIZE, SWORD_SIZE, SWORD_SIZE) -- 🔥 Tamaño 360
     handle.Transparency = 1 
     handle.CanCollide = false 
     handle.Massless = true
     handle.CanTouch = true
+    handle.CanQuery = false
+    pcall(function() PhysicsService:SetPartCollisionGroup(handle, GROUP_NAME) end)
 end
 
 local function restoreSword(tool)
@@ -86,6 +115,7 @@ local function restoreSword(tool)
         handle.Size = size
         handle.Transparency = handle:GetAttribute("FroggyOriginalTransparency")
         handle.CanCollide = handle:GetAttribute("FroggyOriginalCanCollide")
+        pcall(function() PhysicsService:SetPartCollisionGroup(handle, handle:GetAttribute("FroggyOriginalCollisionGroup") or "Default") end)
         handle:SetAttribute("FroggyOriginalSize", nil)
     end
 end
@@ -133,8 +163,7 @@ local function teleportToElement()
             if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
         end
     end
-    -- 🔥 AQUÍ ESTÁ EL FIX: Esperamos 3.5 segundos a que la animación del juego termine
-    task.wait(3.5)
+    task.wait(2) -- Esperar animación
 end
 
 local function getGameStats()
@@ -163,16 +192,14 @@ function startFarm()
     if weaponLoop then task.cancel(weaponLoop) end
     if killTrackerCon then task.cancel(killTrackerCon) end
     if uiLoop then task.cancel(uiLoop) end
+    if uiCleanerLoop then task.cancel(uiCleanerLoop) end
 
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    -- 🔥 FIX: Asegurarnos de que el juego no nos tenga anclados de la animación
-    if root.Anchored then root.Anchored = false end
-    
-    root.AssemblyLinearVelocity = Vector3.zero
+    root.Anchored = false
     hum.PlatformStand = true
 
     local bp = root:FindFirstChild("FarmBP")
@@ -190,6 +217,15 @@ function startFarm()
     end
 
     spoofSkin()
+
+    -- 🔥 Limpiar popups generados por la placa
+    if uiCleanerLoop then task.cancel(uiCleanerLoop) end
+    uiCleanerLoop = task.spawn(function()
+        while Config.Enabled do
+            cleanFarmPopups()
+            task.wait(0.5)
+        end
+    end)
 
     if not FarmPanel and env.BF_UI_LIBRARY then
         FarmPanel = env.BF_UI_LIBRARY.CreateFarmPanel({
@@ -261,6 +297,7 @@ local function stopFarm()
     if uiLoop then task.cancel(uiLoop); uiLoop = nil end
     if weaponLoop then task.cancel(weaponLoop); weaponLoop = nil end
     if killTrackerCon then task.cancel(killTrackerCon); killTrackerCon = nil end
+    if uiCleanerLoop then task.cancel(uiCleanerLoop); uiCleanerLoop = nil end
     
     local tool = char and char:FindFirstChildOfClass("Tool")
     if tool then restoreSword(tool) end
@@ -271,11 +308,11 @@ end
 if charAddedCon then charAddedCon:Disconnect() end
 charAddedCon = LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled then
-        task.wait(2) -- Esperar a que cargue el personaje
-        teleportToElement() -- Toca la placa y espera 3.5s a la animación
+        task.wait(2)
+        teleportToElement()
         equipWeapon()
         task.wait(0.5)
-        startFarm() -- Ahora sí, nos vamos bajo el mapa sin conflicto
+        startFarm()
         isResetting = false
     end
 end)
