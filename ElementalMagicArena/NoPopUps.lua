@@ -1,7 +1,8 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V17 - PHYSICAL PURGE EXACT)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V18 - PERMA BLOCK)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
+local MarketplaceService = game:GetService("MarketplaceService")
 local LocalPlayer = Players.LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
@@ -12,10 +13,9 @@ env.BF_NOPOPUPS_CONFIG = Config
 
 local GROUP_NAME = "FroggySword"
 local honeypotParts = {}
-local movedParts = {}
 local connections = {}
 
--- 1. ESPADA FANTASMA
+-- 1. ESPADA FANTASMA (Protege el gacha físico)
 pcall(function()
     PhysicsService:RegisterCollisionGroup(GROUP_NAME)
     PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
@@ -30,58 +30,73 @@ local function applyGhostGroup(tool)
     end
 end
 
--- 2. PURGA FÍSICA (Esto es lo que funcionaba)
-local TARGET_PARTS = {"simulatorcircle", "teleport asset", "rankedpart", "shoppart", "forge"}
-local VOID_CFRAME = CFrame.new(0, -5000, 0) -- Los mandamos al subsuelo
+-- 2. HOOK ANTI-ROBUX Y ANTI-MISIONES (Corta el cable desde el servidor)
+local oldNamecall = nil
+if hookmetamethod and checkcaller then
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        
+        if not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
+            local name = string.lower(self.Name)
+            -- 🔥 Bloqueo del Remote que abre las misiones de Halloween
+            if name == "openquest" or name:find("howtounlock") or name:find("purchase") or name:find("robux") then
+                return nil
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+    
+    if hookfunction then
+        hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
+        hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
+    end
+end
 
-local function hidePhysicalParts(obj)
+-- 3. DESTRUCTOR INSTANTÁNEO DE UI (Perma Block)
+local function destroyBadUI(obj)
+    if not Config.Enabled or not obj then return end
+    
+    -- Si es un ScreenGui y su nombre es HowToUnlockGui o similar
+    if obj:IsA("ScreenGui") then
+        local name = string.lower(obj.Name)
+        if name == "howtounlockgui" or name:find("quest") or name:find("shop") then
+            if not name:find("froggy") then
+                obj:Destroy()
+            end
+        end
+    end
+end
+
+local pg = LocalPlayer:WaitForChild("PlayerGui")
+table.insert(connections, pg.DescendantAdded:Connect(function(obj)
+    task.defer(function() destroyBadUI(obj) end)
+end))
+
+-- 4. DESTRUCTOR DEL CÍRCULO FÍSICO (Perma Block)
+local function destroyBadParts(obj)
     if not Config.Enabled or not obj or not obj:IsA("BasePart") then return end
     
     local name = string.lower(obj.Name)
     local parentName = string.lower(obj.Parent and obj.Parent.Name or "")
     
-    -- NO TOCAR LAS PLACAS (TPS) NI ALMAS
+    -- No tocar TPS (placas) ni Almas
     local tpsFolder = Workspace:FindFirstChild("TPS")
     local isTPS = tpsFolder and obj:IsDescendantOf(tpsFolder) or false
     local isSoul = name:find("soul") or name:find("alma") or parentName:find("soul") or parentName:find("alma")
     
     if not isTPS and not isSoul then
-        for _, target in ipairs(TARGET_PARTS) do
-            if name:find(target) or parentName:find(target) then
-                if not movedParts[obj] then
-                    movedParts[obj] = obj.CFrame 
-                end
-                obj.CFrame = VOID_CFRAME 
-                break
-            end
+        -- 🔥 Destruir el círculo de Halloween / Supervivencia
+        if name:find("teleport asset") or name:find("rankedpart") or parentName:find("sobrevivencia") or parentName:find("supervivencia") then
+            obj:Destroy()
         end
     end
 end
 
--- Escuchar si el juego spawnea algo nuevo
 table.insert(connections, Workspace.DescendantAdded:Connect(function(obj)
-    task.defer(function() hidePhysicalParts(obj) end)
+    task.defer(function() destroyBadParts(obj) end)
 end))
 
--- 3. DESTRUCTOR DE UI (Por si el juego ya la tenía abierta)
-local function destroyBadUI()
-    if not Config.Enabled then return end
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return end
-
-    for _, obj in ipairs(pg:GetChildren()) do
-        if obj:IsA("ScreenGui") then
-            local name = string.lower(obj.Name)
-            if name == "howtounlockgui" or name:find("shop") or name:find("quest") then
-                if not name:find("froggy") then
-                    obj:Destroy()
-                end
-            end
-        end
-    end
-end
-
--- 4. ANTI-HONEYPOTS
+-- 5. ANTI-HONEYPOTS
 local function purgeHoneypots()
     if not Config.Enabled then return end
     for _, obj in ipairs(Workspace:GetDescendants()) do
@@ -106,19 +121,17 @@ local function purgeHoneypots()
     end
 end
 
--- 5. BUCLE DE CONTROL
+-- 6. BUCLE DE CONTROL
 local oldEnabled = false
 task.spawn(function()
     while task.wait(0.5) do
         if Config.Enabled then
             if not oldEnabled then
                 oldEnabled = true
-                -- Purga inicial al encender
-                for _, obj in ipairs(Workspace:GetDescendants()) do
-                    hidePhysicalParts(obj)
-                end
-                destroyBadUI()
-                print("[Froggy] NoPopUps V17 (Purga Física) Activado.")
+                -- Purga inicial (limpia lo que ya estaba abierto o en el mapa)
+                for _, obj in ipairs(pg:GetChildren()) do destroyBadUI(obj) end
+                for _, obj in ipairs(Workspace:GetDescendants()) do destroyBadParts(obj) end
+                print("[Froggy] NoPopUps V18 (Perma Block) Activado.")
             end
 
             local char = LocalPlayer.Character
@@ -127,19 +140,11 @@ task.spawn(function()
                 applyGhostGroup(tool)
             end
 
-            destroyBadUI()
             purgeHoneypots()
 
         elseif not Config.Enabled and oldEnabled then
             oldEnabled = false
-            -- Restaurar objetos al apagar
-            for obj, cf in pairs(movedParts) do
-                if obj and obj.Parent then
-                    obj.CFrame = cf
-                end
-            end
-            movedParts = {}
-            
+            -- Restaurar Honeypots
             for part, data in pairs(honeypotParts) do 
                 if part and part.Parent then 
                     part.CanTouch = data.CanTouch
@@ -147,24 +152,21 @@ task.spawn(function()
                 end 
             end
             honeypotParts = {}
-            print("[Froggy] NoPopUps V17 Desactivado.")
+            print("[Froggy] NoPopUps V18 Desactivado.")
         end
     end
 end)
 
 env.__BF_NOPOPUPS_CLEANUP = function()
     Config.Enabled = false
+    if oldNamecall then hookmetamethod(game, "__namecall", oldNamecall) end
     for _, conn in ipairs(connections) do if conn then conn:Disconnect() end end
-    for obj, cf in pairs(movedParts) do
-        if obj and obj.Parent then obj.CFrame = cf end
-    end
     for part, data in pairs(honeypotParts) do 
         if part and part.Parent then 
             part.CanTouch = data.CanTouch
             part.CanQuery = data.CanQuery
         end 
     end
-    movedParts = {}
     honeypotParts = {}
     env.BF_NOPOPUPS_CONFIG = nil
     env.__BF_NOPOPUPS_CLEANUP = nil
