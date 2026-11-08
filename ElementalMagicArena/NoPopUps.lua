@@ -1,8 +1,6 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V7 - PHYSICAL PURGE STABLE)
-local Players = game:GetService("Players")
-local PhysicsService = game:GetService("PhysicsService")
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V8 - TOUCHED KILLER)
 local Workspace = game:GetService("Workspace")
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = game:GetService("Players").LocalPlayer
 
 local env = (getgenv and getgenv()) or _G
 if env.__BF_NOPOPUPS_CLEANUP then pcall(env.__BF_NOPOPUPS_CLEANUP) end
@@ -10,111 +8,71 @@ if env.__BF_NOPOPUPS_CLEANUP then pcall(env.__BF_NOPOPUPS_CLEANUP) end
 local Config = { Enabled = false }
 env.BF_NOPOPUPS_CONFIG = Config
 
-local GROUP_NAME = "FroggySword"
-local movedObjects = {}
-local isHidden = false
+-- 🔥 Nombres exactos que encontramos con el Spy
+local TARGET_NAMES = {"teleport asset", "shoppart", "simulatorcircle", "rankedpart", "aa", "forge"}
+local connections = {}
 
--- 1. ESPADA FANTASMA (Capa extra de seguridad)
-pcall(function()
-    PhysicsService:RegisterCollisionGroup(GROUP_NAME)
-    PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
-end)
-
-local function applyGhostGroup(tool)
-    if not tool or not tool:IsA("Tool") then return end
-    for _, part in ipairs(tool:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function() PhysicsService:SetPartCollisionGroup(part, GROUP_NAME) end)
+local function killTouched(obj)
+    if not Config.Enabled or not obj or not obj:IsA("BasePart") then return end
+    
+    local parentName = string.lower(obj.Parent and obj.Parent.Name or "")
+    local objName = string.lower(obj.Name)
+    
+    local isTarget = false
+    for _, name in ipairs(TARGET_NAMES) do
+        if objName:find(name) or parentName:find(name) then
+            isTarget = true
+            break
         end
     end
-end
 
--- 2. IDENTIFICAR OBJETOS A MOVER
-local function isTargetObject(obj)
-    if not obj:IsA("BasePart") then return false end
-    
-    local name = string.lower(obj.Name .. (obj.Parent and obj.Parent.Name or ""))
-    
-    -- NO mover almas ni la carpeta TPS (placas de elementos)
-    if name:find("soul") or name:find("alma") then return false end
-    local tpsFolder = Workspace:FindFirstChild("TPS")
-    if tpsFolder and obj:IsDescendantOf(tpsFolder) then return false end
-
-    -- Mover si tiene un prompt/click o si su nombre suena a tienda/duelo/gacha
-    local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
-    local hasClick = obj:FindFirstChildWhichIsA("ClickDetector", true) ~= nil
-    local isShop = name:find("shop") or name:find("gacha") or name:find("store") or 
-                   name:find("duel") or name:find("halloween") or name:find("chest") or name:find("cofre")
-
-    return hasPrompt or hasClick or isShop
-end
-
--- 3. MOVER AL SUBSUELO Y RESTAURAR
-local function hideTargets()
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if isTargetObject(obj) then
-            if not movedObjects[obj] then
-                movedObjects[obj] = obj.CFrame -- Guardar ubicación original
+    if isTarget then
+        -- 🔥 DESCONECTAR EL EVENTO TOUCHED
+        if getconnections then
+            for _, conn in pairs(getconnections(obj.Touched)) do
+                conn:Disconnect()
             end
-            obj.CFrame = CFrame.new(0, -5000, 0) -- Mandarlo al subsuelo
         end
+        -- Como medida extra, apagar la colisión sin moverlo
+        obj.CanTouch = false 
     end
-    isHidden = true
 end
 
-local function restoreTargets()
-    for obj, cf in pairs(movedObjects) do
-        if obj and obj.Parent then
-            obj.CFrame = cf -- Devolver a su lugar
-        end
+-- Escuchar si se crean nuevas partes mientras está encendido
+local function onDescendantAdded(obj)
+    if Config.Enabled then
+        killTouched(obj)
     end
-    movedObjects = {}
-    isHidden = false
 end
+table.insert(connections, Workspace.DescendantAdded:Connect(onDescendantAdded))
 
--- 4. ESCUCHAR SI APARECEN COSAS NUEVAS MIENTRAS ESTÁ OCULTO
-local newObjConnection = Workspace.DescendantAdded:Connect(function(obj)
-    if Config.Enabled and isHidden and isTargetObject(obj) then
-        if not movedObjects[obj] then
-            movedObjects[obj] = obj.CFrame
-        end
-        obj.CFrame = CFrame.new(0, -5000, 0)
-    end
-end)
-
--- 5. BUCLE PRINCIPAL (Revisa si tienes el arma en la mano)
+-- Bucle de control
 local oldEnabled = false
 task.spawn(function()
-    while task.wait(0.5) do
-        if Config.Enabled then
-            local char = LocalPlayer.Character
-            local tool = char and char:FindFirstChildOfClass("Tool")
-            
-            if tool then
-                -- Si tienes arma: Aplicar Espada Fantasma y Esconder cosas
-                applyGhostGroup(tool)
-                if not isHidden then
-                    hideTargets()
-                end
-            else
-                -- Si NO tienes arma: Devolver todo a su lugar
-                if isHidden then
-                    restoreTargets()
-                end
+    while task.wait(1) do
+        if Config.Enabled and not oldEnabled then
+            oldEnabled = true
+            -- Escaneo inicial de todo el mapa
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                killTouched(obj)
             end
-        elseif oldEnabled then
-            -- Si se apaga el script, restaurar todo
+            print("[Froggy] NoPopUps Activado (Touched Killer).")
+            
+        elseif not Config.Enabled and oldEnabled then
             oldEnabled = false
-            restoreTargets()
+            for _, conn in ipairs(connections) do
+                if conn then conn:Disconnect() end
+            end
+            connections = {}
+            print("[Froggy] NoPopUps Desactivado.")
         end
-        oldEnabled = Config.Enabled
     end
 end)
 
 env.__BF_NOPOPUPS_CLEANUP = function()
     Config.Enabled = false
-    restoreTargets()
-    if newObjConnection then newObjConnection:Disconnect() end
+    for _, conn in ipairs(connections) do if conn then conn:Disconnect() end end
+    connections = {}
     env.BF_NOPOPUPS_CONFIG = nil
     env.__BF_NOPOPUPS_CLEANUP = nil
 end
