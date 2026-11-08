@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (ALL-IN-ONE SHIELD)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V5 - THE DEFINITIVE SHIELD)
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
 local LocalPlayer = Players.LocalPlayer
@@ -12,9 +12,7 @@ env.BF_NOPOPUPS_CONFIG = Config
 local connections = {}
 local GROUP_NAME = "FroggySword"
 
--- ==========================================
--- 1. ESPADA FANTASMA (COLLISION GROUPS)
--- ==========================================
+-- 1. ESPADA FANTASMA (Para no tocar el gacha/tiendas físicas)
 pcall(function()
     PhysicsService:RegisterCollisionGroup(GROUP_NAME)
     PhysicsService:CollisionGroupSetCollidable(GROUP_NAME, "Default", false)
@@ -24,49 +22,69 @@ local function applyGhostGroup(tool)
     if not tool or not tool:IsA("Tool") then return end
     for _, part in ipairs(tool:GetDescendants()) do
         if part:IsA("BasePart") then
-            pcall(function()
-                PhysicsService:SetPartCollisionGroup(part, GROUP_NAME)
-            end)
+            pcall(function() PhysicsService:SetPartCollisionGroup(part, GROUP_NAME) end)
         end
     end
 end
 
--- ==========================================
--- 2. SNIPER UI (HALLOWEEN, DUELOS Y ROBUX)
--- ==========================================
-local function isBadText(text)
-    local txt = string.lower(text)
-    return txt:find("halloween") or txt:find("duel") or txt:find("1v1") or 
-           txt:find("arena") or txt:find("robux") or txt:find("gem") or 
-           txt:find("buy") or txt:find("comprar") or txt:find("shop")
+-- 2. HOOK METAMETHOD (El bloqueo definitivo de ventanas)
+local oldIndex, oldNewIndex = nil, nil
+
+local function applyUIHook()
+    if not hookmetamethod or not checkcaller then return end
+
+    -- Bloquear la lectura de "Visible" o "Enabled" para que el juego crea que la ventana ya está cerrada
+    oldIndex = hookmetamethod(game, "__index", function(self, key)
+        if not checkcaller() and self:IsA("ScreenGui") then
+            local name = string.lower(self.Name)
+            if name:find("halloween") or name:find("duel") or name:find("shop") or name:find("gacha") then
+                if key == "Enabled" or key == "Visible" then
+                    return false -- Le mentimos al juego diciendo que está apagada
+                end
+            end
+        end
+        return oldIndex(self, key)
+    end)
+
+    -- Bloquear la escritura (si el juego intenta prenderla, lo forzamos a apagarla)
+    oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+        if not checkcaller() and self:IsA("ScreenGui") then
+            local name = string.lower(self.Name)
+            if name:find("halloween") or name:find("duel") or name:find("shop") or name:find("gacha") then
+                if (key == "Enabled" or key == "Visible") and value == true then
+                    return -- Ignoramos la orden de encenderse
+                end
+            end
+        end
+        return oldNewIndex(self, key, value)
+    end)
 end
 
-local function snipeGUI(container)
+local function removeUIHook()
+    if oldIndex then hookmetamethod(game, "__index", oldIndex); oldIndex = nil end
+    if oldNewIndex then hookmetamethod(game, "__newindex", oldNewIndex); oldNewIndex = nil end
+end
+
+-- 3. DESTRUCTOR DE EMERGENCIA (Por si el Hook falla o la UI se llama distinto)
+local function emergencySniper(container)
     if not Config.Enabled or not container then return end
-    for _, obj in ipairs(container:GetDescendants()) do
-        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-            if isBadText(obj.Text) then
-                local parent = obj.Parent
-                -- Buscamos el Frame principal (evitando borrar nuestra propia UI)
-                while parent and not parent:IsA("ScreenGui") and parent ~= LocalPlayer:FindFirstChild("PlayerGui") do
-                    if parent:IsA("Frame") and (parent.Size.X.Scale > 0.3 or parent.Size.X.Offset > 200) then
-                        if not string.find(string.lower(parent.Name), "froggy") then
-                            parent:Destroy()
-                            break
-                        end
-                    end
-                    parent = parent.Parent
+    for _, obj in ipairs(container:GetChildren()) do
+        if obj:IsA("ScreenGui") then
+            local name = string.lower(obj.Name)
+            if name:find("halloween") or name:find("duel") or name:find("shop") or name:find("gacha") then
+                if not name:find("froggy") then
+                    obj:Destroy()
                 end
             end
         end
     end
 end
 
--- ==========================================
--- 3. LÓGICA DE ACTIVACIÓN
--- ==========================================
+-- 4. LÓGICA DE CONTROL
 local function startShield()
-    -- Escuchar armas equipadas
+    applyUIHook()
+    
+    -- Escuchar armas equipadas para la Espada Fantasma
     table.insert(connections, LocalPlayer.CharacterAdded:Connect(function(char)
         if Config.Enabled then
             char.ChildAdded:Connect(function(child)
@@ -77,34 +95,27 @@ local function startShield()
         end
     end))
 
-    -- Escuchar ventanas nuevas
+    -- Escanear nuevas ventanas (Capa extra)
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if pg then
         table.insert(connections, pg.DescendantAdded:Connect(function()
-            task.defer(function() snipeGUI(pg) end)
-        end))
-    end
-    local cg = game:GetService("CoreGui")
-    if cg then
-        table.insert(connections, cg.DescendantAdded:Connect(function()
-            task.defer(function() snipeGUI(cg) end)
+            task.defer(function() emergencySniper(pg) end)
         end))
     end
 
-    print("[Froggy] All-in-One Shield Activado.")
+    print("[Froggy] NoPopUps Definitivo Activado.")
 end
 
 local function stopShield()
+    removeUIHook()
     for _, conn in ipairs(connections) do
         if conn then conn:Disconnect() end
     end
     connections = {}
-    print("[Froggy] All-in-One Shield Desactivado.")
+    print("[Froggy] NoPopUps Definitivo Desactivado.")
 end
 
--- ==========================================
--- BUCLE PRINCIPAL (Aplica el grupo fantasma constantemente)
--- ==========================================
+-- 5. BUCLE DE CONTROL
 local oldEnabled = false
 task.spawn(function()
     while task.wait(0.5) do
@@ -120,9 +131,9 @@ task.spawn(function()
                 applyGhostGroup(tool)
             end
             
-            -- Escaneo pasivo por si el DescendantAdded falla en alguna UI
+            -- Escaneo pasivo de emergencia
             local pg = LocalPlayer:FindFirstChild("PlayerGui")
-            if pg then snipeGUI(pg) end
+            if pg then emergencySniper(pg) end
             
         elseif not Config.Enabled and oldEnabled then
             oldEnabled = false
