@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V12 - THE SPY METHOD)
+--// Froggy Hub - ElementalMagicArena/NoPopUps.lua (V13 - STABLE PHYSICAL + EXACT GUIS)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
@@ -12,8 +12,8 @@ env.BF_NOPOPUPS_CONFIG = Config
 
 local GROUP_NAME = "FroggySword"
 local honeypotParts = {}
-local oldNewIndex = nil
-local oldNamecall = nil
+local movedParts = {}
+local connections = {}
 
 -- 1. ESPADA FANTASMA
 pcall(function()
@@ -30,46 +30,61 @@ local function applyGhostGroup(tool)
     end
 end
 
--- 2. LOS HOOKS DEL SPY (El arma secreta)
-local function applyHooks()
-    if not hookmetamethod or not checkcaller then return end
+-- 2. DESTRUCTOR DE LA UI DE MISIONES (HowToUnlockGui)
+local function destroyBadUI()
+    if not Config.Enabled then return end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return end
 
-    -- Hook A: Interceptar cuando una ventana intenta hacerse VISIBLE
-    oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-        if not checkcaller() and (key == "Visible" or key == "Enabled") and value == true then
-            if self:IsA("ScreenGui") or self:IsA("Frame") then
-                local name = string.lower(self.Name)
-                -- Si la ventana es de misiones, forja o tiendas...
-                if name:find("howtounlock") or name:find("quest") or name:find("forge") or name:find("shop") or name:find("robux") then
-                    if not name:find("froggy") then
-                        self:Destroy() -- La destruimos antes de que se dibuje
-                        return -- Bloqueamos la propiedad Visible
+    -- Destruir el HowToUnlockGui al instante
+    for _, obj in ipairs(pg:GetChildren()) do
+        if obj:IsA("ScreenGui") and string.lower(obj.Name) == "howtounlockgui" then
+            obj:Destroy()
+        end
+    end
+end
+
+-- 3. TELETRANSPORTE FÍSICO DE PARTES (Forja/Duelos/Tiendas)
+local TARGET_PARTS = {"simulatorcircle", "shoppart", "teleport asset", "rankedpart"}
+local VOID_CFRAME = CFrame.new(0, -5000, 0)
+
+local function hideParts()
+    if not Config.Enabled then return end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local name = string.lower(obj.Name)
+            local parentName = string.lower(obj.Parent and obj.Parent.Name or "")
+            
+            -- Excepción absoluta: No tocar TPS (placas) ni Almas
+            local tpsFolder = Workspace:FindFirstChild("TPS")
+            local isTPS = tpsFolder and obj:IsDescendantOf(tpsFolder) or false
+            local isSoul = name:find("soul") or name:find("alma") or parentName:find("soul") or parentName:find("alma")
+            
+            if not isTPS and not isSoul then
+                for _, target in ipairs(TARGET_PARTS) do
+                    if name:find(target) or parentName:find(target) then
+                        if not movedParts[obj] then
+                            movedParts[obj] = obj.CFrame -- Guardar posición
+                        end
+                        obj.CFrame = VOID_CFRAME -- Mover al vacío
+                        break
                     end
                 end
             end
         end
-        return oldNewIndex(self, key, value)
-    end)
+    end
+end
 
-    -- Hook B: Interceptar el Remote OpenQuest
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
-            local name = string.lower(self.Name)
-            if name:find("openquest") or name:find("howtounlock") or name:find("shop") or name:find("buy") then
-                return nil
-            end
+local function restoreParts()
+    for obj, cf in pairs(movedParts) do
+        if obj and obj.Parent then
+            obj.CFrame = cf
         end
-        return oldNamecall(self, ...)
-    end)
+    end
+    movedParts = {}
 end
 
-local function removeHooks()
-    if oldNewIndex then hookmetamethod(game, "__newindex", oldNewIndex); oldNewIndex = nil end
-    if oldNamecall then hookmetamethod(game, "__namecall", oldNamecall); oldNamecall = nil end
-end
-
--- 3. ANTI-HONEYPOTS
+-- 4. ANTI-HONEYPOTS
 local function purgeHoneypots()
     if not Config.Enabled then return end
     for _, obj in ipairs(Workspace:GetDescendants()) do
@@ -94,15 +109,14 @@ local function purgeHoneypots()
     end
 end
 
--- 4. BUCLE DE CONTROL
+-- 5. BUCLE DE CONTROL
 local oldEnabled = false
 task.spawn(function()
     while task.wait(0.2) do
         if Config.Enabled then
             if not oldEnabled then
                 oldEnabled = true
-                applyHooks()
-                print("[Froggy] Purga V12 Activada (Spy Method).")
+                print("[Froggy] NoPopUps V13 Activado (Estable + Físico).")
             end
 
             local char = LocalPlayer.Character
@@ -111,11 +125,13 @@ task.spawn(function()
                 applyGhostGroup(tool)
             end
 
+            destroyBadUI()
+            hideParts()
             purgeHoneypots()
 
         elseif not Config.Enabled and oldEnabled then
             oldEnabled = false
-            removeHooks()
+            restoreParts()
             for part, data in pairs(honeypotParts) do 
                 if part and part.Parent then 
                     part.CanTouch = data.CanTouch
@@ -123,14 +139,14 @@ task.spawn(function()
                 end 
             end
             honeypotParts = {}
-            print("[Froggy] Purga V12 Desactivada.")
+            print("[Froggy] NoPopUps V13 Desactivado.")
         end
     end
 end)
 
 env.__BF_NOPOPUPS_CLEANUP = function()
     Config.Enabled = false
-    removeHooks()
+    restoreParts()
     for part, data in pairs(honeypotParts) do 
         if part and part.Parent then 
             part.CanTouch = data.CanTouch
