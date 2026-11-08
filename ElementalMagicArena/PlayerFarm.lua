@@ -1,4 +1,5 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V35 - ATTACK ALL INTEGRATION)
+
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V36 - FULL COORDS)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -10,8 +11,43 @@ if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
 local Config = { Enabled = false, SelectedElement = "energy" }
 env.BF_PLAYERFARM_CONFIG = Config
 
+-- 🔥 TABLA COMPLETA DE COORDENADAS
 local ElementData = {
     ["energy"] = {Y=-14.51,X=816.06,Z=37.42},
+    ["luz"] = {Y=-14.51,X=815.31,Z=16.66},
+    ["fuego"] = {Y=-14.15,X=816.63,Z=-120.46},
+    ["agua"] = {Y=-14.13,X=815.78,Z=-101.62},
+    ["hielo"] = {Y=-14.15,X=816.05,Z=-41.79},
+    ["tierra"] = {Y=-14.15,X=817.53,Z=-81.78},
+    ["aire"] = {Y=-14.15,X=814.21,Z=-61.69},
+    ["oscuridad"] = {Y=-14.51,X=815.89,Z=78.65},
+    ["lava"] = {Y=-14.51,X=816.40,Z=-2.52},
+    ["veneno"] = {Y=-14.51,X=815.04,Z=118.56},
+    ["hierro"] = {Y=-14.51,X=816.46,Z=138.25},
+    ["espiritu"] = {Y=-14.51,X=816.12,Z=177.92},
+    ["destruccion"] = {Y=-14.51,X=817.31,Z=158.61},
+    ["cristal"] = {Y=-14.51,X=815.68,Z=219.55},
+    ["sonido"] = {Y=-14.51,X=815.34,Z=97.98},
+    ["aurora"] = {Y=-14.51,X=814.31,Z=258.44},
+    ["fenix"] = {Y=-14.51,X=816.67,Z=196.85},
+    ["caos"] = {Y=-14.51,X=815.28,Z=279.75},
+    ["tecnología"] = {Y=-14.51,X=814.77,Z=359.18},
+    ["diamante"] = {Y=-14.51,X=815.12,Z=378.49},
+    ["amor"] = {Y=-14.51,X=813.64,Z=398.44},
+    ["demon"] = {Y=-14.51,X=816.40,Z=459.56},
+    ["ilusion"] = {Y=-14.51,X=815.66,Z=238.91},
+    ["campos de fuerza"] = {Y=-14.51,X=814.67,Z=338.15},
+    ["relampago"] = {Y=-14.51,X=814.65,Z=-22.93},
+    ["telequinesis"] = {Y=-14.51,X=815.17,Z=297.48},
+    ["life"] = {Y=-14.51,X=814.55,Z=517.56},
+    ["mirror"] = {Y=-14.27,X=815.46,Z=496.70},
+    ["time"] = {Y=-14.51,X=815.46,Z=318.00},
+    ["sueño"] = {Y=-14.51,X=813.53,Z=477.92},
+    ["creacion"] = {Y=-14.51,X=815.37,Z=438.49},
+    ["espacio"] = {Y=-14.51,X=816.91,Z=57.76},
+    ["realidad"] = {Y=-14.51,X=813.58,Z=418.34},
+    ["dios de elementos"] = {Y=-14.51,X=752.07,Z=530.86},
+    -- Logros (Badges)
     ["witchcraft"] = {Y=-17.33, X=694.72, Z=251.30},
     ["luck"] = {Y=-17.38, X=694.72, Z=136.30},
     ["nature"] = {Y=-17.38, X=694.72, Z=113.30},
@@ -58,7 +94,6 @@ local function spoofSkin()
     end
 end
 
--- 🔥 DESTRUCTOR INSTANTÁNEO DE POPUPS (Solo por si acaso)
 local BAD_GUIS = {"howtounlockgui", "luckelementpopupgui", "survivalsquadgui", "purchaseprompt", "comprar"}
 
 local function onGuiAdded(obj)
@@ -119,7 +154,7 @@ local function teleportToElement()
             if not success then pcall(function() firetouchinterest(myRoot, closestTele, 0) task.wait(0.1) firetouchinterest(myRoot, closestTele, 1) end) end
         end
     end
-    task.wait(2) -- Esperar a que el juego termine la animación de entrada
+    task.wait(2) 
 end
 
 local function getGameStats()
@@ -172,14 +207,10 @@ function startFarm()
 
     spoofSkin()
 
-    -- 🔥 ENCENDER EL ATTACK ALL (Delegando la espada)
     if env.BF_ATTACKALL_CONFIG then 
         env.BF_ATTACKALL_CONFIG.Enabled = true 
-    else
-        warn("[Farm] AttackAll no está cargado. El Farm no hará daño.")
     end
 
-    -- Activar el cazador de popups por si la placa bloqueada intenta colarse
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if pg then
         if uiCleanerCon then uiCleanerCon:Disconnect() end
@@ -221,15 +252,15 @@ function startFarm()
 end
 
 local function stopFarm()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    
     -- 🔥 APAGAR EL ATTACK ALL
     if env.BF_ATTACKALL_CONFIG then 
         env.BF_ATTACKALL_CONFIG.Enabled = false 
     end
 
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    
     if root then
         local bp = root:FindFirstChild("FarmBP"); if bp then bp:Destroy() end
         root.Anchored = true 
@@ -271,11 +302,13 @@ mainLoopCon = task.spawn(function()
                 isResetting = true
                 task.spawn(function()
                     task.wait(2)
-                    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if hum then hum.Health = 0 end
+                    if Config.Enabled then
+                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.Health = 0 end
+                    end
+                    isResetting = false
                 end)
             end
-            -- Si el Attack All se apagó por error, lo volvemos a encender
             if env.BF_ATTACKALL_CONFIG and not env.BF_ATTACKALL_CONFIG.Enabled then
                 env.BF_ATTACKALL_CONFIG.Enabled = true
             end
