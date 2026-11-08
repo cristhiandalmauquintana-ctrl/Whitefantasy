@@ -9,7 +9,7 @@ local LocalPlayer = Players.LocalPlayer
 local env = (getgenv and getgenv()) or _G
 if env.__BF_ATTACKALL_CLEANUP then pcall(env.__BF_ATTACKALL_CLEANUP) end
 
-local Config = { Enabled = false, Size = 1000 }
+local Config = { Enabled = false, Size = 360 }
 env.BF_ATTACKALL_CONFIG = Config
 
 local SWORD_GROUP = "FroggySword"
