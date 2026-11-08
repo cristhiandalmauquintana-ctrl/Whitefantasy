@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V40 - SMART EQUIP)
+--// Froggy Hub - ElementalMagicArena/PlayerFarm.lua (V41 - SELECTIVE EQUIP)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -77,29 +77,42 @@ local function onGuiAdded(obj)
     end
 end
 
--- 🔥 NUEVO: BUCLE DE EQUIPAMIENTO INTELIGENTE
+-- 🔥 BUCLE DE EQUIPAMIENTO SELECTIVO (Solo Armas)
 local function equipWeaponWithWait()
     local char = LocalPlayer.Character
     if not char then return false end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return false end
 
-    -- Si ya tiene el arma, terminamos rápido
-    if char:FindFirstChildOfClass("Tool") then return true end
+    -- Si ya tiene un arma equipada (que tenga Handle), terminamos
+    local currentTool = char:FindFirstChildOfClass("Tool")
+    if currentTool and (currentTool:FindFirstChild("Handle") or currentTool:FindFirstChildWhichIsA("BasePart")) then 
+        return true 
+    end
 
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then return false end
 
     -- Intentar equipar durante 5 segundos (10 intentos)
     for i = 1, 10 do
-        if char:FindFirstChildOfClass("Tool") then return true end
+        -- Verificar si ya se equipó un arma
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool and (tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")) then 
+            return true 
+        end
 
-        for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                pcall(function() hum:EquipTool(tool) end)
+        -- Buscar en la mochila la herramienta que sea un arma (tenga Handle)
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                -- 🔥 FILTRO: Solo equipar si tiene un Handle (es un arma)
+                if item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") then
+                    pcall(function() hum:EquipTool(item) end)
+                    task.wait(0.1) -- Pequeña espera para que el juego procese
+                    break -- Ya encontramos el arma, dejamos de buscar en este intento
+                end
             end
         end
-        task.wait(0.5)
+        task.wait(0.4) -- Esperar antes del siguiente intento
     end
     return false
 end
@@ -122,7 +135,6 @@ local function startFarm()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    -- 1. Ir a la placa
     local targetName = string.lower(Config.SelectedElement)
     local data = ElementData[targetName] or ElementData["energy"]
     local ENERGY_POS = Vector3.new(data.X, data.Y, data.Z)
@@ -151,9 +163,9 @@ local function startFarm()
         end
     end
     
-    task.wait(2) -- Esperar a que el servidor procese la placa
+    task.wait(2) 
     
-    -- 2. 🔥 EQUIPAR INTELIGENTE (Se espera hasta 5 segundos)
+    -- Equipar el arma
     local hasWeapon = equipWeaponWithWait()
     if not hasWeapon then
         warn("[Farm] No se encontró el arma después de 5 segundos. El ataque podría fallar.")
@@ -161,7 +173,6 @@ local function startFarm()
     
     task.wait(0.5)
 
-    -- 3. Subir al cielo
     root.Anchored = false
     hum.PlatformStand = true
 
@@ -259,7 +270,6 @@ local function stopFarm()
     bodyPos = nil
 end
 
--- 🔥 AUTO-RESPAWN ORDENADO
 LocalPlayer.CharacterAdded:Connect(function()
     if Config.Enabled and not isRestarting then
         isRestarting = true
@@ -273,7 +283,6 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- 🔥 BUCLE PRINCIPAL
 task.spawn(function()
     local lastState = false
     while task.wait(0.5) do
