@@ -1,4 +1,4 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V31 - ONLY PLAYERS)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V32 - MANUAL AUTO-EQUIP)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -40,6 +40,35 @@ end
 local function getHandle(tool)
     if not tool or not tool:IsA("Tool") then return nil end
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+end
+
+-- 🔥 NUEVA FUNCIÓN: Auto-equipar arma si no hay una en la mano
+local function ensureWeaponEquipped()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return nil end
+
+    -- 1. Revisar si ya tenemos un arma equipada
+    local currentTool = char:FindFirstChildOfClass("Tool")
+    if currentTool and getHandle(currentTool) then
+        return currentTool
+    end
+
+    -- 2. Si no hay arma, buscar en la mochila
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") and getHandle(item) then
+                -- Equipar el primer item que tenga un Handle válido
+                pcall(function() hum:EquipTool(item) end)
+                task.wait(0.2) -- Pequeña espera para que el juego procese el equipamiento
+                return item
+            end
+        end
+    end
+    
+    return nil
 end
 
 local function applyCollisionGroups()
@@ -106,7 +135,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     originalData = {}
 end)
 
--- 4. BUCLE DE MOVIMIENTO Y FLICKER
+-- 4. BUCLE DE MOVIMIENTO Y FLICKER (CON AUTO-EQUIP)
 task.spawn(function()
     while task.wait(0.1) do
         if Config.Enabled then
@@ -129,8 +158,9 @@ task.spawn(function()
         if Config.Enabled then
             applyCollisionGroups() -- Asegurarnos de que los jugadores estén en su grupo
             
-            local char = LocalPlayer.Character
-            local tool = char and char:FindFirstChildOfClass("Tool")
+            -- 🔥 AQUI SE LLAMA A LA NUEVA FUNCION
+            local tool = ensureWeaponEquipped()
+            
             if tool then
                 expandSword(tool)
                 task.wait(0.25)
