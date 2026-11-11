@@ -1,4 +1,4 @@
---// Main.lua - FROGGY HUB (Elemental Magic Arena - V3.0 Recargado)
+--// Main.lua - FROGGY HUB (Elemental Magic Arena - V3.1 Recargado)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -128,7 +128,7 @@ local SharedElements = {
 }
 
 -- ==========================================
--- 3. CARGAMOS DISEÑO Y ASSETS
+-- 3. CARGAMOS DISEÑO Y ASSETS (CON OS.TIME)
 -- ==========================================
 print("[Froggy] Cargando interfaz...")
 local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua?v=" .. os.time()))()
@@ -149,12 +149,12 @@ local TabTourney = Window:CreateTab(L("tab_tourney"))
 local TabConfig = Window:CreateTab(L("tab_config"))
 
 -- ==========================================
--- 4. DESCARGA DE MÓDULOS (CON ANTI-CACHÉ)
+-- 4. DESCARGA DE MÓDULOS (CON OS.TIME ORIGINAL)
 -- ==========================================
 local folder = "ElementalMagicArena/"
 
 local function download(name, key)
-    local url = ROOT .. folder .. name .. "?v=" .. os.time() -- 🔥 ANTI-CACHÉ
+    local url = ROOT .. folder .. name .. "?v=" .. os.time() -- 🔥 EL OS.TIME QUE PEDISTE
     local ok, res = pcall(game.HttpGet, game, url)
     if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
         local fnOk, fn = pcall(loadstring, res)
@@ -226,6 +226,19 @@ if AttackAllC then
     TabCombat:AddInfo(L("attack_all_warn"))
 end
 
+-- Módulo Touch TP (Movido a Combate)
+if TouchTPC then
+    TabCombat:AddSection("UTILIDADES MÓVILES")
+    TabCombat:AddToggle(L("touch_tp"), false, function(state)
+        if TouchTPC.SetEnabled then
+            TouchTPC.SetEnabled(state)
+            if state and Window.Notify then 
+                Window:Notify({Title = "Touch TP", Content = "Botón flotante creado.", Type = "success"}) 
+            end
+        end
+    end)
+end
+
 -- === VISUAL ===
 if EspC then
     local t1 = TabVisual:AddToggle(L("esp"), false, function(state) EspC.Enabled = state end)
@@ -258,19 +271,6 @@ if FarmC then
     end)
     restoreToggle(FarmC, "Farm", t)
     TabFarm:AddInfo(L("farm_desc"))
-end
-
--- Módulo Touch TP (El nuevo)
-if TouchTPC then
-    TabFarm:AddSection("UTILIDADES MÓVILES")
-    TabFarm:AddToggle(L("touch_tp"), false, function(state)
-        if TouchTPC.SetEnabled then
-            TouchTPC.SetEnabled(state)
-            if state and Window.Notify then 
-                Window:Notify({Title = "Touch TP", Content = "Botón flotante creado.", Type = "success"}) 
-            end
-        end
-    end)
 end
 
 -- === TOURNEY ===
@@ -313,7 +313,7 @@ local passBox = TabConfig:AddTextbox(L("pass"), "", "...", function() end)
 local unlockBtn = TabConfig:AddButton(L("unlock"), function()
     if passBox:Get() == "froggy_testing_2026" then
         if Window.Notify then Window:Notify({Title = "OK", Content = L("dev_zone"), Type = "warning"}) end
-        passBox.Instance.Parent.Visible = false -- Arregla el hueco visual
+        passBox.Instance.Parent.Visible = false
         if unlockBtn and unlockBtn.Instance then unlockBtn.Instance.Parent.Visible = false end
         if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Parent.Visible = true end
     else
@@ -326,4 +326,4 @@ TabConfig:AddButton(L("destroy_ui"), function()
     Window:Destroy()
 end)
 
-print("[Main] Froggy Hub V3.0 cargado exitosamente.")
+print("[Main] Froggy Hub V3.1 cargado exitosamente.")
