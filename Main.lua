@@ -174,7 +174,8 @@ local AttackAllC = download("AttackAll.lua", "BF_ATTACKALL_CONFIG")
 local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
 local FarmC = download("PlayerFarm.lua", "BF_PLAYERFARM_CONFIG")
 local HopC = download("SmartServerHop.lua", "BF_SERVERHOP_CONFIG")
-local TouchTPC = download("TouchTP.lua", "BF_TOUCHTP_CONFIG")
+local TouchTPC = download("TouchTp.lua", "BF_TOUCHTP_CONFIG")
+local TourneyC = nil -- AutoTournament.lua: pendiente (aún no está listo)
 
 -- ==========================================
 -- 5. CONEXIÓN UI Y RESTAURACIÓN DE ESTADO
@@ -289,7 +290,7 @@ end
 
 if HopC then
     TabConfig:AddSection("SEGURIDAD DE SESIÓN")
-    TabConfig:AddToggle("AUTO SERVER HOP", HopC.Enabled, function(state)
+    TabConfig:AddToggle("AUTO SERVER HOP", false, function(state)
         HopC.Enabled = state
         if state and Window.Notify then Window:Notify({Title = "Server Hop", Content = "Temporizador activo.", Type = "success"}) end
     end)
