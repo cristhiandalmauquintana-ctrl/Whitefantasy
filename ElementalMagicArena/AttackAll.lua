@@ -1,6 +1,5 @@
---// Froggy Hub - ElementalMagicArena/AttackAll.lua (V32 - MANUAL AUTO-EQUIP)
+--// Froggy Hub - ElementalMagicArena/AttackAll.lua (V33 - NO INVENTORY FORCE)
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -18,22 +17,20 @@ local PLAYERS_GROUP = "FroggyPlayers"
 local originalData = {}
 local honeypotParts = {}
 
--- 🔥 1. CONFIGURAR GRUPOS DE COLISIÓN
+-- 1. CONFIGURAR GRUPOS DE COLISIÓN
 pcall(function()
-    -- Grupo para la espada
     PhysicsService:RegisterCollisionGroup(SWORD_GROUP)
-    -- Grupo para los jugadores
     PhysicsService:RegisterCollisionGroup(PLAYERS_GROUP)
-    
-    -- La espada NO choca con el mapa (Default), pero SÍ choca con los jugadores
     PhysicsService:CollisionGroupSetCollidable(SWORD_GROUP, "Default", false)
     PhysicsService:CollisionGroupSetCollidable(SWORD_GROUP, PLAYERS_GROUP, true)
 end)
 
 -- 2. HOOK ANTI-COMPRAS
 if hookfunction then
-    hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
-    hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
+    pcall(function()
+        hookfunction(MarketplaceService.PromptProductPurchase, function() return end)
+        hookfunction(MarketplaceService.PromptGamePassPurchase, function() return end)
+    end)
 end
 
 -- 3. FUNCIONES DE LA ESPADA
@@ -42,44 +39,12 @@ local function getHandle(tool)
     return tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
 end
 
--- 🔥 NUEVA FUNCIÓN: Auto-equipar arma si no hay una en la mano
-local function ensureWeaponEquipped()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return nil end
-
-    -- 1. Revisar si ya tenemos un arma equipada
-    local currentTool = char:FindFirstChildOfClass("Tool")
-    if currentTool and getHandle(currentTool) then
-        return currentTool
-    end
-
-    -- 2. Si no hay arma, buscar en la mochila
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if backpack then
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") and getHandle(item) then
-                -- Equipar el primer item que tenga un Handle válido
-                pcall(function() hum:EquipTool(item) end)
-                task.wait(0.2) -- Pequeña espera para que el juego procese el equipamiento
-                return item
-            end
-        end
-    end
-    
-    return nil
-end
-
 local function applyCollisionGroups()
-    -- Ponemos a todos los jugadores en su propio grupo de colisión
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
             for _, part in ipairs(p.Character:GetDescendants()) do
                 if part:IsA("BasePart") then
-                    pcall(function()
-                        PhysicsService:SetPartCollisionGroup(part, PLAYERS_GROUP)
-                    end)
+                    pcall(function() PhysicsService:SetPartCollisionGroup(part, PLAYERS_GROUP) end)
                 end
             end
         end
@@ -105,10 +70,7 @@ local function expandSword(tool)
     handle.CanTouch = true
     handle.CanQuery = false 
     
-    -- 🔥 Asignamos la espada a su grupo exclusivo
-    pcall(function() 
-        PhysicsService:SetPartCollisionGroup(handle, SWORD_GROUP) 
-    end)
+    pcall(function() PhysicsService:SetPartCollisionGroup(handle, SWORD_GROUP) end)
 end
 
 local function restoreSword(tool)
@@ -123,27 +85,21 @@ local function restoreSword(tool)
     handle.CanTouch = data.CanTouch
     handle.CanQuery = data.CanQuery
     
-    pcall(function() 
-        PhysicsService:SetPartCollisionGroup(handle, data.CollisionGroup) 
-    end)
-    
+    pcall(function() PhysicsService:SetPartCollisionGroup(handle, data.CollisionGroup) end)
     originalData[handle] = nil
 end
 
--- Si el jugador muere o respawnea, restauramos la espada
 LocalPlayer.CharacterAdded:Connect(function()
     originalData = {}
 end)
 
--- 4. BUCLE DE MOVIMIENTO Y FLICKER (CON AUTO-EQUIP)
+-- 4. BUCLE DE MOVIMIENTO
 task.spawn(function()
     while task.wait(0.1) do
         if Config.Enabled then
             local char = LocalPlayer.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
-            
             if hum then
-                -- Forzar caminar
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.WalkSpeed < 16 then hum.WalkSpeed = 16 end
                 if hum.JumpPower < 50 then hum.JumpPower = 50 end
@@ -153,13 +109,15 @@ task.spawn(function()
     end
 end)
 
+-- 5. BUCLE DEL FLICKER (SIN AUTO-EQUIPAR)
 task.spawn(function()
     while task.wait(0.1) do
         if Config.Enabled then
-            applyCollisionGroups() -- Asegurarnos de que los jugadores estén en su grupo
+            applyCollisionGroups() 
             
-            -- 🔥 AQUI SE LLAMA A LA NUEVA FUNCION
-            local tool = ensureWeaponEquipped()
+            -- 🔥 CORREGIDO: Solo revisa si YA tienes algo equipado. No te obliga a equiparte nada.
+            local char = LocalPlayer.Character
+            local tool = char and char:FindFirstChildOfClass("Tool")
             
             if tool then
                 expandSword(tool)
@@ -167,11 +125,12 @@ task.spawn(function()
                 restoreSword(tool)
                 task.wait(0.25)
             end
+            -- Si no tienes tool, simplemente no hace nada y espera.
         end
     end
 end)
 
--- 5. BYPASS DE HONEYPOTS
+-- 6. BYPASS DE HONEYPOTS
 task.spawn(function()
     while task.wait(1) do
         if Config.Enabled then
@@ -199,7 +158,7 @@ task.spawn(function()
     end
 end)
 
--- 6. LIMPIEZA
+-- 7. LIMPIEZA
 env.__BF_ATTACKALL_CLEANUP = function()
     Config.Enabled = false
     local char = LocalPlayer.Character
