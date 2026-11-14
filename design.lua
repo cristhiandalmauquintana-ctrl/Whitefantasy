@@ -34,6 +34,7 @@
   Window:Notify({Title = "Hola", Content = "Mensaje", Duration = 4, Type = "success"})
   -- Type: "info" | "success" | "warning" | "error"
   Window:Toggle() / :Minimize() / :Restore() / :SetTitle() / :Destroy()
+  Window:WaitIntro()   -- espera a que termine la intro (antes de cargar otros modulos)
 
   local Farm = UI.CreateFarmPanel(function() print("DETENER") end)
   Farm:UpdateUI(hp, maxHp, kills, diamonds, souls, fps)
@@ -1294,7 +1295,7 @@ local function playIntro(self, gui)
 	local vp = viewport()
 	local S = math.floor(math.min(vp.X * 0.9, vp.Y * 0.88, 640))
 	local overlay = new("TextButton", {
-		Name = "Intro",
+		Name = "DBH_Splash",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = LOGO_BG,
 		BackgroundTransparency = 1,
@@ -1307,6 +1308,12 @@ local function playIntro(self, gui)
 	maid:Add(overlay.MouseButton1Click:Connect(function()
 		state.skip = true
 	end))
+	maid:Add(overlay.AncestryChanged:Connect(function(_, parent)
+		if not parent and not state.done and not state.dead then
+			warn("[DeepBlueHub] intro: otro script destruyo la pantalla de carga")
+		end
+	end))
+	print("[DeepBlueHub] intro: inicio")
 
 	-- 1) oscurecer toda la pantalla
 	tween(overlay, 0.9, { BackgroundTransparency = 0 }, Enum.EasingStyle.Sine)
@@ -1328,6 +1335,7 @@ local function playIntro(self, gui)
 	if not state.skip then
 		buildLogo(logo, S)
 	end
+	print("[DeepBlueHub] intro: logo dibujado (" .. #logo:GetChildren() .. " piezas), skip=" .. tostring(state.skip))
 	if state.dead then
 		return
 	end
@@ -1379,7 +1387,9 @@ local function playIntro(self, gui)
 	end
 	tween(overlay, 0.5, { BackgroundTransparency = 1 }, Enum.EasingStyle.Sine)
 	task.wait(0.5)
+	state.done = true
 	overlay:Destroy()
+	print("[DeepBlueHub] intro: fin")
 end
 
 --------------------------------------------------------------------------
@@ -1938,6 +1948,14 @@ function Window:Restore()
 	end
 	if self.State == "min" then
 		self:_open()
+	end
+end
+
+-- Espera (yield) a que termine la intro del logo. Util en tu Main antes de
+-- cargar modulos que destruyen GUIs (NoPopUps, etc.).
+function Window:WaitIntro()
+	while self._intro and not self.Destroyed do
+		task.wait(0.1)
 	end
 end
 
