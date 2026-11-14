@@ -1,8 +1,17 @@
 --[[
-    FroggyRivalsAssets  -  extras opcionales para FroggyRivalsDesign (Pond Theme)
+    FroggyRivalsAssets v2.0  -  extras opcionales para design.lua (chibi: Navidad / Otono / Pastel)
 
     Es un modulo independiente: no necesita design.lua para funcionar, pero se
     integra con sus pestañas.
+
+    NOVEDADES v2.0
+        - Colores chibi claros que siguen el tema de la ventana (xmas | fall | pastel).
+          Assets.Extend(Window) copia el tema de la ventana; sin ventana usa
+          Assets.SetTheme("xmas"|"fall"|"pastel"|"auto").
+        - Las filas respetan el orden de la pestaña y entran con la misma animacion.
+        - Extend YA NO pisa los metodos de design.lua: los que chocan se agregan con "Ex"
+          (AddLabelEx, AddSectionEx, AddInfoEx, AddDividerEx, AddDropdownEx, AddKeybindEx).
+        - Assets.Notify usa las notificaciones de la ventana si fue extendida.
 
     CARGA
         local Assets = loadstring(game:HttpGet("URL/assets.lua"))()
@@ -50,7 +59,7 @@ local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
 local rng = Random.new()
-local Assets = { Version = "1.0.0" }
+local Assets = { Version = "2.0.0" }
 
 --------------------------------------------------------------------------
 -- PALETA Y FUENTES
@@ -87,6 +96,58 @@ local C = {
 	White = Color3.fromRGB(255, 255, 255),
 }
 Assets.Colors = C
+
+--------------------------------------------------------------------------
+-- TEMAS (mismos nombres que design.lua)
+--------------------------------------------------------------------------
+local function rgb(r, g, b)
+	return Color3.fromRGB(r, g, b)
+end
+local THEMES = {
+	pastel = { Plum = rgb(88, 56, 108), PlumSoft = rgb(150, 118, 170), Pink = rgb(255, 128, 176), PinkDark = rgb(214, 84, 138), PinkLight = rgb(255, 200, 224), Lav = rgb(190, 160, 255), LavLight = rgb(238, 228, 255), Sky = rgb(126, 200, 255), Mint = rgb(120, 226, 184), Lemon = rgb(255, 222, 110), Red = rgb(255, 96, 110) },
+	xmas = { Plum = rgb(64, 44, 54), PlumSoft = rgb(132, 108, 120), Pink = rgb(226, 66, 84), PinkDark = rgb(170, 38, 58), PinkLight = rgb(255, 204, 208), Lav = rgb(96, 188, 132), LavLight = rgb(226, 242, 232), Sky = rgb(146, 212, 240), Mint = rgb(86, 190, 124), Lemon = rgb(255, 214, 110), Red = rgb(236, 60, 72) },
+	fall = { Plum = rgb(86, 52, 36), PlumSoft = rgb(152, 118, 98), Pink = rgb(238, 128, 48), PinkDark = rgb(186, 86, 28), PinkLight = rgb(255, 214, 172), Lav = rgb(196, 142, 92), LavLight = rgb(248, 234, 214), Sky = rgb(166, 194, 164), Mint = rgb(148, 188, 88), Lemon = rgb(250, 204, 84), Red = rgb(214, 84, 60) },
+}
+local NOTIFY_KINDS = {}
+local currentTheme = "pastel"
+
+local function resolveTheme(name)
+	name = type(name) == "string" and string.lower(name) or "auto"
+	if name == "christmas" or name == "navidad" then
+		name = "xmas"
+	elseif name == "autumn" or name == "otono" then
+		name = "fall"
+	end
+	if name == "auto" then
+		local ok, d = pcall(os.date, "*t")
+		name = "pastel"
+		if ok and type(d) == "table" then
+			if (d.month == 11 and d.day >= 25) or d.month == 12 or (d.month == 1 and d.day <= 6) then
+				name = "xmas"
+			elseif d.month >= 9 and d.month <= 11 then
+				name = "fall"
+			end
+		end
+	end
+	return THEMES[name] and name or "pastel"
+end
+
+function Assets.SetTheme(name)
+	name = resolveTheme(name)
+	local T = THEMES[name]
+	C.Deep = Color3.fromRGB(255, 255, 255)
+	C.Text, C.TextDim = T.Plum, T.PlumSoft
+	C.Neon, C.NeonDim, C.AccentDark = T.Pink, T.PinkLight, T.PinkDark
+	C.WaterDark, C.WaterMid, C.WaterLight, C.WaterCut = T.LavLight, T.Lav, T.Sky, T.LavLight
+	C.Wood, C.Forest, C.Gold, C.Red = T.PinkLight, T.Pink, T.Lemon, T.Red
+	NOTIFY_KINDS.info, NOTIFY_KINDS.success, NOTIFY_KINDS.warn, NOTIFY_KINDS.danger = T.Sky, T.Mint, T.Lemon, T.Red
+	currentTheme = name
+	return name
+end
+function Assets.GetTheme()
+	return currentTheme
+end
+Assets.SetTheme("auto")
 
 local function safeFont(name, fallback)
 	local ok, f = pcall(function()
@@ -242,18 +303,30 @@ local function place(target, height, cfg)
 	cfg = cfg or {}
 	local parent, tab = resolve(target)
 	local list = parent:FindFirstChildOfClass("UIListLayout")
+	local slot
+	if list and tab and type(tab.NextOrder) == "function" and type(tab.Register) == "function" then
+		slot = new("Frame", {
+			Name = "FRG_Slot",
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundTransparency = 1,
+			LayoutOrder = tab:NextOrder(),
+		}, parent)
+	end
 	local f = new("Frame", {
 		Name = cfg.Name or "FRG_Row",
 		BackgroundColor3 = C.Deep,
-		BackgroundTransparency = cfg.Bare and 1 or 0.25,
+		BackgroundTransparency = cfg.Bare and 1 or 0.12,
 		BorderSizePixel = 0,
-	}, parent)
+	}, slot or parent)
 	if list then
 		f.Size = UDim2.new(cfg.WidthScale or 1, cfg.WidthOffset or 0, 0, height)
-		if tab and type(tab.NextOrder) == "function" then
-			f.LayoutOrder = tab:NextOrder()
-		else
-			f.LayoutOrder = nextOrder(parent)
+		if not slot then
+			if tab and type(tab.NextOrder) == "function" then
+				f.LayoutOrder = tab:NextOrder()
+			else
+				f.LayoutOrder = nextOrder(parent)
+			end
 		end
 	else
 		f.Size = cfg.Size or UDim2.new(1, 0, 0, height)
@@ -261,8 +334,11 @@ local function place(target, height, cfg)
 		f.AnchorPoint = cfg.AnchorPoint or Vector2.new()
 	end
 	if not cfg.Bare then
-		corner(f, UDim.new(0, 10))
-		stroke(f, C.NeonDim, 1, 0.55)
+		corner(f, UDim.new(0, 16))
+		stroke(f, C.NeonDim, 2, 0)
+	end
+	if slot then
+		tab:Register(f)
 	end
 	return f, parent
 end
@@ -1003,9 +1079,9 @@ function Assets.AddCard(target, title, opts)
 		Visible = title ~= nil,
 	}, card)
 	corner(plaque, UDim.new(0, 8))
-	stroke(plaque, C.WoodDark, 2)
+	stroke(plaque, C.White, 2)
 	new("UIGradient", {
-		Color = ColorSequence.new(C.WoodLight, Color3.fromRGB(92, 64, 40)),
+		Color = ColorSequence.new(C.Neon, C.AccentDark),
 		Rotation = 90,
 	}, plaque)
 	local lbl = label(plaque, {
@@ -1013,7 +1089,7 @@ function Assets.AddCard(target, title, opts)
 		Text = tostring(title or ""),
 		Font = fontOf(opts.Font or "Title"),
 		TextSize = 15,
-		TextColor3 = C.Text,
+		TextColor3 = C.White,
 		TextXAlignment = Enum.TextXAlignment.Center,
 	})
 	local content = new("Frame", {
@@ -1065,7 +1141,7 @@ function Assets.AddTextBox(target, text, placeholder, callback, opts)
 	local frame = new("Frame", {
 		Position = UDim2.fromOffset(10, 26),
 		Size = UDim2.new(1, -20, 0, boxH),
-		BackgroundColor3 = C.WoodDark,
+		BackgroundColor3 = C.Wood,
 		BorderSizePixel = 0,
 	}, row)
 	corner(frame, UDim.new(0, 8))
@@ -1234,7 +1310,7 @@ SKINS.wood = function(p)
 		}),
 		Rotation = 90,
 	}, p)
-	return { stroke = st, base = C.WoodDark, hover = C.Neon, text = C.Text, textHover = C.Neon }
+	return { stroke = st, base = C.WoodDark, hover = C.Gold, text = C.White, textHover = C.Gold }
 end
 
 SKINS.stone = function(p)
@@ -1980,7 +2056,7 @@ function Assets.AddSliderEx(target, text, min, max, default, callback, style, op
 	bind(row, hit.InputBegan, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			local page = row.Parent
+			local page = row:FindFirstAncestorOfClass("ScrollingFrame")
 			if page and page:IsA("ScrollingFrame") then
 				page.ScrollingEnabled = false
 			end
@@ -1996,7 +2072,7 @@ function Assets.AddSliderEx(target, text, min, max, default, callback, style, op
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			if dragging then
 				dragging = false
-				local page = row.Parent
+				local page = row:FindFirstAncestorOfClass("ScrollingFrame")
 				if page and page:IsA("ScrollingFrame") then
 					page.ScrollingEnabled = true
 				end
@@ -2187,9 +2263,9 @@ function Assets.AddDropdown(target, text, options, default, callback, opts)
 	local function refresh()
 		for o, b in pairs(buttons) do
 			local on = selected[o] and true or false
-			b.TextColor3 = on and C.Neon or C.Text
-			b.BackgroundColor3 = on and C.Forest or C.Wood
-			b.BackgroundTransparency = on and 0.1 or 0.55
+			b.TextColor3 = on and C.White or C.Text
+			b.BackgroundColor3 = on and C.Neon or C.Wood
+			b.BackgroundTransparency = on and 0 or 0.5
 		end
 		local sel = selectedList()
 		if multi then
@@ -2563,12 +2639,7 @@ end
 --------------------------------------------------------------------------
 -- NOTIFICACIONES (toasts)
 --------------------------------------------------------------------------
-local NOTIFY_KINDS = {
-	info = C.WaterLight,
-	success = C.Neon,
-	warn = C.Amber,
-	danger = C.Red,
-}
+-- NOTIFY_KINDS se rellena en Assets.SetTheme()
 local notifyGui, notifyHolder
 
 local function resolveGuiParent()
@@ -2621,6 +2692,18 @@ local notifyCount = 0
 -- cfg: Title, Text, Type (info|success|warn|danger), Duration (segundos, 0 = fija)
 function Assets.Notify(cfg)
 	cfg = cfg or {}
+	-- si la ventana de design.lua fue extendida, se usa su notificacion (un solo estilo)
+	local w = Assets._window
+	if cfg.Native ~= false and w and not w.Destroyed and type(w.Notify) == "function" then
+		local kinds = { warn = "warning", danger = "error" }
+		w:Notify({
+			Title = cfg.Title,
+			Content = cfg.Text or cfg.Content,
+			Duration = cfg.Duration,
+			Type = kinds[cfg.Type] or cfg.Type or "info",
+		})
+		return { Close = function() end, Instance = nil }
+	end
 	local holder = ensureNotifyGui()
 	local color = NOTIFY_KINDS[cfg.Type or "info"] or NOTIFY_KINDS.info
 	local duration = cfg.Duration or 4
@@ -2656,7 +2739,7 @@ function Assets.Notify(cfg)
 		Text = tostring(cfg.Title or "Froggy"),
 		Font = F.Title,
 		TextSize = 16,
-		TextColor3 = color,
+		TextColor3 = C.Text,
 		LayoutOrder = 1,
 	})
 	if cfg.Text then
@@ -2722,20 +2805,30 @@ local EXT = {
 	AddPalette = Assets.AddPalette,
 }
 
--- Assets.Extend(Window) -> todas las pestañas nuevas quedan extendidas
+-- Assets.Extend(Window) -> todas las pestañas nuevas quedan extendidas (y toma el tema de la ventana)
 -- Assets.Extend(Tab)    -> solo esa pestaña
+-- Si el Tab ya tiene un metodo con ese nombre (los de design.lua), el de este modulo
+-- se agrega con sufijo "Ex" para no romper tu codigo: AddInfoEx, AddLabelEx, ...
 function Assets.Extend(obj)
 	if type(obj) ~= "table" then
 		return obj
 	end
 	if type(obj.CreateTab) == "function" then
+		if obj.ThemeName then
+			Assets.SetTheme(obj.ThemeName)
+		end
+		Assets._window = obj
 		local original = obj.CreateTab
 		obj.CreateTab = function(self, ...)
 			return Assets.Extend(original(self, ...))
 		end
 	else
 		for name, fn in pairs(EXT) do
-			obj[name] = function(self, ...)
+			local key = name
+			if obj[name] ~= nil and not name:find("Ex$") then
+				key = name .. "Ex"
+			end
+			obj[key] = function(self, ...)
 				return fn(self, ...)
 			end
 		end
