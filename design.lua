@@ -1,6 +1,6 @@
 --[[
 ================================================================================
-  FROGGY HUB  -  CHIBI UI LIBRARY   (design.lua  v4.1  "200 Members Edition")
+  FROGGY HUB  -  CHIBI UI LIBRARY   (design.lua  v4.2  "Holiday Edition")
   Version SIN INTRO: la ventana abre directamente.
   Estilo chibi / kawaii pastel. Todo animado con TweenService (rebotes, squash &
   stretch, confeti, ranita saltarina). Sin imagenes: todo son Frames.
@@ -11,10 +11,11 @@
 
   local Window = UI.CreateWindow({
       Title     = "FROGGY HUB",
-      Subtitle  = "200 MEMBERS EDITION",
+      Subtitle  = "HOLIDAY EDITION",          -- opcional: si no lo pones, usa el del tema
       ToggleKey = Enum.KeyCode.RightShift, -- mostrar / ocultar
       LogEvents = true,                    -- pildora inferior con cada accion
       Resizable = true,
+      Theme     = "auto",                  -- "auto" | "xmas" | "fall" | "pastel"
   })
 
   local Main = Window:CreateTab("MAIN")
@@ -47,7 +48,7 @@ local GuiService = game:GetService("GuiService")
 local UIS = UserInputService
 
 local rng = Random.new()
-local UI_Library = { Version = "4.1.0" }
+local UI_Library = { Version = "4.2.0" }
 
 --------------------------------------------------------------------------
 -- PALETA CHIBI
@@ -142,9 +143,174 @@ local function nsq(points)
 	return NumberSequence.new(k)
 end
 
-local RAINBOW = cseq(C.Pink, C.Lav, C.Sky, C.Mint, C.Lemon, C.Pink)
-local BG_SEQ = cseq(rgb(255, 242, 250), rgb(243, 232, 255), rgb(224, 238, 255))
-local CANDY = cseq(rgb(255, 160, 196), rgb(255, 118, 168))
+--------------------------------------------------------------------------
+-- TEMAS: "pastel" (clasico) | "xmas" (Navidad) | "fall" (Otono) | "auto"
+-- Los colores se aplican al crear la ventana (CreateWindow({Theme = "xmas"})).
+-- Tambien: UI_Library.Theme = "fall"  o  getgenv().FroggyTheme = "xmas"
+--------------------------------------------------------------------------
+local BASE = {}
+for k, v in pairs(C) do
+	BASE[k] = v
+end
+local NOTIFY_COLORS = {}
+local RAINBOW, BG_SEQ, CANDY, BLOB_SEQ, STOP_SEQ, TRACK_A, TRACK_B
+local CUR_THEME
+
+local THEMES = {
+	pastel = {
+		Subtitle = "200 MEMBERS EDITION",
+		Decor = "bubbles",
+		C = {},
+		Confetti = { "Pink", "Lav", "Sky", "Mint", "Lemon", "Peach" },
+		Rainbow = { "Pink", "Lav", "Sky", "Mint", "Lemon", "Pink" },
+		BG = { rgb(255, 242, 250), rgb(243, 232, 255), rgb(224, 238, 255) },
+		Candy = { rgb(255, 160, 196), rgb(255, 118, 168) },
+		Blob = { rgb(255, 150, 190), rgb(255, 184, 150) },
+		Stop = { rgb(255, 130, 140), rgb(255, 84, 100) },
+		TrackA = rgb(226, 216, 240),
+		TrackB = rgb(232, 222, 246),
+	},
+	xmas = {
+		Subtitle = "HOLIDAY EDITION",
+		Decor = "snow",
+		C = {
+			Plum = rgb(64, 44, 54),
+			PlumSoft = rgb(132, 108, 120),
+			Pink = rgb(226, 66, 84),
+			PinkDark = rgb(170, 38, 58),
+			PinkLight = rgb(255, 204, 208),
+			Lav = rgb(96, 188, 132),
+			LavLight = rgb(210, 238, 220),
+			Sky = rgb(146, 212, 240),
+			Mint = rgb(86, 190, 124),
+			MintDark = rgb(34, 120, 78),
+			Lemon = rgb(255, 214, 110),
+			Peach = rgb(255, 188, 150),
+			Red = rgb(236, 60, 72),
+			RedDark = rgb(170, 36, 54),
+		},
+		Confetti = { "Pink", "Mint", "Lemon", "Sky", "Lav", "Peach" },
+		Rainbow = { "Pink", "Mint", "Lemon", "Sky", "Mint", "Pink" },
+		BG = { rgb(255, 246, 246), rgb(236, 250, 241), rgb(226, 241, 255) },
+		Candy = { rgb(244, 98, 112), rgb(206, 48, 66) },
+		Blob = { rgb(236, 84, 96), rgb(255, 176, 110) },
+		Stop = { rgb(240, 100, 100), rgb(190, 44, 60) },
+		TrackA = rgb(232, 222, 224),
+		TrackB = rgb(222, 236, 228),
+	},
+	fall = {
+		Subtitle = "AUTUMN EDITION",
+		Decor = "leaves",
+		C = {
+			Plum = rgb(86, 52, 36),
+			PlumSoft = rgb(152, 118, 98),
+			Pink = rgb(238, 128, 48),
+			PinkDark = rgb(186, 86, 28),
+			PinkLight = rgb(255, 214, 172),
+			Lav = rgb(196, 142, 92),
+			LavLight = rgb(246, 230, 208),
+			Sky = rgb(166, 194, 164),
+			Mint = rgb(148, 188, 88),
+			MintDark = rgb(94, 132, 52),
+			Lemon = rgb(250, 204, 84),
+			Peach = rgb(240, 160, 120),
+			Red = rgb(214, 84, 60),
+			RedDark = rgb(160, 52, 36),
+		},
+		Confetti = { "Pink", "Lemon", "Red", "Mint", "Lav", "Peach" },
+		Rainbow = { "Pink", "Lemon", "Red", "Mint", "Lav", "Pink" },
+		BG = { rgb(255, 247, 234), rgb(251, 235, 214), rgb(240, 226, 200) },
+		Candy = { rgb(246, 156, 76), rgb(206, 100, 34) },
+		Blob = { rgb(238, 130, 52), rgb(250, 182, 74) },
+		Stop = { rgb(228, 104, 72), rgb(184, 58, 40) },
+		TrackA = rgb(238, 226, 210),
+		TrackB = rgb(232, 220, 202),
+	},
+}
+
+local function resolveTheme(name)
+	name = type(name) == "string" and string.lower(name) or "auto"
+	if name == "christmas" or name == "navidad" then
+		name = "xmas"
+	elseif name == "autumn" or name == "otono" then
+		name = "fall"
+	end
+	if name == "auto" then
+		local ok, d = pcall(os.date, "*t")
+		if ok and type(d) == "table" then
+			if (d.month == 11 and d.day >= 25) or d.month == 12 or (d.month == 1 and d.day <= 6) then
+				name = "xmas"
+			elseif d.month >= 9 and d.month <= 11 then
+				name = "fall"
+			else
+				name = "pastel"
+			end
+		else
+			name = "pastel"
+		end
+	end
+	if not THEMES[name] then
+		name = "pastel"
+	end
+	return name
+end
+
+local function applyTheme(name)
+	name = resolveTheme(name)
+	local T = THEMES[name]
+	for k, v in pairs(BASE) do
+		C[k] = v
+	end
+	for k, v in pairs(T.C) do
+		C[k] = v
+	end
+	for i = #CONFETTI, 1, -1 do
+		CONFETTI[i] = nil
+	end
+	for i, k in ipairs(T.Confetti) do
+		CONFETTI[i] = C[k]
+	end
+	local r = {}
+	for i, k in ipairs(T.Rainbow) do
+		r[i] = C[k]
+	end
+	RAINBOW = cseq(table.unpack(r))
+	BG_SEQ = cseq(table.unpack(T.BG))
+	CANDY = cseq(table.unpack(T.Candy))
+	BLOB_SEQ = cseq(table.unpack(T.Blob))
+	STOP_SEQ = cseq(table.unpack(T.Stop))
+	TRACK_A, TRACK_B = T.TrackA, T.TrackB
+	NOTIFY_COLORS.info = C.Sky
+	NOTIFY_COLORS.success = C.Mint
+	NOTIFY_COLORS.warning = C.Lemon
+	NOTIFY_COLORS.error = C.Red
+	T.Name = name
+	CUR_THEME = T
+	return T
+end
+
+local function themeRequest(cfgTheme)
+	if cfgTheme ~= nil then
+		return cfgTheme
+	end
+	if UI_Library.Theme ~= nil then
+		return UI_Library.Theme
+	end
+	local ok, v = pcall(function()
+		return getgenv and getgenv().FroggyTheme
+	end)
+	return ok and v or nil
+end
+
+UI_Library.Themes = { "auto", "xmas", "fall", "pastel" }
+function UI_Library.SetTheme(name)
+	UI_Library.Theme = name
+	return applyTheme(name).Name
+end
+function UI_Library.GetTheme()
+	return CUR_THEME and CUR_THEME.Name or "pastel"
+end
+applyTheme(themeRequest(nil))
 
 local function clampN(x, a, b)
 	if a > b then
@@ -414,6 +580,112 @@ local function floatBubbles(maid, parent, n, zi)
 	end
 end
 
+-- nieve que cae en bucle
+local function snowfall(maid, parent, n, zi)
+	for _ = 1, n do
+		local s = rng:NextInteger(4, 9)
+		local x = rng:NextNumber(0.02, 0.98)
+		local drift = rng:NextNumber(-0.06, 0.06)
+		local f = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(x, 0, -0.08, 0),
+			Size = UDim2.fromOffset(s, s),
+			BackgroundColor3 = WHITE,
+			BackgroundTransparency = rng:NextNumber(0.05, 0.3),
+			BorderSizePixel = 0,
+			ZIndex = zi or 2,
+		}, parent)
+		corner(f, UDim.new(0.5, 0))
+		stroke(f, C.Sky, 1, 0.55)
+		local dur = rng:NextNumber(6, 12)
+		task.delay(rng:NextNumber(0, 8), function()
+			if maid.dead then
+				return
+			end
+			local tw = TweenService:Create(
+				f,
+				TweenInfo.new(dur, Enum.EasingStyle.Linear, OUT, -1, false),
+				{ Position = UDim2.new(x + drift, 0, 1.08, 0) }
+			)
+			tw:Play()
+			maid:Add(tw)
+		end)
+	end
+end
+
+-- hojas de otono que caen girando
+local function fallingLeaves(maid, parent, n, zi)
+	local cols = { C.Pink, C.Lemon, C.Red, C.Peach, C.Mint }
+	for _ = 1, n do
+		local w = rng:NextInteger(10, 16)
+		local x = rng:NextNumber(0.02, 0.98)
+		local drift = rng:NextNumber(-0.12, 0.12)
+		local r0 = rng:NextInteger(0, 360)
+		local f = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(x, 0, -0.08, 0),
+			Size = UDim2.fromOffset(w, math.floor(w * 0.6)),
+			Rotation = r0,
+			BackgroundColor3 = cols[rng:NextInteger(1, #cols)],
+			BackgroundTransparency = rng:NextNumber(0.1, 0.35),
+			BorderSizePixel = 0,
+			ZIndex = zi or 2,
+		}, parent)
+		corner(f, UDim.new(0.5, 0))
+		stroke(f, C.PinkDark, 1, 0.5)
+		local dur = rng:NextNumber(7, 13)
+		task.delay(rng:NextNumber(0, 8), function()
+			if maid.dead then
+				return
+			end
+			local tw = TweenService:Create(
+				f,
+				TweenInfo.new(dur, Enum.EasingStyle.Linear, OUT, -1, false),
+				{ Position = UDim2.new(x + drift, 0, 1.08, 0), Rotation = r0 + 300 }
+			)
+			tw:Play()
+			maid:Add(tw)
+		end)
+	end
+end
+
+-- guirnalda de luces que parpadean en el borde superior de la ventana
+local function stringLights(maid, win, n)
+	local holder = new("Frame", {
+		Name = "Lights",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(16, 0),
+		Size = UDim2.new(1, -32, 0, 16),
+		ZIndex = 14,
+	}, win)
+	new("Frame", {
+		Position = UDim2.fromOffset(0, 2),
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = C.MintDark,
+		BorderSizePixel = 0,
+		ZIndex = 14,
+	}, holder)
+	local cols = { C.Red, C.Lemon, C.Mint, C.Sky }
+	for i = 1, n do
+		local b = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new((i - 0.5) / n, 0, 0, 3),
+			Size = UDim2.fromOffset(8, 11),
+			BackgroundColor3 = cols[(i - 1) % #cols + 1],
+			BorderSizePixel = 0,
+			ZIndex = 15,
+		}, holder)
+		corner(b, UDim.new(0.5, 0))
+		stroke(b, WHITE, 1, 0.2)
+		task.delay(rng:NextNumber(0, 1.2), function()
+			if maid.dead then
+				return
+			end
+			loopTween(maid, b, rng:NextNumber(0.6, 1.1), { BackgroundTransparency = 0.55 }, Enum.EasingStyle.Sine, true)
+		end)
+	end
+end
+
 --------------------------------------------------------------------------
 -- RANITA CHIBI (mascota). Se dibuja con Frames, tamanos en escala:
 -- si cambias Root.Size se estira / aplasta toda la ranita.
@@ -498,6 +770,64 @@ local function buildFrog(parent, w, maid, props)
 	}, root)
 	corner(mouth, UDim.new(0.5, 0))
 
+	local decor = CUR_THEME and CUR_THEME.Decor
+	if decor == "snow" then
+		-- gorro de Santa
+		local hat = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.fromScale(0.5, 0.17),
+			Size = UDim2.fromScale(0.5, 0.34),
+			Rotation = -10,
+			BackgroundColor3 = C.Red,
+			BorderSizePixel = 0,
+			ZIndex = 9,
+		}, root)
+		corner(hat, UDim.new(0.5, 0))
+		stroke(hat, C.RedDark, math.max(1, math.floor(ol / 2)), 0)
+		local brim = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.18),
+			Size = UDim2.fromScale(0.62, 0.11),
+			Rotation = -10,
+			BackgroundColor3 = WHITE,
+			BorderSizePixel = 0,
+			ZIndex = 10,
+		}, root)
+		corner(brim, UDim.new(0.5, 0))
+		stroke(brim, C.PinkLight, 1, 0)
+		local pom = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.66, -0.18),
+			Size = UDim2.fromScale(0.17, 0.17 * ratio),
+			BackgroundColor3 = WHITE,
+			BorderSizePixel = 0,
+			ZIndex = 10,
+		}, root)
+		corner(pom, UDim.new(0.5, 0))
+		stroke(pom, C.PinkLight, 1, 0)
+	elseif decor == "leaves" then
+		-- hojita de otono en la cabeza
+		local leaf = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.1),
+			Size = UDim2.fromScale(0.3, 0.15),
+			Rotation = 25,
+			BackgroundColor3 = C.Pink,
+			BorderSizePixel = 0,
+			ZIndex = 9,
+		}, root)
+		corner(leaf, UDim.new(0.5, 0))
+		stroke(leaf, C.PinkDark, 1, 0)
+		local stem = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0.7, 0, 0, 1),
+			BackgroundColor3 = C.PinkDark,
+			BorderSizePixel = 0,
+			ZIndex = 10,
+		}, leaf)
+	end
+
 	local M = { Root = root, Mouth = mouth, Base = root.Position }
 	function M:Blink()
 		for _, e in ipairs(eyes) do
@@ -548,6 +878,7 @@ local TAB_H, TAB_GAP = 36, 6
 
 function UI_Library.CreateWindow(cfg)
 	cfg = cfg or {}
+	local THEME = applyTheme(themeRequest(cfg.Theme))
 	if UI_Library._current then
 		pcall(function()
 			UI_Library._current:Destroy()
@@ -559,7 +890,8 @@ function UI_Library.CreateWindow(cfg)
 	self.Maid = maid
 	self.Tabs = {}
 	self.Title = cfg.Title or "FROGGY HUB"
-	self.Subtitle = cfg.Subtitle or "200 MEMBERS EDITION"
+	self.Subtitle = cfg.Subtitle or THEME.Subtitle
+	self.ThemeName = THEME.Name
 	self.LogEvents = cfg.LogEvents ~= false
 	self.ToggleKey = cfg.ToggleKey or Enum.KeyCode.RightShift
 	self.OnClose = cfg.OnClose
@@ -633,7 +965,14 @@ function UI_Library.CreateWindow(cfg)
 	softBlob(0.92, 0.08, 220, C.Pink)
 	softBlob(0.05, 0.95, 240, C.Sky)
 	softBlob(0.6, 0.55, 160, C.Lav)
-	floatBubbles(maid, fx, 10, 1)
+	if THEME.Decor == "snow" then
+		snowfall(maid, fx, 16, 1)
+		stringLights(maid, win, 14)
+	elseif THEME.Decor == "leaves" then
+		fallingLeaves(maid, fx, 12, 1)
+	else
+		floatBubbles(maid, fx, 10, 1)
+	end
 	for i = 1, 5 do
 		local f, sc = buildSparkle(fx, rng:NextInteger(10, 16), CONFETTI[i])
 		f.Position = UDim2.fromScale(rng:NextNumber(0.1, 0.95), rng:NextNumber(0.1, 0.9))
@@ -763,7 +1102,7 @@ function UI_Library.CreateWindow(cfg)
 		ZIndex = 1,
 	}, tabScroll)
 	corner(blob, UDim.new(0.5, 0))
-	grad(blob, { Rotation = 0, Color = cseq(rgb(255, 150, 190), rgb(255, 184, 150)) })
+	grad(blob, { Rotation = 0, Color = BLOB_SEQ })
 	stroke(blob, WHITE, 2, 0)
 	local tabList = new("Frame", {
 		Size = UDim2.new(1, 0, 0, 0),
@@ -1145,7 +1484,7 @@ function Window:_log(msg)
 	end)
 end
 
-local NOTIFY_COLORS = { info = C.Sky, success = C.Mint, warning = C.Lemon, error = C.Red }
+-- NOTIFY_COLORS se rellena en applyTheme()
 
 local function noteIcon(parent, kind, accent)
 	local circ = new("Frame", {
@@ -1459,6 +1798,18 @@ local function makeItem(tab, h, plain)
 	return row, st, holder
 end
 
+-- API para modulos externos (assets.lua): orden de filas y animacion de entrada
+function Tab:NextOrder()
+	self._n = self._n + 1
+	return self._n
+end
+
+function Tab:Register(frame)
+	local sc = new("UIScale", { Scale = 1 }, frame)
+	self.Items[#self.Items + 1] = { Frame = frame, Scale = sc }
+	return sc
+end
+
 local function hitButton(parent, z)
 	return new("TextButton", {
 		Size = UDim2.fromScale(1, 1),
@@ -1630,7 +1981,7 @@ function Tab:AddToggle(str, default, callback)
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
 		Size = UDim2.fromOffset(54, 28),
-		BackgroundColor3 = rgb(226, 216, 240),
+		BackgroundColor3 = TRACK_A,
 		BorderSizePixel = 0,
 	}, row)
 	corner(trk, UDim.new(0.5, 0))
@@ -1753,7 +2104,7 @@ function Tab:AddSlider(str, min, max, default, callback, step, suffix)
 	local bar = new("Frame", {
 		Position = UDim2.new(0, 16, 0, 46),
 		Size = UDim2.new(1, -32, 0, 10),
-		BackgroundColor3 = rgb(232, 222, 246),
+		BackgroundColor3 = TRACK_B,
 		BorderSizePixel = 0,
 	}, row)
 	corner(bar, UDim.new(0.5, 0))
@@ -2381,7 +2732,7 @@ function UI_Library.CreateFarmPanel(opts)
 	local hpTrack = new("Frame", {
 		Position = UDim2.fromOffset(14, 58),
 		Size = UDim2.new(1, -28, 0, 22),
-		BackgroundColor3 = rgb(232, 222, 246),
+		BackgroundColor3 = TRACK_B,
 		BorderSizePixel = 0,
 		ZIndex = 3,
 	}, panel)
@@ -2458,7 +2809,7 @@ function UI_Library.CreateFarmPanel(opts)
 		ZIndex = 4,
 	}, panel)
 	corner(stopFace, 16)
-	grad(stopFace, { Rotation = 90, Color = cseq(rgb(255, 130, 140), rgb(255, 84, 100)) })
+	grad(stopFace, { Rotation = 90, Color = STOP_SEQ })
 	stroke(stopFace, WHITE, 2.5, 0)
 	mkText(stopFace, "DETENER", 16, WHITE, FONT, {
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -2573,7 +2924,7 @@ end
 function UI_Library.Demo()
 	local W = UI_Library.CreateWindow({
 		Title = "FROGGY HUB",
-		Subtitle = "200 MEMBERS EDITION",
+		Theme = UI_Library.Theme,
 		ToggleKey = Enum.KeyCode.RightShift,
 		LogEvents = true,
 		Resizable = true,
