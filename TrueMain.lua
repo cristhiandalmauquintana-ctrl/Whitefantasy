@@ -1,4 +1,4 @@
---// Main.lua - FROGGY HUB (Elemental Magic Arena - V3.1 Recargado)
+--// TrueMain.lua - DEEP BLUE HUB (Elemental Magic Arena - V5.0 Deep Ocean)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -7,7 +7,6 @@ local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local HttpService = game:GetService("HttpService")
-local UserInputService = game:GetService("UserInputService")
 local env = (getgenv and getgenv()) or _G
 
 -- 🛑 CANDADO ANTI-DOBLE EJECUCIÓN
@@ -21,7 +20,7 @@ end
 -- ==========================================
 local SavedState = {}
 if isfile and readfile then
-    local ok, data = pcall(function() return readfile("FroggyConfig.json") end)
+    local ok, data = pcall(function() return readfile("DeepBlueConfig.json") end)
     if ok and data then
         local ok2, decoded = pcall(function() return HttpService:JSONDecode(data) end)
         if ok2 and decoded then SavedState = decoded end
@@ -33,7 +32,7 @@ end
 -- ==========================================
 local Translations = {
     ["es"] = {
-        title = "FROGGY HUB", subtitle = "200 MEMBERS | CHIBI EDITION",
+        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
         tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_tourney = "TORNEO", tab_config = "CONFIG",
         rejoin = "RECONECTAR SERVIDOR", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar.",
         auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1", hitbox = "HITBOX EXPANDER", hitbox_size = "TAMAÑO HITBOX",
@@ -46,7 +45,7 @@ local Translations = {
         dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA", unlock = "DESBLOQUEAR", destroy_ui = "DESTRUIR UI"
     },
     ["en"] = {
-        title = "FROGGY HUB", subtitle = "200 MEMBERS | CHIBI EDITION",
+        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
         tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_tourney = "TOURNAMENT", tab_config = "CONFIG",
         rejoin = "REJOIN SERVER", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute.",
         auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY", hitbox = "HITBOX EXPANDER", hitbox_size = "HITBOX SIZE",
@@ -59,7 +58,7 @@ local Translations = {
         dev_zone = "DEVELOPER ZONE", pass = "PASSWORD", unlock = "UNLOCK", destroy_ui = "DESTROY UI"
     },
     ["fil"] = {
-        title = "FROGGY HUB", subtitle = "200 MEMBERS | CHIBI EDITION",
+        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
         tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_farm = "AUTO FARM", tab_tourney = "TOURNAMENT", tab_config = "KONFIG",
         rejoin = "SUMALI ULIT", lang_sel = "PALITAN ANG WIKA", lang_desc = "Pumili ng wika at i-execute ulit.",
         auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY", hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX",
@@ -72,7 +71,7 @@ local Translations = {
         dev_zone = "DEV ZONE", pass = "PASSWORD", unlock = "I-UNLOCK", destroy_ui = "IRISAN ANG UI"
     },
     ["vi"] = {
-        title = "FROGGY HUB", subtitle = "200 THÀNH VIÊN | CHIBI",
+        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
         tab_main = "CHÍNH", tab_combat = "CHIẾN ĐẤU", tab_visual = "HÌNH ẢNH", tab_movement = "DI CHUYỂN", tab_farm = "AUTO FARM", tab_tourney = "GIẢI ĐẤU", tab_config = "CÀI ĐẶT",
         rejoin = "VÀO LẠI SERVER", lang_sel = "ĐỔI NGÔN NGỮ", lang_desc = "Chọn ngôn ngữ và chạy lại script.",
         auto_combat = "AUTO COMBAT (M1)", m1_delay = "ĐỘ TRỄ M1", hitbox = "MỞ RỘNG HITBOX", hitbox_size = "KÍCH THƯỚC HITBOX",
@@ -85,7 +84,7 @@ local Translations = {
         dev_zone = "KHU VỰC DEV", pass = "MẬT KHẨU", unlock = "MỞ KHÓA", destroy_ui = "PHÁ HỦY UI"
     },
     ["ru"] = {
-        title = "FROGGY HUB", subtitle = "200 УЧАСТНИКОВ | CHIBI",
+        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
         tab_main = "ГЛАВНАЯ", tab_combat = "БОЙ", tab_visual = "ВИЗУАЛ", tab_movement = "ДВИЖЕНИЕ", tab_farm = "АВТОФАРМ", tab_tourney = "ТУРНИР", tab_config = "НАСТРОЙКИ",
         rejoin = "ПЕРЕЗАЙТИ НА СЕРВЕР", lang_sel = "СМЕНИТЬ ЯЗЫК", lang_desc = "Выберите язык и перезапустите скрипт.",
         auto_combat = "АВТОБОЙ (M1)", m1_delay = "ЗАДЕРЖКА M1", hitbox = "РАСШИРИТЕЛЬ ХИТБОКСА", hitbox_size = "РАЗМЕР ХИТБОКСА",
@@ -102,12 +101,10 @@ local Translations = {
 local langOrder = {"en", "es", "fil", "vi", "ru"}
 local currentLang = "en"
 
--- Cargar idioma guardado
 if isfile and readfile then
-    local ok, savedLang = pcall(function() return readfile("FroggyLang.txt") end)
+    local ok, savedLang = pcall(function() return readfile("DeepBlueLang.txt") end)
     if ok and Translations[savedLang] then currentLang = savedLang end
 else
-    -- Detección por sistema
     pcall(function()
         local id = LocalPlayer.LocaleId:lower()
         if id:find("es") then currentLang = "es"
@@ -128,17 +125,24 @@ local SharedElements = {
 }
 
 -- ==========================================
--- 3. CARGAMOS DISEÑO Y ASSETS (CON OS.TIME)
+-- 3. CARGAMOS DISEÑO Y ASSETS (DEEP BLUE)
 -- ==========================================
-print("[Froggy] Cargando interfaz...")
+print("[Deep Blue] Cargando interfaz...")
 local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua?v=" .. os.time()))()
 local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua?v=" .. os.time()))()
 
 env.BF_UI_LIBRARY = UI_Library 
 env.BF_ASSETS_LIBRARY = Assets
 
-local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle") })
+local savedTheme = SavedState.Theme or "ocean"
+
+local Window = UI_Library.CreateWindow({ 
+    Title = L("title"), 
+    Subtitle = L("subtitle"),
+    Theme = savedTheme
+})
 env.BF_CURRENT_UI = Window
+Assets.Extend(Window)
 
 local TabMain = Window:CreateTab(L("tab_main"))
 local TabCombat = Window:CreateTab(L("tab_combat"))
@@ -149,12 +153,12 @@ local TabTourney = Window:CreateTab(L("tab_tourney"))
 local TabConfig = Window:CreateTab(L("tab_config"))
 
 -- ==========================================
--- 4. DESCARGA DE MÓDULOS (CON OS.TIME ORIGINAL)
+-- 4. DESCARGA DE MÓDULOS (CON OS.TIME)
 -- ==========================================
 local folder = "ElementalMagicArena/"
 
 local function download(name, key)
-    local url = ROOT .. folder .. name .. "?v=" .. os.time() -- 🔥 EL OS.TIME QUE PEDISTE
+    local url = ROOT .. folder .. name .. "?v=" .. os.time()
     local ok, res = pcall(game.HttpGet, game, url)
     if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
         local fnOk, fn = pcall(loadstring, res)
@@ -175,7 +179,8 @@ local SilentCollectC = download("SilentCollect.lua", "BF_SILENTCOLLECT_CONFIG")
 local FarmC = download("PlayerFarm.lua", "BF_PLAYERFARM_CONFIG")
 local HopC = download("SmartServerHop.lua", "BF_SERVERHOP_CONFIG")
 local TouchTPC = download("TouchTp.lua", "BF_TOUCHTP_CONFIG")
-local TourneyC = nil -- AutoTournament.lua: pendiente (aún no está listo)
+local NoRobuxC = download("NoRobux.lua", "BF_NOROBUX_CONFIG")
+local NoPopUpsC = download("NoPopUps.lua", "BF_NOPOPUPS_CONFIG")
 
 -- ==========================================
 -- 5. CONEXIÓN UI Y RESTAURACIÓN DE ESTADO
@@ -196,7 +201,7 @@ end)
 
 TabMain:AddSection(L("lang_sel"))
 TabMain:AddDropdown(L("lang_sel"), langOrder, currentLang, function(val)
-    if writefile then pcall(function() writefile("FroggyLang.txt", val) end) end
+    if writefile then pcall(function() writefile("DeepBlueLang.txt", val) end) end
     Window:Notify({Title = "Language", Content = L("lang_desc"), Type = "info", Duration = 5})
 end)
 
@@ -222,12 +227,12 @@ if AttackAllC then
     
     TabCombat:AddDropdown(L("select_element"), SharedElements, AttackAllC.SelectedElement, function(val)
         AttackAllC.SelectedElement = val
-        if Window.Notify then Window:Notify({Title = "Element Selected", Content = val, Type = "success"}) end
+        if Window.Notify then Window:Notify({Title = "Element", Content = val, Type = "success"}) end
     end)
     TabCombat:AddInfo(L("attack_all_warn"))
 end
 
--- Módulo Touch TP (Movido a Combate)
+-- Módulo Touch TP
 if TouchTPC then
     TabCombat:AddSection("UTILIDADES MÓVILES")
     TabCombat:AddToggle(L("touch_tp"), false, function(state)
@@ -276,7 +281,7 @@ end
 
 -- === TOURNEY ===
 if TourneyC then
-    TabTourney:AddSection("AUTO TOURNAMENT (1v1)")
+    TabTourney:AddSection("AUTO TOURNAMENT")
     TabTourney:AddToggle("AUTO TOURNAMENT", false, function(state) TourneyC.Enabled = state end)
     TabTourney:AddInfo(L("tourney_desc"))
 end
@@ -288,27 +293,30 @@ if SilentCollectC then
     restoreToggle(SilentCollectC, "SilentCollect", t)
 end
 
+-- El Server Hop de Claude
 if HopC then
     TabConfig:AddSection("SEGURIDAD DE SESIÓN")
-    TabConfig:AddToggle("AUTO SERVER HOP", false, function(state)
+    local t = TabConfig:AddToggle("AUTO SERVER HOP", false, function(state)
         HopC.Enabled = state
         if state and Window.Notify then Window:Notify({Title = "Server Hop", Content = "Temporizador activo.", Type = "success"}) end
     end)
+    restoreToggle(HopC, "ServerHop", t)
     TabConfig:AddSlider("TIEMPO EN SERVIDOR (MIN)", 5, 60, 20, function(val) HopC.HopTime = val * 60 end)
 end
 
 if NoRobuxC then
     TabConfig:AddSection("SEGURIDAD EXTRA")
-    TabConfig:AddToggle(L("no_robux"), true, function(state) NoRobuxC.Enabled = state end)
+    local t = TabConfig:AddToggle(L("no_robux"), true, function(state) NoRobuxC.Enabled = state end)
+    restoreToggle(NoRobuxC, "NoRobux", t)
     TabConfig:AddInfo(L("no_robux_desc"))
 end
 
 if NoPopUpsC then
-    TabConfig:AddToggle(L("no_popups"), true, function(state) NoPopUpsC.Enabled = state end)
+    local t = TabConfig:AddToggle(L("no_popups"), true, function(state) NoPopUpsC.Enabled = state end)
+    restoreToggle(NoPopUpsC, "NoPopUps", t)
     TabConfig:AddInfo(L("no_popups_desc"))
 end
 
--- === DEV ZONE ===
 TabConfig:AddSection(L("dev_zone"))
 local passBox = TabConfig:AddTextbox(L("pass"), "", "...", function() end)
 local unlockBtn = TabConfig:AddButton(L("unlock"), function()
@@ -323,8 +331,17 @@ local unlockBtn = TabConfig:AddButton(L("unlock"), function()
     end
 end)
 
-TabConfig:AddButton(L("destroy_ui"), function()
-    Window:Destroy()
+TabConfig:AddSection("UI & TEMA")
+local themes = {"ocean", "auto", "xmas", "fall", "pastel"}
+TabConfig:AddDropdown("TEMA", themes, savedTheme, function(val)
+    SavedState.Theme = val
+    if writefile then pcall(function() writefile("DeepBlueConfig.json", HttpService:JSONEncode(SavedState)) end) end
+    Window:Notify({Title = "Theme", Content = "Tema: "..val..". (Reinicia para aplicar)", Type = "info"})
 end)
 
-print("[Main] Froggy Hub V3.1 cargado exitosamente.")
+TabConfig:AddButton(L("destroy_ui"), function()
+    Window:Destroy()
+    if env.BF_CURRENT_UI == Window then env.BF_CURRENT_UI = nil end
+end)
+
+print("[Deep Blue] TrueMain cargado exitosamente.")
