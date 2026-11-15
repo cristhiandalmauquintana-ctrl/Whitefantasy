@@ -1,4 +1,4 @@
---// TrueMain.lua - DEEP BLUE HUB (V5.3 - Positional API Fix)
+--// TrueMain.lua - DEEP BLUE HUB (V5.4 - Solo Idioma y Tema)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -14,6 +14,9 @@ if env.BF_CURRENT_UI then
     env.BF_CURRENT_UI = nil
 end
 
+-- ==========================================
+-- 1. PERSISTENCIA (SOLO IDIOMA Y TEMA)
+-- ==========================================
 local SavedState = {}
 if isfile and readfile then
     local ok, data = pcall(function() return readfile("DeepBlueConfig.json") end)
@@ -28,7 +31,18 @@ local Translations = {
     ["en"] = { title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION", tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_config = "CONFIG", rejoin = "REJOIN", lang_sel = "LANGUAGE", lang_desc = "Select language.", auto_combat = "AUTO COMBAT", m1_delay = "M1 DELAY", hitbox = "HITBOX", hitbox_size = "SIZE", attack_all = "ATTACK ALL", attack_all_warn = "Auto attack.", select_element = "ELEMENT", esp = "ESP", boxes = "BOXES", tracers = "TRACERS", health = "HEALTH", speed = "SPEED", speed_val = "SPEED", jump = "JUMP", jump_val = "JUMP", farm_players = "FARM", farm_desc = "Select element.", touch_tp = "TOUCH TP", tourney_desc = "PvP.", silent_collect = "SILENT COLLECT", no_robux = "NO ROBUX", no_robux_desc = "Blocks shops.", no_popups = "NO POPUPS", no_popups_desc = "Blocks menus.", dev_zone = "DEV ZONE", pass = "PASS", unlock = "UNLOCK", destroy_ui = "DESTROY UI" }
 }
 
+-- Cargar idioma guardado
 local currentLang = "en"
+if isfile and readfile then
+    local ok, savedLang = pcall(function() return readfile("DeepBlueLang.txt") end)
+    if ok and Translations[savedLang] then currentLang = savedLang end
+else
+    pcall(function()
+        local id = LocalPlayer.LocaleId:lower()
+        if id:find("es") then currentLang = "es" end
+    end)
+end
+
 local function L(key) return Translations[currentLang][key] or Translations["en"][key] or key end
 
 local SharedElements = { "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", "aurora", "fenix", "caos", "tecnología", "diamante", "amor", "demon", "ilusion", "campos de fuerza", "relampago", "telequinesis", "life", "mirror", "time", "sueño", "creacion", "espacio", "realidad", "dios de elementos" }
@@ -79,15 +93,8 @@ local TouchTPC = download("TouchTp.lua", "BF_TOUCHTP_CONFIG")
 local NoRobuxC = download("NoRobux.lua", "BF_NOROBUX_CONFIG")
 local NoPopUpsC = download("NoPopUps.lua", "BF_NOPOPUPS_CONFIG")
 
-local function restoreToggle(configObj, savedKey, uiElement)
-    if configObj and SavedState[savedKey] then
-        configObj.Enabled = true
-        if uiElement and uiElement.Set then uiElement:Set(true) end
-    end
-end
-
 -- ==========================================
--- CONEXIÓN UI (Usando argumentos posicionales)
+-- CONEXIÓN UI (SIN RESTORE TOGGLES)
 -- ==========================================
 
 TabMain:AddButton(L("rejoin"), function()
@@ -101,23 +108,20 @@ TabMain:AddDropdown(L("lang_sel"), {"en", "es"}, currentLang, function(val)
 end)
 
 if CombC then
-    local t = TabCombat:AddToggle(L("auto_combat"), false, function(state) CombC.Enabled = state end)
-    restoreToggle(CombC, "AutoCombat", t)
+    TabCombat:AddToggle(L("auto_combat"), false, function(state) CombC.Enabled = state end)
     TabCombat:AddSlider(L("m1_delay"), 0.1, 1.0, CombC.M1Delay or 0.3, function(val) CombC.M1Delay = val end, 0.1)
 end
 
 local hitboxSlider = nil
 if HitC then
-    local t = TabCombat:AddToggle(L("hitbox"), false, function(state) HitC.Enabled = state end)
-    restoreToggle(HitC, "Hitbox", t)
+    TabCombat:AddToggle(L("hitbox"), false, function(state) HitC.Enabled = state end)
     hitboxSlider = TabCombat:AddSlider(L("hitbox_size"), 35, 500, 35, function(val) HitC.Size = val end, 1)
     if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = false end
 end
 
 if AttackAllC then
     TabCombat:AddSection(L("attack_all"))
-    local t = TabCombat:AddToggle(L("attack_all"), false, function(state) AttackAllC.Enabled = state end)
-    restoreToggle(AttackAllC, "AttackAll", t)
+    TabCombat:AddToggle(L("attack_all"), false, function(state) AttackAllC.Enabled = state end)
     TabCombat:AddDropdown(L("select_element"), SharedElements, AttackAllC.SelectedElement, function(val) AttackAllC.SelectedElement = val end)
     TabCombat:AddInfo(L("attack_all_warn"))
 end
@@ -130,16 +134,14 @@ if TouchTPC then
 end
 
 if EspC then
-    local t1 = TabVisual:AddToggle(L("esp"), false, function(state) EspC.Enabled = state end)
-    restoreToggle(EspC, "ESP", t1)
+    TabVisual:AddToggle(L("esp"), false, function(state) EspC.Enabled = state end)
     TabVisual:AddToggle(L("boxes"), EspC.Boxes, function(state) EspC.Boxes = state end)
     TabVisual:AddToggle(L("tracers"), EspC.Tracers, function(state) EspC.Tracers = state end)
     TabVisual:AddToggle(L("health"), EspC.HealthBar, function(state) EspC.HealthBar = state end)
 end
 
 if MoveC then
-    local t = TabMovement:AddToggle(L("speed"), false, function(state) MoveC.SpeedEnabled = state end)
-    restoreToggle(MoveC, "Speed", t)
+    TabMovement:AddToggle(L("speed"), false, function(state) MoveC.SpeedEnabled = state end)
     TabMovement:AddSlider(L("speed_val"), 16, 200, MoveC.Speed or 60, function(val) MoveC.Speed = val end, 1)
     TabMovement:AddToggle(L("jump"), MoveC.JumpEnabled, function(state) MoveC.JumpEnabled = state end)
     TabMovement:AddSlider(L("jump_val"), 50, 300, MoveC.JumpPower or 100, function(val) MoveC.JumpPower = val end, 1)
@@ -147,34 +149,29 @@ end
 
 if FarmC then
     TabFarm:AddSection("AUTO FARM")
-    local t = TabFarm:AddToggle(L("farm_players"), false, function(state) FarmC.Enabled = state end)
-    restoreToggle(FarmC, "Farm", t)
+    TabFarm:AddToggle(L("farm_players"), false, function(state) FarmC.Enabled = state end)
     TabFarm:AddInfo(L("farm_desc"))
 end
 
 if SilentCollectC then
     TabConfig:AddSection("UTILIDADES")
-    local t = TabConfig:AddToggle(L("silent_collect"), true, function(state) SilentCollectC.Enabled = state end)
-    restoreToggle(SilentCollectC, "SilentCollect", t)
+    TabConfig:AddToggle(L("silent_collect"), false, function(state) SilentCollectC.Enabled = state end)
 end
 
 if HopC then
     TabConfig:AddSection("SEGURIDAD DE SESIÓN")
-    local t = TabConfig:AddToggle("AUTO SERVER HOP", false, function(state) HopC.Enabled = state end)
-    restoreToggle(HopC, "ServerHop", t)
+    TabConfig:AddToggle("AUTO SERVER HOP", false, function(state) HopC.Enabled = state end)
     TabConfig:AddSlider("TIEMPO (MIN)", 5, 60, 20, function(val) HopC.HopTime = val * 60 end, 1)
 end
 
 if NoRobuxC then
     TabConfig:AddSection("SEGURIDAD EXTRA")
-    local t = TabConfig:AddToggle(L("no_robux"), true, function(state) NoRobuxC.Enabled = state end)
-    restoreToggle(NoRobuxC, "NoRobux", t)
+    TabConfig:AddToggle(L("no_robux"), true, function(state) NoRobuxC.Enabled = state end)
     TabConfig:AddInfo(L("no_robux_desc"))
 end
 
 if NoPopUpsC then
-    local t = TabConfig:AddToggle(L("no_popups"), true, function(state) NoPopUpsC.Enabled = state end)
-    restoreToggle(NoPopUpsC, "NoPopUps", t)
+    TabConfig:AddToggle(L("no_popups"), true, function(state) NoPopUpsC.Enabled = state end)
     TabConfig:AddInfo(L("no_popups_desc"))
 end
 
