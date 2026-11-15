@@ -1349,7 +1349,7 @@ local function crystalShape(maid, win)
 		local cols = { C.Hi, C.Pink, C.Lav, C.Pink, C.Hi }
 		fillShape(edge, crystalOutline(W, H), 3, function(q)
 			local f = math.clamp(q, 0, 1) * (#cols - 1)
-			local i = math.min(#cols - 1, math.floor(f))
+			local i = math.min(#cols - 2, math.floor(f))
 			return cols[i + 1]:Lerp(cols[i + 2], f - i)
 		end, H, PAD, PAD)
 		fillShape(holder, bowPoly(e, e, W - e, H - e, d), 3, function(q)
