@@ -2,18 +2,15 @@
     design.lua  |  "Deep Blue Hub" (Crystal & Electric Edition)
     - Optimizado para móviles (Cero RenderStepped, solo TweenService).
     - Formato Rectángulo Ancho (620x380 por defecto).
-    - Incluye todos los componentes funcionales (Toggle, Slider, Dropdown, etc.).
-    - Logo: Si pasas "Logo" en CreateWindow lo usa. Si no, dibuja una cola de ballena estilizada.
+    - Con ClipsDescendants activado para evitar que los cuadros negros se salgan del panel.
 ]]
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("UserInputService") -- Fix typo en el original: GetService("TweenService")
-local UIS = game:GetService("UserInputService")
-local GuiService = game:GetService("GuiService")
-
 local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+
 local rng = Random.new()
-local UI_Library = { Version = "6.0.0" }
+local UI_Library = { Version = "6.1.0" }
 
 -- ==========================================
 -- PALETA DE COLORES (DEEP OCEAN / CRYSTAL)
@@ -89,7 +86,6 @@ local function BuildLogo(parent, size, pos, anchor)
         BackgroundTransparency = 1,
     }, parent)
     
-    -- Forma simplificada de la cola de ballena
     local parts = {
         { 0.1, 0.4, 0.5, 0.6, 0, C.Cyan },
         { 0.4, 0.1, 0.3, 0.4, 25, C.Cyan },
@@ -280,9 +276,16 @@ function UI_Library.CreateWindow(cfg)
     if not gui.Parent then gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
     Window.Gui = gui
     
-    -- Main Frame (RECTÁNGULO ANCHO)
+    -- Main Frame (RECTÁNGULO ANCHO) + CLIPS
     local W, H = 620, 380
-    local main = New("Frame", { AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.fromScale(0.5,0.5), Size = UDim2.fromOffset(W, H), BackgroundColor3 = C.BG_Panel, BorderSizePixel = 0 }, gui)
+    local main = New("Frame", { 
+        AnchorPoint = Vector2.new(0.5,0.5), 
+        Position = UDim2.fromScale(0.5,0.5), 
+        Size = UDim2.fromOffset(W, H), 
+        BackgroundColor3 = C.BG_Panel, 
+        BorderSizePixel = 0,
+        ClipsDescendants = true -- 🔥 CORTA LO QUE SE SALGA
+    }, gui)
     Corner(main, 12)
     local mainStroke = Stroke(main, C.Electric, 2, 0)
     Grad(mainStroke, ColorSequence.new(C.Electric, C.Blue))
@@ -306,12 +309,28 @@ function UI_Library.CreateWindow(cfg)
     closeBtn.MouseButton1Click:Connect(function() Window:Destroy() end)
     
     -- Body
-    local side = New("Frame", { Position = UDim2.fromOffset(16,60), Size = UDim2.fromOffset(130, H-76), BackgroundColor3 = C.BG_Dark, BackgroundTransparency = 0.3, BorderSizePixel = 0, Parent = main })
+    local side = New("Frame", { 
+        Position = UDim2.fromOffset(16,60), 
+        Size = UDim2.fromOffset(130, H-76), 
+        BackgroundColor3 = C.BG_Dark, 
+        BackgroundTransparency = 0.3, 
+        BorderSizePixel = 0, 
+        Parent = main,
+        ClipsDescendants = true -- 🔥 CORTA LO QUE SE SALGA
+    })
     Corner(side, 8)
     Stroke(side, C.Electric, 1, 0.8)
     New("UIListLayout", { Padding = UDim.new(0,6), Parent = side })
     
-    local content = New("Frame", { Position = UDim2.fromOffset(154,60), Size = UDim2.new(1,-170,H-76), BackgroundColor3 = C.BG_Dark, BackgroundTransparency = 0.5, BorderSizePixel = 0, Parent = main })
+    local content = New("Frame", { 
+        Position = UDim2.fromOffset(154,60), 
+        Size = UDim2.new(1,-170,H-76), 
+        BackgroundColor3 = C.BG_Dark, 
+        BackgroundTransparency = 0.5, 
+        BorderSizePixel = 0, 
+        Parent = main,
+        ClipsDescendants = true -- 🔥 CORTA LO QUE SE SALGA
+    })
     Corner(content, 8)
     
     -- Drag
@@ -344,7 +363,16 @@ function UI_Library.CreateWindow(cfg)
         Corner(btn, 6)
         btn.MouseButton1Click:Connect(function() Window:_Select(t) end)
         
-        local page = New("ScrollingFrame", { Size = UDim2.fromScale(1,1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 2, ScrollBarImageColor3 = C.Electric, Visible = false, Parent = content })
+        local page = New("ScrollingFrame", { 
+            Size = UDim2.fromScale(1,1), 
+            BackgroundTransparency = 1, 
+            BorderSizePixel = 0, 
+            ScrollBarThickness = 2, 
+            ScrollBarImageColor3 = C.Electric, 
+            Visible = false, 
+            Parent = content,
+            VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar -- 🔥 Para que el scroll no tape los botones
+        })
         New("UIListLayout", { Padding = UDim.new(0,8), SortOrder = Enum.SortOrder.LayoutOrder }, page)
         New("UIPadding", { PaddingTop = UDim.new(0,10), PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingBottom = UDim.new(0,10) }, page)
         
