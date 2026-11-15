@@ -59,6 +59,7 @@ local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua?v=" .. os.time()))()
 env.BF_UI_LIBRARY = UI_Library
 
 local savedTheme = SavedState.Theme or "crystal"
+UI_Library.Intro = false
 local Window = UI_Library.CreateWindow({ 
     Title = L("title"), 
     Subtitle = L("subtitle"), 
