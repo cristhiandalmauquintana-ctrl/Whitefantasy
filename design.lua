@@ -2440,8 +2440,12 @@ end
 -- Espera (yield) a que termine la intro del logo. Util en tu Main antes de
 -- cargar modulos que destruyen GUIs (NoPopUps, etc.).
 function Window:WaitIntro()
-	while self._intro and not self.Destroyed do
+	local t0 = os.clock()
+	while self._intro and not self.Destroyed and os.clock() - t0 < 14 do
 		task.wait(0.1)
+	end
+	if self._intro then
+		warn("[DeepBlueHub] WaitIntro: la intro tardo demasiado, se continua igual")
 	end
 end
 
