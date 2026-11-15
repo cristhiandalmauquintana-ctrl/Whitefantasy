@@ -1,4 +1,4 @@
---// TrueMain.lua - DEEP BLUE HUB (Elemental Magic Arena - V5.0 Deep Ocean)
+--// TrueMain.lua - DEEP BLUE HUB (V5.2 - Crystal API Fix)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -9,15 +9,11 @@ local LocalPlayer = Players.LocalPlayer
 local HttpService = game:GetService("HttpService")
 local env = (getgenv and getgenv()) or _G
 
--- 🛑 CANDADO ANTI-DOBLE EJECUCIÓN
 if env.BF_CURRENT_UI then
     pcall(function() env.BF_CURRENT_UI:Destroy() end)
     env.BF_CURRENT_UI = nil
 end
 
--- ==========================================
--- 1. SISTEMA DE PERSISTENCIA
--- ==========================================
 local SavedState = {}
 if isfile and readfile then
     local ok, data = pcall(function() return readfile("DeepBlueConfig.json") end)
@@ -27,144 +23,45 @@ if isfile and readfile then
     end
 end
 
--- ==========================================
--- 2. SISTEMA DE IDIOMAS (5 IDIOMAS)
--- ==========================================
 local Translations = {
-    ["es"] = {
-        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
-        tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_tourney = "TORNEO", tab_config = "CONFIG",
-        rejoin = "RECONECTAR SERVIDOR", lang_sel = "CAMBIAR IDIOMA", lang_desc = "Selecciona un idioma y vuelve a ejecutar.",
-        auto_combat = "AUTO COMBAT (M1)", m1_delay = "RETRASO M1", hitbox = "HITBOX EXPANDER", hitbox_size = "TAMAÑO HITBOX",
-        attack_all = "ATTACK ALL (AUTO)", attack_all_warn = "¡IMPORTANTE! Attack All teletransporta el arma al enemigo sin M1.", select_element = "SELECCIONA ELEMENTO",
-        esp = "ESP JUGADORES", boxes = "CAJAS 2D", tracers = "TRACERS", health = "BARRA DE VIDA",
-        speed = "SPEED HACK", speed_val = "VELOCIDAD", jump = "SUPER JUMP", jump_val = "ALTURA SALTO",
-        farm_players = "AUTO FARM", farm_desc = "Usa el Dropdown para elegir el elemento.", touch_tp = "TOUCH TP (TOOL)",
-        tourney_desc = "Persigue al enemigo 10 studs atrás.", silent_collect = "AUTO-RECOLECCIÓN SILENCIOSA",
-        no_robux = "BLOQUEAR COMPRAS DE ROBUX", no_robux_desc = "Evita que la espada abra tiendas.", no_popups = "BLOQUEAR VENTANAS", no_popups_desc = "Destruye menús del juego.",
-        dev_zone = "ZONA DE DESARROLLADOR", pass = "CONTRASEÑA", unlock = "DESBLOQUEAR", destroy_ui = "DESTRUIR UI"
-    },
-    ["en"] = {
-        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
-        tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_tourney = "TOURNAMENT", tab_config = "CONFIG",
-        rejoin = "REJOIN SERVER", lang_sel = "CHANGE LANGUAGE", lang_desc = "Select a language and re-execute.",
-        auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY", hitbox = "HITBOX EXPANDER", hitbox_size = "HITBOX SIZE",
-        attack_all = "ATTACK ALL (AUTO)", attack_all_warn = "IMPORTANT! Attack All teleports your weapon to the enemy without M1.", select_element = "SELECT ELEMENT",
-        esp = "PLAYER ESP", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
-        speed = "SPEED HACK", speed_val = "SPEED", jump = "SUPER JUMP", jump_val = "JUMP POWER",
-        farm_players = "AUTO FARM", farm_desc = "Use the Dropdown to select the element.", touch_tp = "TOUCH TP (TOOL)",
-        tourney_desc = "Stalks the enemy 10 studs behind.", silent_collect = "SILENT AUTO-COLLECT",
-        no_robux = "BLOCK ROBUX PURCHASES", no_robux_desc = "Prevents the sword from opening shops.", no_popups = "BLOCK POP-UPS", no_popups_desc = "Destroys game menus.",
-        dev_zone = "DEVELOPER ZONE", pass = "PASSWORD", unlock = "UNLOCK", destroy_ui = "DESTROY UI"
-    },
-    ["fil"] = {
-        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
-        tab_main = "PANGUNAHIN", tab_combat = "LABANAN", tab_visual = "BISWAL", tab_movement = "GALAW", tab_farm = "AUTO FARM", tab_tourney = "TOURNAMENT", tab_config = "KONFIG",
-        rejoin = "SUMALI ULIT", lang_sel = "PALITAN ANG WIKA", lang_desc = "Pumili ng wika at i-execute ulit.",
-        auto_combat = "AUTO COMBAT (M1)", m1_delay = "M1 DELAY", hitbox = "HITBOX EXPANDER", hitbox_size = "LAKI NG HITBOX",
-        attack_all = "ATTACK ALL (AUTO)", attack_all_warn = "MAHALAGA! Attack All nag-te-teleport ng sandata sa kalaban.", select_element = "PUMILI NG ELEMENTO",
-        esp = "ESP NG PLAYERS", boxes = "2D BOXES", tracers = "TRACERS", health = "HEALTH BAR",
-        speed = "SPEED HACK", speed_val = "BILIS", jump = "SUPER JUMP", jump_val = "TAAS NG TALON",
-        farm_players = "AUTO FARM", farm_desc = "Gamitin ang Dropdown para pumili ng elemento.", touch_tp = "TOUCH TP (TOOL)",
-        tourney_desc = "Sinusundan ang kalaban 10 studs sa likod.", silent_collect = "SILENT AUTO-COLLECT",
-        no_robux = "I-BLOCK ANG ROBUX", no_robux_desc = "Pigilan ang pagbukas ng shop.", no_popups = "I-BLOCK ANG POP-UPS", no_popups_desc = "Sinisirain ang mga menu.",
-        dev_zone = "DEV ZONE", pass = "PASSWORD", unlock = "I-UNLOCK", destroy_ui = "IRISAN ANG UI"
-    },
-    ["vi"] = {
-        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
-        tab_main = "CHÍNH", tab_combat = "CHIẾN ĐẤU", tab_visual = "HÌNH ẢNH", tab_movement = "DI CHUYỂN", tab_farm = "AUTO FARM", tab_tourney = "GIẢI ĐẤU", tab_config = "CÀI ĐẶT",
-        rejoin = "VÀO LẠI SERVER", lang_sel = "ĐỔI NGÔN NGỮ", lang_desc = "Chọn ngôn ngữ và chạy lại script.",
-        auto_combat = "AUTO COMBAT (M1)", m1_delay = "ĐỘ TRỄ M1", hitbox = "MỞ RỘNG HITBOX", hitbox_size = "KÍCH THƯỚC HITBOX",
-        attack_all = "TẤN CÔNG TẤT CẢ", attack_all_warn = "QUAN TRỌNG! Tự động dịch chuyển vũ khí đến kẻ địch.", select_element = "CHỌN NGUYÊN TỐ",
-        esp = "ESP NGƯỜI CHƠI", boxes = "HỘP 2D", tracers = "ĐƯỜNG KẺ", health = "THANH MÁU",
-        speed = "TỐC ĐỘ", speed_val = "TỐC ĐỘ CHẠY", jump = "NHẢY CAO", jump_val = "LỰC NHẢY",
-        farm_players = "AUTO FARM", farm_desc = "Sử dụng Dropdown để chọn nguyên tố.", touch_tp = "TOUCH TP (TOOL)",
-        tourney_desc = "Theo dõi kẻ địch từ phía sau.", silent_collect = "THU THẬP TỰ ĐỘNG",
-        no_robux = "CHẶN MUA ROBUX", no_robux_desc = "Ngăn chặn cửa hàng mở ra.", no_popups = "CHẶN POP-UPS", no_popups_desc = "Phá hủy menu trò chơi.",
-        dev_zone = "KHU VỰC DEV", pass = "MẬT KHẨU", unlock = "MỞ KHÓA", destroy_ui = "PHÁ HỦY UI"
-    },
-    ["ru"] = {
-        title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION",
-        tab_main = "ГЛАВНАЯ", tab_combat = "БОЙ", tab_visual = "ВИЗУАЛ", tab_movement = "ДВИЖЕНИЕ", tab_farm = "АВТОФАРМ", tab_tourney = "ТУРНИР", tab_config = "НАСТРОЙКИ",
-        rejoin = "ПЕРЕЗАЙТИ НА СЕРВЕР", lang_sel = "СМЕНИТЬ ЯЗЫК", lang_desc = "Выберите язык и перезапустите скрипт.",
-        auto_combat = "АВТОБОЙ (M1)", m1_delay = "ЗАДЕРЖКА M1", hitbox = "РАСШИРИТЕЛЬ ХИТБОКСА", hitbox_size = "РАЗМЕР ХИТБОКСА",
-        attack_all = "АТАКА ВСЕХ", attack_all_warn = "ВАЖНО! Автоматически телепортирует оружие к врагу.", select_element = "ВЫБЕРИТЕ ЭЛЕМЕНТ",
-        esp = "ESP ИГРОКОВ", boxes = "2D БОКСЫ", tracers = "ТРАССЕРЫ", health = "ПОЛОСА ЗДОРОВЬЯ",
-        speed = "СПИДХАК", speed_val = "СКОРОСТЬ", jump = "СУПЕР ПРЫЖОК", jump_val = "СИЛА ПРЫЖКА",
-        farm_players = "АВТОФАРМ", farm_desc = "Используйте Dropdown, чтобы выбрать элемент.", touch_tp = "TOUCH TP (TOOL)",
-        tourney_desc = "Преследует врага в 10 стадах позади.", silent_collect = "ТИХИЙ СБОР",
-        no_robux = "БЛОКИРОВАТЬ ПОКУПКИ ROBUX", no_robux_desc = "Не дает мечу открывать магазины.", no_popups = "БЛОКИРОВАТЬ ОКНА", no_popups_desc = "Уничтожает меню игры.",
-        dev_zone = "ЗОНА РАЗРАБОТЧИКА", pass = "ПАРОЛЬ", unlock = "РАЗБЛОКИРОВАТЬ", destroy_ui = "УНИЧТОЖИТЬ UI"
-    }
+    ["es"] = { title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION", tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_config = "CONFIG", rejoin = "RECONECTAR", lang_sel = "IDIOMA", lang_desc = "Selecciona idioma.", auto_combat = "AUTO COMBAT", m1_delay = "RETRASO M1", hitbox = "HITBOX", hitbox_size = "TAMAÑO", attack_all = "ATTACK ALL", attack_all_warn = "Auto ataque.", select_element = "ELEMENTO", esp = "ESP", boxes = "CAJAS", tracers = "TRACERS", health = "VIDA", speed = "SPEED", speed_val = "VELOCIDAD", jump = "JUMP", jump_val = "SALTO", farm_players = "FARM", farm_desc = "Elige elemento.", touch_tp = "TOUCH TP", tourney_desc = "PvP.", silent_collect = "SILENT COLLECT", no_robux = "NO ROBUX", no_robux_desc = "Bloquea tiendas.", no_popups = "NO POPUPS", no_popups_desc = "Bloquea ventanas.", dev_zone = "DEV ZONE", pass = "CLAVE", unlock = "DESBLOQUEAR", destroy_ui = "DESTRUIR UI" },
+    ["en"] = { title = "DEEP BLUE HUB", subtitle = "DEEP OCEAN EDITION", tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_config = "CONFIG", rejoin = "REJOIN", lang_sel = "LANGUAGE", lang_desc = "Select language.", auto_combat = "AUTO COMBAT", m1_delay = "M1 DELAY", hitbox = "HITBOX", hitbox_size = "SIZE", attack_all = "ATTACK ALL", attack_all_warn = "Auto attack.", select_element = "ELEMENT", esp = "ESP", boxes = "BOXES", tracers = "TRACERS", health = "HEALTH", speed = "SPEED", speed_val = "SPEED", jump = "JUMP", jump_val = "JUMP", farm_players = "FARM", farm_desc = "Select element.", touch_tp = "TOUCH TP", tourney_desc = "PvP.", silent_collect = "SILENT COLLECT", no_robux = "NO ROBUX", no_robux_desc = "Blocks shops.", no_popups = "NO POPUPS", no_popups_desc = "Blocks menus.", dev_zone = "DEV ZONE", pass = "PASS", unlock = "UNLOCK", destroy_ui = "DESTROY UI" }
 }
 
-local langOrder = {"en", "es", "fil", "vi", "ru"}
 local currentLang = "en"
-
-if isfile and readfile then
-    local ok, savedLang = pcall(function() return readfile("DeepBlueLang.txt") end)
-    if ok and Translations[savedLang] then currentLang = savedLang end
-else
-    pcall(function()
-        local id = LocalPlayer.LocaleId:lower()
-        if id:find("es") then currentLang = "es"
-        elseif id:find("fil") or id:find("tl") then currentLang = "fil"
-        elseif id:find("vi") then currentLang = "vi"
-        elseif id:find("ru") then currentLang = "ru" end
-    end)
-end
-
 local function L(key) return Translations[currentLang][key] or Translations["en"][key] or key end
 
-local SharedElements = {
-    "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", 
-    "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", 
-    "aurora", "fenix", "caos", "tecnología", "diamante", "amor", "demon", 
-    "ilusion", "campos de fuerza", "relampago", "telequinesis", "life", "mirror", 
-    "time", "sueño", "creacion", "espacio", "realidad", "dios de elementos"
-}
+local SharedElements = { "energy", "luz", "fuego", "agua", "hielo", "tierra", "aire", "oscuridad", "lava", "veneno", "hierro", "espiritu", "destruccion", "cristal", "sonido", "aurora", "fenix", "caos", "tecnología", "diamante", "amor", "demon", "ilusion", "campos de fuerza", "relampago", "telequinesis", "life", "mirror", "time", "sueño", "creacion", "espacio", "realidad", "dios de elementos" }
 
--- ==========================================
--- 3. CARGAMOS DISEÑO Y ASSETS (DEEP BLUE)
--- ==========================================
-print("[Deep Blue] Cargando interfaz...")
+print("[Deep Blue] Iniciando carga de UI...")
 local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua?v=" .. os.time()))()
 local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua?v=" .. os.time()))()
 
-env.BF_UI_LIBRARY = UI_Library 
-env.BF_ASSETS_LIBRARY = Assets
-
 local savedTheme = SavedState.Theme or "ocean"
-
-local Window = UI_Library.CreateWindow({ 
-    Title = L("title"), 
-    Subtitle = L("subtitle"),
-    Theme = savedTheme
-})
+local Window = UI_Library.CreateWindow({ Title = L("title"), Subtitle = L("subtitle"), Theme = savedTheme })
 env.BF_CURRENT_UI = Window
-Assets.Extend(Window)
+
+if Assets and type(Assets.Extend) == "function" then
+    Assets.Extend(Window)
+end
 
 local TabMain = Window:CreateTab(L("tab_main"))
 local TabCombat = Window:CreateTab(L("tab_combat"))
 local TabVisual = Window:CreateTab(L("tab_visual"))
 local TabMovement = Window:CreateTab(L("tab_movement"))
 local TabFarm = Window:CreateTab(L("tab_farm"))
-local TabTourney = Window:CreateTab(L("tab_tourney"))
 local TabConfig = Window:CreateTab(L("tab_config"))
 
--- ==========================================
--- 4. DESCARGA DE MÓDULOS (CON OS.TIME)
--- ==========================================
 local folder = "ElementalMagicArena/"
 
 local function download(name, key)
     local url = ROOT .. folder .. name .. "?v=" .. os.time()
     local ok, res = pcall(game.HttpGet, game, url)
-    if ok and type(res) == "string" and #res > 0 and res:sub(1,3) ~= "404" then
+    if ok and type(res) == "string" and #res > 10 and res:sub(1,3) ~= "404" then
         local fnOk, fn = pcall(loadstring, res)
         if fnOk and type(fn) == "function" then pcall(fn) end
     else
-        warn("❌ Could not download " .. name)
+        warn("❌ Fallo al descargar: " .. name)
     end
     task.wait(0.1)
     return env[key] or _G[key]
@@ -182,166 +79,138 @@ local TouchTPC = download("TouchTp.lua", "BF_TOUCHTP_CONFIG")
 local NoRobuxC = download("NoRobux.lua", "BF_NOROBUX_CONFIG")
 local NoPopUpsC = download("NoPopUps.lua", "BF_NOPOPUPS_CONFIG")
 
--- ==========================================
--- 5. CONEXIÓN UI Y RESTAURACIÓN DE ESTADO
--- ==========================================
 local function restoreToggle(configObj, savedKey, uiElement)
     if configObj and SavedState[savedKey] then
         configObj.Enabled = true
-        if uiElement and uiElement.Set then 
-            uiElement:Set(true, true) 
-        end
+        if uiElement and uiElement.Set then uiElement:Set(true) end
     end
 end
 
--- === MAIN ===
-TabMain:AddButton(L("rejoin"), function()
+-- ==========================================
+-- CONEXIÓN UI (Usando el formato de tabla de Claude)
+-- ==========================================
+
+TabMain:AddButton({ Name = L("rejoin"), Callback = function()
     game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
-end)
+end })
 
-TabMain:AddSection(L("lang_sel"))
-TabMain:AddDropdown(L("lang_sel"), langOrder, currentLang, function(val)
-    if writefile then pcall(function() writefile("DeepBlueLang.txt", val) end) end
-    Window:Notify({Title = "Language", Content = L("lang_desc"), Type = "info", Duration = 5})
-end)
+TabMain:AddSection({ Name = L("lang_sel") })
+TabMain:AddDropdown({ 
+    Name = L("lang_sel"), 
+    Options = {"en", "es"}, 
+    Default = currentLang, 
+    Callback = function(val)
+        if writefile then pcall(function() writefile("DeepBlueLang.txt", val) end) end
+        Window:Notify({Title = "Language", Content = L("lang_desc"), Type = "Info", Duration = 5})
+    end 
+})
 
--- === COMBAT ===
 if CombC then
-    local t = TabCombat:AddToggle(L("auto_combat"), false, function(state) CombC.Enabled = state end)
+    local t = TabCombat:AddToggle({ Name = L("auto_combat"), Default = false, Callback = function(state) CombC.Enabled = state end })
     restoreToggle(CombC, "AutoCombat", t)
-    TabCombat:AddSlider(L("m1_delay"), 0.1, 1.0, CombC.M1Delay or 0.3, function(val) CombC.M1Delay = val end)
+    TabCombat:AddSlider({ 
+        Name = L("m1_delay"), Min = 0.1, Max = 1.0, Default = CombC.M1Delay or 0.3, Increment = 0.1, 
+        Callback = function(val) CombC.M1Delay = val end 
+    })
 end
 
 local hitboxSlider = nil
 if HitC then
-    local t = TabCombat:AddToggle(L("hitbox"), false, function(state) HitC.Enabled = state end)
+    local t = TabCombat:AddToggle({ Name = L("hitbox"), Default = false, Callback = function(state) HitC.Enabled = state end })
     restoreToggle(HitC, "Hitbox", t)
-    hitboxSlider = TabCombat:AddSlider(L("hitbox_size"), 35, 500, 35, function(val) HitC.Size = val end)
-    if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Visible = false end
+    hitboxSlider = TabCombat:AddSlider({ 
+        Name = L("hitbox_size"), Min = 35, Max = 500, Default = 35, Increment = 1, 
+        Callback = function(val) HitC.Size = val end 
+    })
+    if hitboxSlider and hitboxSlider.Frame then hitboxSlider.Frame.Visible = false end
 end
 
 if AttackAllC then
-    TabCombat:AddSection(L("attack_all"))
-    local t = TabCombat:AddToggle(L("attack_all"), false, function(state) AttackAllC.Enabled = state end)
+    TabCombat:AddSection({ Name = L("attack_all") })
+    local t = TabCombat:AddToggle({ Name = L("attack_all"), Default = false, Callback = function(state) AttackAllC.Enabled = state end })
     restoreToggle(AttackAllC, "AttackAll", t)
-    
-    TabCombat:AddDropdown(L("select_element"), SharedElements, AttackAllC.SelectedElement, function(val)
-        AttackAllC.SelectedElement = val
-        if Window.Notify then Window:Notify({Title = "Element", Content = val, Type = "success"}) end
-    end)
-    TabCombat:AddInfo(L("attack_all_warn"))
+    TabCombat:AddDropdown({ 
+        Name = L("select_element"), Options = SharedElements, Default = AttackAllC.SelectedElement, 
+        Callback = function(val) AttackAllC.SelectedElement = val end 
+    })
+    TabCombat:AddInfo({ Title = "Info", Content = L("attack_all_warn") })
 end
 
--- Módulo Touch TP
 if TouchTPC then
-    TabCombat:AddSection("UTILIDADES MÓVILES")
-    TabCombat:AddToggle(L("touch_tp"), false, function(state)
-        if TouchTPC.SetEnabled then
-            TouchTPC.SetEnabled(state)
-            if state and Window.Notify then 
-                Window:Notify({Title = "Touch TP", Content = "Botón flotante creado.", Type = "success"}) 
-            end
-        end
-    end)
+    TabCombat:AddSection({ Name = "UTILIDADES MÓVILES" })
+    TabCombat:AddToggle({ Name = L("touch_tp"), Default = false, Callback = function(state)
+        if TouchTPC.SetEnabled then TouchTPC.SetEnabled(state) end
+    end })
 end
 
--- === VISUAL ===
 if EspC then
-    local t1 = TabVisual:AddToggle(L("esp"), false, function(state) EspC.Enabled = state end)
+    local t1 = TabVisual:AddToggle({ Name = L("esp"), Default = false, Callback = function(state) EspC.Enabled = state end })
     restoreToggle(EspC, "ESP", t1)
-    TabVisual:AddToggle(L("boxes"), EspC.Boxes, function(state) EspC.Boxes = state end)
-    TabVisual:AddToggle(L("tracers"), EspC.Tracers, function(state) EspC.Tracers = state end)
-    TabVisual:AddToggle(L("health"), EspC.HealthBar, function(state) EspC.HealthBar = state end)
+    TabVisual:AddToggle({ Name = L("boxes"), Default = EspC.Boxes, Callback = function(state) EspC.Boxes = state end })
+    TabVisual:AddToggle({ Name = L("tracers"), Default = EspC.Tracers, Callback = function(state) EspC.Tracers = state end })
+    TabVisual:AddToggle({ Name = L("health"), Default = EspC.HealthBar, Callback = function(state) EspC.HealthBar = state end })
 end
 
--- === MOVEMENT ===
 if MoveC then
-    local t = TabMovement:AddToggle(L("speed"), false, function(state) MoveC.SpeedEnabled = state end)
+    local t = TabMovement:AddToggle({ Name = L("speed"), Default = false, Callback = function(state) MoveC.SpeedEnabled = state end })
     restoreToggle(MoveC, "Speed", t)
-    TabMovement:AddSlider(L("speed_val"), 16, 200, MoveC.Speed or 60, function(val) MoveC.Speed = val end)
-    
-    TabMovement:AddToggle(L("jump"), MoveC.JumpEnabled, function(state) MoveC.JumpEnabled = state end)
-    TabMovement:AddSlider(L("jump_val"), 50, 300, MoveC.JumpPower or 100, function(val) MoveC.JumpPower = val end)
+    TabMovement:AddSlider({ 
+        Name = L("speed_val"), Min = 16, Max = 200, Default = MoveC.Speed or 60, Increment = 1, 
+        Callback = function(val) MoveC.Speed = val end 
+    })
+    TabMovement:AddToggle({ Name = L("jump"), Default = MoveC.JumpEnabled, Callback = function(state) MoveC.JumpEnabled = state end })
+    TabMovement:AddSlider({ 
+        Name = L("jump_val"), Min = 50, Max = 300, Default = MoveC.JumpPower or 100, Increment = 1, 
+        Callback = function(val) MoveC.JumpPower = val end 
+    })
 end
 
--- === AUTO FARM ===
 if FarmC then
-    TabFarm:AddSection("AUTO FARM")
-    local t = TabFarm:AddToggle(L("farm_players"), false, function(state)
-        FarmC.Enabled = state
-        if state then 
-            if Window.Notify then Window:Notify({Title = "Farm", Content = "Iniciando Farm...", Type = "success"}) end
-        else 
-            if Window.Notify then Window:Notify({Title = "Farm", Content = "Farmeo Detenido.", Type = "warning"}) end
-        end
-    end)
+    TabFarm:AddSection({ Name = "AUTO FARM" })
+    local t = TabFarm:AddToggle({ Name = L("farm_players"), Default = false, Callback = function(state) FarmC.Enabled = state end })
     restoreToggle(FarmC, "Farm", t)
-    TabFarm:AddInfo(L("farm_desc"))
+    TabFarm:AddInfo({ Title = "Info", Content = L("farm_desc") })
 end
 
--- === TOURNEY ===
-if TourneyC then
-    TabTourney:AddSection("AUTO TOURNAMENT")
-    TabTourney:AddToggle("AUTO TOURNAMENT", false, function(state) TourneyC.Enabled = state end)
-    TabTourney:AddInfo(L("tourney_desc"))
-end
-
--- === CONFIG ===
 if SilentCollectC then
-    TabConfig:AddSection("UTILIDADES")
-    local t = TabConfig:AddToggle(L("silent_collect"), true, function(state) SilentCollectC.Enabled = state end)
+    TabConfig:AddSection({ Name = "UTILIDADES" })
+    local t = TabConfig:AddToggle({ Name = L("silent_collect"), Default = true, Callback = function(state) SilentCollectC.Enabled = state end })
     restoreToggle(SilentCollectC, "SilentCollect", t)
 end
 
--- El Server Hop de Claude
 if HopC then
-    TabConfig:AddSection("SEGURIDAD DE SESIÓN")
-    local t = TabConfig:AddToggle("AUTO SERVER HOP", false, function(state)
-        HopC.Enabled = state
-        if state and Window.Notify then Window:Notify({Title = "Server Hop", Content = "Temporizador activo.", Type = "success"}) end
-    end)
+    TabConfig:AddSection({ Name = "SEGURIDAD DE SESIÓN" })
+    local t = TabConfig:AddToggle({ Name = "AUTO SERVER HOP", Default = false, Callback = function(state) HopC.Enabled = state end })
     restoreToggle(HopC, "ServerHop", t)
-    TabConfig:AddSlider("TIEMPO EN SERVIDOR (MIN)", 5, 60, 20, function(val) HopC.HopTime = val * 60 end)
+    TabConfig:AddSlider({ 
+        Name = "TIEMPO (MIN)", Min = 5, Max = 60, Default = 20, Increment = 1, 
+        Callback = function(val) HopC.HopTime = val * 60 end 
+    })
 end
 
 if NoRobuxC then
-    TabConfig:AddSection("SEGURIDAD EXTRA")
-    local t = TabConfig:AddToggle(L("no_robux"), true, function(state) NoRobuxC.Enabled = state end)
+    TabConfig:AddSection({ Name = "SEGURIDAD EXTRA" })
+    local t = TabConfig:AddToggle({ Name = L("no_robux"), Default = true, Callback = function(state) NoRobuxC.Enabled = state end })
     restoreToggle(NoRobuxC, "NoRobux", t)
-    TabConfig:AddInfo(L("no_robux_desc"))
+    TabConfig:AddInfo({ Title = "Info", Content = L("no_robux_desc") })
 end
 
 if NoPopUpsC then
-    local t = TabConfig:AddToggle(L("no_popups"), true, function(state) NoPopUpsC.Enabled = state end)
+    local t = TabConfig:AddToggle({ Name = L("no_popups"), Default = true, Callback = function(state) NoPopUpsC.Enabled = state end })
     restoreToggle(NoPopUpsC, "NoPopUps", t)
-    TabConfig:AddInfo(L("no_popups_desc"))
+    TabConfig:AddInfo({ Title = "Info", Content = L("no_popups_desc") })
 end
 
-TabConfig:AddSection(L("dev_zone"))
-local passBox = TabConfig:AddTextbox(L("pass"), "", "...", function() end)
-local unlockBtn = TabConfig:AddButton(L("unlock"), function()
+TabConfig:AddSection({ Name = L("dev_zone") })
+local passBox = TabConfig:AddTextbox({ Name = L("pass"), Default = "", Placeholder = "..." })
+local unlockBtn = TabConfig:AddButton({ Name = L("unlock"), Callback = function()
     if passBox:Get() == "froggy_testing_2026" then
-        if Window.Notify then Window:Notify({Title = "OK", Content = L("dev_zone"), Type = "warning"}) end
-        passBox.Instance.Parent.Visible = false
-        if unlockBtn and unlockBtn.Instance then unlockBtn.Instance.Parent.Visible = false end
-        if hitboxSlider and hitboxSlider.Instance then hitboxSlider.Instance.Parent.Visible = true end
+        passBox.Frame.Parent.Visible = false
+        if unlockBtn and unlockBtn.Frame then unlockBtn.Frame.Parent.Visible = false end
+        if hitboxSlider and hitboxSlider.Frame then hitboxSlider.Frame.Visible = true end
     else
-        if Window.Notify then Window:Notify({Title = "Error", Content = "Wrong password", Type = "error"}) end
         passBox:Set("")
     end
-end)
+end })
 
-TabConfig:AddSection("UI & TEMA")
-local themes = {"ocean", "auto", "xmas", "fall", "pastel"}
-TabConfig:AddDropdown("TEMA", themes, savedTheme, function(val)
-    SavedState.Theme = val
-    if writefile then pcall(function() writefile("DeepBlueConfig.json", HttpService:JSONEncode(SavedState)) end) end
-    Window:Notify({Title = "Theme", Content = "Tema: "..val..". (Reinicia para aplicar)", Type = "info"})
-end)
-
-TabConfig:AddButton(L("destroy_ui"), function()
-    Window:Destroy()
-    if env.BF_CURRENT_UI == Window then env.BF_CURRENT_UI = nil end
-end)
-
-print("[Deep Blue] TrueMain cargado exitosamente.")
+TabConfig:AddButton({ Name = L("destroy_ui"), Callback = function() Window:Destroy() end })
