@@ -1,8 +1,8 @@
 --[[
     design.lua  |  "Deep Blue Hub" (Crystal & Electric Edition)
-    - Optimizado para móviles (Cero RenderStepped, solo TweenService).
-    - Formato Rectángulo Ancho (620x380 por defecto).
-    - Con ClipsDescendants activado para evitar que los cuadros negros se salgan del panel.
+    - Optimizado para móviles.
+    - Con funcionalidad de Minimizar (Icono flotante).
+    - Sin desbordamiento de bordes.
 ]]
 
 local Players = game:GetService("Players")
@@ -10,7 +10,7 @@ local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 
 local rng = Random.new()
-local UI_Library = { Version = "6.1.0" }
+local UI_Library = { Version = "6.2.0" }
 
 -- ==========================================
 -- PALETA DE COLORES (DEEP OCEAN / CRYSTAL)
@@ -284,7 +284,7 @@ function UI_Library.CreateWindow(cfg)
         Size = UDim2.fromOffset(W, H), 
         BackgroundColor3 = C.BG_Panel, 
         BorderSizePixel = 0,
-        ClipsDescendants = true -- 🔥 CORTA LO QUE SE SALGA
+        ClipsDescendants = true
     }, gui)
     Corner(main, 12)
     local mainStroke = Stroke(main, C.Electric, 2, 0)
@@ -304,9 +304,13 @@ function UI_Library.CreateWindow(cfg)
     New("TextLabel", { BackgroundTransparency = 1, Text = cfg.Title or "DEEP BLUE HUB", Font = FONT_TITLE, TextSize = 16, TextColor3 = C.White, Position = UDim2.fromOffset(56, 6), Size = UDim2.new(1,-100,0,20), TextXAlignment = Enum.TextXAlignment.Left, Parent = top })
     New("TextLabel", { BackgroundTransparency = 1, Text = cfg.Subtitle or "CRYSTAL EDITION", Font = FONT_BODY, TextSize = 11, TextColor3 = C.Cyan, Position = UDim2.fromOffset(56, 26), Size = UDim2.new(1,-100,0,14), TextXAlignment = Enum.TextXAlignment.Left, Parent = top })
     
-    local closeBtn = New("TextButton", { AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-16,0.5,0), Size = UDim2.fromOffset(28,28), BackgroundColor3 = C.BG_Dark, Text = "×", Font = FONT_TITLE, TextSize = 18, TextColor3 = C.Cyan, Parent = top })
+    -- Botón Minimizar
+    local minBtn = New("TextButton", { AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-50,0.5,0), Size = UDim2.fromOffset(28,28), BackgroundColor3 = C.BG_Dark, Text = "-", Font = FONT_TITLE, TextSize = 18, TextColor3 = C.Cyan, Parent = top })
+    Corner(minBtn, 6)
+    
+    -- Botón Cerrar
+    local closeBtn = New("TextButton", { AnchorPoint = Vector2.new(1,0.5), Position = UDim2.new(1,-16,0.5,0), Size = UDim2.fromOffset(28,28), BackgroundColor3 = C.BG_Dark, Text = "×", Font = FONT_TITLE, TextSize = 18, TextColor3 = C.Red, Parent = top })
     Corner(closeBtn, 6)
-    closeBtn.MouseButton1Click:Connect(function() Window:Destroy() end)
     
     -- Body
     local side = New("Frame", { 
@@ -316,7 +320,7 @@ function UI_Library.CreateWindow(cfg)
         BackgroundTransparency = 0.3, 
         BorderSizePixel = 0, 
         Parent = main,
-        ClipsDescendants = true -- 🔥 CORTA LO QUE SE SALGA
+        ClipsDescendants = true
     })
     Corner(side, 8)
     Stroke(side, C.Electric, 1, 0.8)
@@ -329,11 +333,11 @@ function UI_Library.CreateWindow(cfg)
         BackgroundTransparency = 0.5, 
         BorderSizePixel = 0, 
         Parent = main,
-        ClipsDescendants = true -- 🔥 CORTA LO QUE SE SALGA
+        ClipsDescendants = true
     })
     Corner(content, 8)
     
-    -- Drag
+    -- Drag Main
     local drag, dStart, dPos
     top.InputBegan:Connect(function(i)
         if IsPress(i) then drag, dStart, dPos = true, i.Position, main.Position
@@ -346,8 +350,70 @@ function UI_Library.CreateWindow(cfg)
             main.Position = UDim2.new(dPos.X.Scale, dPos.X.Offset + d.X, dPos.Y.Scale, dPos.Y.Offset + d.Y)
         end
     end)
+
+    -- ==========================================
+    -- ICONO FLOTANTE (MINIMIZADO)
+    -- ==========================================
+    local icon = New("Frame", { Name = "FloatingIcon", Size = UDim2.fromOffset(54, 54), Position = UDim2.fromOffset(20, 120), BackgroundColor3 = C.BG_Panel, BorderSizePixel = 0, Visible = false }, gui)
+    Corner(icon, 27)
+    Stroke(icon, C.Electric, 2)
+    local iconScale = New("UIScale", { Scale = 1 }, icon)
+    BuildLogo(icon, 34, UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5))
+
+    local minimized = false
+    local function setMinimized(state)
+        if state == minimized or Window.Destroyed then return end
+        minimized = state
+        if state then
+            local p = main.AbsolutePosition
+            local v = gui.AbsoluteSize
+            icon.Position = UDim2.fromOffset(math.clamp(p.X, 0, math.max(0, v.X - 54)), math.clamp(p.Y, 0, math.max(0, v.Y - 54)))
+            Tween(scale, 0.16, { Scale = 0.6 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+            task.delay(0.16, function()
+                if minimized and not Window.Destroyed then
+                    main.Visible = false
+                    iconScale.Scale = 0.3
+                    icon.Visible = true
+                    Tween(iconScale, 0.22, { Scale = 1 }, EASE_BACK)
+                end
+            end)
+        else
+            icon.Visible = false
+            main.Visible = true
+            scale.Scale = 0.6
+            Tween(scale, 0.22, { Scale = 1 }, EASE_BACK)
+        end
+    end
+
+    -- Drag Icon
+    local iDrag, iStart, iPos, iMoved
+    icon.InputBegan:Connect(function(i)
+        if IsPress(i) then
+            iDrag, iMoved, iStart, iPos = true, false, i.Position, icon.Position
+            i.Changed:Connect(function() 
+                if i.UserInputState == Enum.UserInputState.End then 
+                    iDrag = false
+                    if not iMoved then setMinimized(false) end
+                end
+            end)
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if iDrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - iStart
+            if d.Magnitude > 6 then iMoved = true end
+            if iMoved then icon.Position = UDim2.new(iPos.X.Scale, iPos.X.Offset + d.X, iPos.Y.Scale, iPos.Y.Offset + d.Y) end
+        end
+    end)
+
+    -- Asignar eventos a botones
+    minBtn.MouseButton1Click:Connect(function() setMinimized(true) end)
+    closeBtn.MouseButton1Click:Connect(function() Window:Destroy() end)
     
     -- Methods
+    function Window:Minimize() setMinimized(true) end
+    function Window:Restore() setMinimized(false) end
+    
     function Window:_Select(t)
         if Window.Active == t then return end
         if Window.Active then Window.Active.Page.Visible = false; Window.Active.Btn.BackgroundTransparency = 1 end
@@ -371,7 +437,7 @@ function UI_Library.CreateWindow(cfg)
             ScrollBarImageColor3 = C.Electric, 
             Visible = false, 
             Parent = content,
-            VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar -- 🔥 Para que el scroll no tape los botones
+            VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
         })
         New("UIListLayout", { Padding = UDim.new(0,8), SortOrder = Enum.SortOrder.LayoutOrder }, page)
         New("UIPadding", { PaddingTop = UDim.new(0,10), PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10), PaddingBottom = UDim.new(0,10) }, page)
@@ -396,6 +462,7 @@ function UI_Library.CreateWindow(cfg)
     end
     
     function Window:Destroy()
+        Window.Destroyed = true
         if gui then gui:Destroy() end
     end
     
