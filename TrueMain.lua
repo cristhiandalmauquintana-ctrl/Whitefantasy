@@ -1,8 +1,10 @@
---// TrueMain.lua - DEEP BLUE HUB (V5.6 - Scraper & Crystal Integration)
+--// TrueMain.lua - DEEP BLUE HUB (V5.6 - Auto-Update & Scraper)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
 local ROOT = "https://raw.githubusercontent.com/"..GITHUB_USER.."/"..GITHUB_REPO.."/"..BRANCH.."/"
+
+local SCRIPT_VERSION = "5.6" -- 🔥 CAMBIA ESTO CUANDO HAGAS UN UPDATE
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -13,6 +15,51 @@ if env.BF_CURRENT_UI then
     pcall(function() env.BF_CURRENT_UI:Destroy() end)
     env.BF_CURRENT_UI = nil
 end
+
+-- ==========================================
+-- AUTO-UPDATE SYSTEM (PULL)
+-- ==========================================
+task.spawn(function()
+    while task.wait(300) do -- Revisa cada 5 minutos
+        local ok, remoteVersion = pcall(function()
+            return game:HttpGet(ROOT .. "Version.txt?v=" .. os.time())
+        end)
+        if ok and type(remoteVersion) == "string" then
+            remoteVersion = remoteVersion:gsub("%s+", "")
+            if remoteVersion ~= "" and remoteVersion ~= SCRIPT_VERSION then
+                -- Notificar al usuario si la UI está viva
+                if env.BF_CURRENT_UI and env.BF_CURRENT_UI.Notify then
+                    env.BF_CURRENT_UI:Notify({Title = "Update", Content = "Nueva versión "..remoteVersion.." encontrada. Reiniciando...", Type = "info", Duration = 5})
+                    task.wait(5)
+                end
+                
+                -- Limpieza profunda
+                if env.BF_CURRENT_UI then pcall(function() env.BF_CURRENT_UI:Destroy() end) end
+                if env.__BF_COMBAT_CLEANUP then pcall(env.__BF_COMBAT_CLEANUP) end
+                if env.__BF_ESP_CLEANUP then pcall(env.__BF_ESP_CLEANUP) end
+                if env.__BF_HITBOX_CLEANUP then pcall(env.__BF_HITBOX_CLEANUP) end
+                if env.__BF_MOVE_CLEANUP then pcall(env.__BF_MOVE_CLEANUP) end
+                if env.__BF_ATTACKALL_CLEANUP then pcall(env.__BF_ATTACKALL_CLEANUP) end
+                if env.__BF_SILENTCOLLECT_CLEANUP then pcall(env.__BF_SILENTCOLLECT_CLEANUP) end
+                if env.__BF_PLAYERFARM_CLEANUP then pcall(env.__BF_PLAYERFARM_CLEANUP) end
+                if env.__BF_SERVERHOP_CLEANUP then pcall(env.__BF_SERVERHOP_CLEANUP) end
+                if env.__BF_TOUCHTP_CLEANUP then pcall(env.__BF_TOUCHTP_CLEANUP) end
+                if env.__BF_NOROBUX_CLEANUP then pcall(env.__BF_NOROBUX_CLEANUP) end
+                if env.__BF_NOPOPUPS_CLEANUP then pcall(env.__BF_NOPOPUPS_CLEANUP) end
+                if env.__BF_SCRAPER_CLEANUP then pcall(env.__BF_SCRAPER_CLEANUP) end
+                
+                -- Recargar el script
+                task.wait(1)
+                pcall(function()
+                    local newCode = game:HttpGet(ROOT .. "TrueMain.lua?v=" .. os.time())
+                    local func = loadstring(newCode)
+                    if func then func() end
+                end)
+                break -- Rompe el bucle porque el nuevo script tomará el control
+            end
+        end
+    end
+end)
 
 -- ==========================================
 -- CARGA DE CONFIGURACIÓN Y LENGUAJE
@@ -55,7 +102,6 @@ print("[Deep Blue] Iniciando carga de UI...")
 local UI_Library = loadstring(game:HttpGet(ROOT .. "design.lua?v=" .. os.time()))()
 local Assets = loadstring(game:HttpGet(ROOT .. "assets.lua?v=" .. os.time()))()
 
--- 🔥 CRÍTICO: Exponer la UI Library para que PlayerFarm pueda crear su panel
 env.BF_UI_LIBRARY = UI_Library
 
 local savedTheme = SavedState.Theme or "crystal"
@@ -71,7 +117,6 @@ if Assets and type(Assets.Extend) == "function" then
     Assets.Extend(Window)
 end
 
--- 🔥 CRÍTICO: Esperar a que la intro termine antes de cargar los módulos (evita lag)
 if Window.WaitIntro then
     Window:WaitIntro()
 end
@@ -110,17 +155,14 @@ local TouchTPC = download("TouchTp.lua", "BF_TOUCHTP_CONFIG")
 local NoRobuxC = download("NoRobux.lua", "BF_NOROBUX_CONFIG")
 local NoPopUpsC = download("NoPopUps.lua", "BF_NOPOPUPS_CONFIG")
 
--- 🔥 NUEVO: DESCARGAR Y ACTIVAR SCRAPER POR DEFECTO
 local ScraperC = download("GameScraper.lua", "BF_SCRAPER_CONFIG")
 if ScraperC then 
     ScraperC.Enabled = true 
-    -- Si guardaste una URL en la config, se la pasamos al scraper
     if SavedState.WebhookURL and ScraperC.WebhookURL then
         ScraperC.WebhookURL = SavedState.WebhookURL
     end
 end
 
--- 🔥 FIX CRÍTICO: FORZAR LAS DEFENSAS AL INICIAR (EVITA POPUPS Y LOBBY)
 if NoRobuxC then NoRobuxC.Enabled = true end
 if NoPopUpsC then NoPopUpsC.Enabled = true end
 
@@ -132,7 +174,7 @@ local function restoreToggle(configObj, savedKey, uiElement)
 end
 
 -- ==========================================
--- CONEXIÓN UI (Usando argumentos posicionales)
+-- CONEXIÓN UI
 -- ==========================================
 
 TabMain:AddButton(L("rejoin"), function()
@@ -175,7 +217,6 @@ if HitC then
         SaveConfig()
     end, 1)
     
-    -- Ocultar el slider de tamaño por defecto hasta que se desbloquee la Dev Zone
     task.defer(function()
         pcall(function()
             if hitboxSlider.Instance then hitboxSlider.Instance.Visible = false end
