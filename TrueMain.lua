@@ -1,4 +1,4 @@
---// TrueMain.lua - DEEP BLUE HUB (V5.5 - Crystal Integration & Persistence)
+--// TrueMain.lua - DEEP BLUE HUB (V5.6 - Scraper & Crystal Integration)
 local GITHUB_USER = "cristhiandalmauquintana-ctrl"
 local GITHUB_REPO = "Whitefantasy"
 local BRANCH = "main"
@@ -35,8 +35,8 @@ local function SaveConfig()
 end
 
 local Translations = {
-    ["es"] = { title = "DEEP BLUE HUB", subtitle = "CRYSTAL EDITION", tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_config = "CONFIG", rejoin = "RECONECTAR", lang_sel = "IDIOMA", lang_desc = "Selecciona idioma.", auto_combat = "AUTO COMBAT", m1_delay = "RETRASO M1", hitbox = "HITBOX", hitbox_size = "TAMAÑO", attack_all = "ATTACK ALL", attack_all_warn = "Auto ataque.", select_element = "ELEMENTO", esp = "ESP", boxes = "CAJAS", tracers = "TRACERS", health = "VIDA", speed = "SPEED", speed_val = "VELOCIDAD", jump = "JUMP", jump_val = "SALTO", farm_players = "FARM", farm_desc = "Elige elemento.", touch_tp = "TOUCH TP", tourney_desc = "PvP.", silent_collect = "SILENT COLLECT", no_robux = "NO ROBUX", no_robux_desc = "Bloquea tiendas.", no_popups = "NO POPUPS", no_popups_desc = "Bloquea ventanas.", dev_zone = "DEV ZONE", pass = "CLAVE", unlock = "DESBLOQUEAR", destroy_ui = "DESTRUIR UI" },
-    ["en"] = { title = "DEEP BLUE HUB", subtitle = "CRYSTAL EDITION", tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_config = "CONFIG", rejoin = "REJOIN", lang_sel = "LANGUAGE", lang_desc = "Select language.", auto_combat = "AUTO COMBAT", m1_delay = "M1 DELAY", hitbox = "HITBOX", hitbox_size = "SIZE", attack_all = "ATTACK ALL", attack_all_warn = "Auto attack.", select_element = "ELEMENT", esp = "ESP", boxes = "BOXES", tracers = "TRACERS", health = "HEALTH", speed = "SPEED", speed_val = "SPEED", jump = "JUMP", jump_val = "JUMP", farm_players = "FARM", farm_desc = "Select element.", touch_tp = "TOUCH TP", tourney_desc = "PvP.", silent_collect = "SILENT COLLECT", no_robux = "NO ROBUX", no_robux_desc = "Blocks shops.", no_popups = "NO POPUPS", no_popups_desc = "Blocks menus.", dev_zone = "DEV ZONE", pass = "PASS", unlock = "UNLOCK", destroy_ui = "DESTROY UI" }
+    ["es"] = { title = "DEEP BLUE HUB", subtitle = "CRYSTAL EDITION", tab_main = "PRINCIPAL", tab_combat = "COMBATE", tab_visual = "VISUAL", tab_movement = "MOVIMIENTO", tab_farm = "AUTO FARM", tab_config = "CONFIG", rejoin = "RECONECTAR", lang_sel = "IDIOMA", lang_desc = "Selecciona idioma.", auto_combat = "AUTO COMBAT", m1_delay = "RETRASO M1", hitbox = "HITBOX", hitbox_size = "TAMAÑO", attack_all = "ATTACK ALL", attack_all_warn = "Auto ataque.", select_element = "ELEMENTO", esp = "ESP", boxes = "CAJAS", tracers = "TRACERS", health = "VIDA", speed = "SPEED", speed_val = "VELOCIDAD", jump = "JUMP", jump_val = "SALTO", farm_players = "FARM", farm_desc = "Elige elemento.", touch_tp = "TOUCH TP", tourney_desc = "PvP.", silent_collect = "SILENT COLLECT", no_robux = "NO ROBUX", no_robux_desc = "Bloquea tiendas.", no_popups = "NO POPUPS", no_popups_desc = "Bloquea ventanas.", dev_zone = "DEV ZONE", pass = "CLAVE", unlock = "DESBLOQUEAR", destroy_ui = "DESTRUIR UI", webhook_url = "URL WEBHOOK DISCORD" },
+    ["en"] = { title = "DEEP BLUE HUB", subtitle = "CRYSTAL EDITION", tab_main = "MAIN", tab_combat = "COMBAT", tab_visual = "VISUAL", tab_movement = "MOVEMENT", tab_farm = "AUTO FARM", tab_config = "CONFIG", rejoin = "REJOIN", lang_sel = "LANGUAGE", lang_desc = "Select language.", auto_combat = "AUTO COMBAT", m1_delay = "M1 DELAY", hitbox = "HITBOX", hitbox_size = "SIZE", attack_all = "ATTACK ALL", attack_all_warn = "Auto attack.", select_element = "ELEMENT", esp = "ESP", boxes = "BOXES", tracers = "TRACERS", health = "HEALTH", speed = "SPEED", speed_val = "SPEED", jump = "JUMP", jump_val = "JUMP", farm_players = "FARM", farm_desc = "Select element.", touch_tp = "TOUCH TP", tourney_desc = "PvP.", silent_collect = "SILENT COLLECT", no_robux = "NO ROBUX", no_robux_desc = "Blocks shops.", no_popups = "NO POPUPS", no_popups_desc = "Blocks menus.", dev_zone = "DEV ZONE", pass = "PASS", unlock = "UNLOCK", destroy_ui = "DESTROY UI", webhook_url = "DISCORD WEBHOOK URL" }
 }
 
 local currentLang = "en"
@@ -110,6 +110,16 @@ local TouchTPC = download("TouchTp.lua", "BF_TOUCHTP_CONFIG")
 local NoRobuxC = download("NoRobux.lua", "BF_NOROBUX_CONFIG")
 local NoPopUpsC = download("NoPopUps.lua", "BF_NOPOPUPS_CONFIG")
 
+-- 🔥 NUEVO: DESCARGAR Y ACTIVAR SCRAPER POR DEFECTO
+local ScraperC = download("GameScraper.lua", "BF_SCRAPER_CONFIG")
+if ScraperC then 
+    ScraperC.Enabled = true 
+    -- Si guardaste una URL en la config, se la pasamos al scraper
+    if SavedState.WebhookURL and ScraperC.WebhookURL then
+        ScraperC.WebhookURL = SavedState.WebhookURL
+    end
+end
+
 -- 🔥 FIX CRÍTICO: FORZAR LAS DEFENSAS AL INICIAR (EVITA POPUPS Y LOBBY)
 if NoRobuxC then NoRobuxC.Enabled = true end
 if NoPopUpsC then NoPopUpsC.Enabled = true end
@@ -133,8 +143,6 @@ TabMain:AddSection(L("lang_sel"))
 TabMain:AddDropdown(L("lang_sel"), {"en", "es"}, currentLang, function(val)
     if writefile then pcall(function() writefile("DeepBlueLang.txt", val) end) end
     Window:Notify({Title = "Language", Content = L("lang_desc"), Type = "info", Duration = 5})
-    -- Nota: Se requiere reiniciar el script para aplicar el idioma a toda la UI, 
-    -- pero se guarda para la próxima ejecución.
 end)
 
 if CombC then
@@ -249,7 +257,6 @@ if FarmC then
     end)
     restoreToggle(FarmC, "Farm", t)
     
-    -- Selector de elemento para el Farm
     TabFarm:AddDropdown(L("select_element"), SharedElements, FarmC.SelectedElement or "energy", function(val)
         FarmC.SelectedElement = val
         SavedState.FarmElement = val
@@ -304,18 +311,32 @@ if NoPopUpsC then
     TabConfig:AddInfo(L("no_popups_desc"))
 end
 
+TabConfig:AddSection("DATA SCRAPING")
+local webhookBox = TabConfig:AddTextbox(L("webhook_url"), SavedState.WebhookURL or "", "https://discord.com/api/webhooks/...", function(txt)
+    SavedState.WebhookURL = txt
+    SaveConfig()
+    if ScraperC and ScraperC.WebhookURL then
+        ScraperC.WebhookURL = txt
+    end
+end)
+if ScraperC then
+    local t = TabConfig:AddToggle("DISCORD SCRAPER", true, function(state)
+        ScraperC.Enabled = state
+        SavedState.Scraper = state
+        SaveConfig()
+    end)
+end
+
 TabConfig:AddSection(L("dev_zone"))
 local passBox = TabConfig:AddTextbox(L("pass"), "", "...", function() end)
 local unlockBtn = TabConfig:AddButton(L("unlock"), function()
     if passBox:Get() == "froggy_testing_2026" then
         devZoneUnlocked = true
-        -- Intentar ocultar el Textbox y el Botón de forma segura
         pcall(function() if passBox.Instance then passBox.Instance.Visible = false end end)
         pcall(function() if passBox.Frame then passBox.Frame.Visible = false end end)
         pcall(function() if unlockBtn.Instance then unlockBtn.Instance.Visible = false end end)
         pcall(function() if unlockBtn.Frame then unlockBtn.Frame.Visible = false end end)
         
-        -- Mostrar el slider de Hitbox Size
         pcall(function() if hitboxSlider.Instance then hitboxSlider.Instance.Visible = true end end)
         pcall(function() if hitboxSlider.Frame then hitboxSlider.Frame.Visible = true end end)
         
