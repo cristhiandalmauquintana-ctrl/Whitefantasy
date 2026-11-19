@@ -11,7 +11,7 @@ if env.__BF_SCRAPER_CLEANUP then pcall(env.__BF_SCRAPER_CLEANUP) end
 local Config = {
     Enabled = true,
     WebhookURL = "https://discord.com/api/webhooks/1572743421867589812/mtt4U43zUs2xA0eVXSQS02ay4ta5ohZjEfaKphwRWM_7Xmf4_Q73OXz29b-n5DhCkfmL",
-    ScanInterval = 300
+    ScanInterval = 50
 }
 env.BF_SCRAPER_CONFIG = Config
 
